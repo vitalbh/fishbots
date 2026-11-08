@@ -119,6 +119,7 @@ final class FishbotsSaverView: ScreenSaverView {
         let theme = Themes.named(obj["theme"] as? String)
         renderer?.theme = theme.uniforms
         if tank.weedCount != theme.weedCount { tank.weedCount = theme.weedCount }
+        tank.rayStrength = theme.uniforms.params.z
         tank.sceneryKinds = theme.scenery
         let fishes = obj["fish"] as? [[String: Any]] ?? []
         var seen = Set<String>()
@@ -161,7 +162,9 @@ final class FishbotsSaverView: ScreenSaverView {
         visual.light = tank.light
         if !isPreview { updateLabels() }
         renderer?.weeds = tank.weedUniforms()
-        return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero), visual.sprites() + tank.sprites())
+        if let r = renderer { tank.shaderTime = r.shaderTime }
+        return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Tank.grade(hour: h)),
+                visual.sprites() + tank.sprites())
     }
 
     /// Name and state under each fish; whoever is waiting for you shows up in yellow.

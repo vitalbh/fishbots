@@ -13,6 +13,7 @@ struct Uniforms {
     float2 pix;        // size in pixels
     float2 gaze;      // parallax (mouse), -1…1
     float flash;      // lightning (Scene.swift), 0…1
+    float4 grade;     // the hour's color (rgb) and moonlight (w)
 };
 
 // The scene's colors (ThemeUniforms in Theme.swift).
@@ -91,7 +92,11 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float r1 = sin((q.x + q.y * 0.35) * 9.0 + t * 0.25) * 0.5 + 0.5;
     float r2 = sin((q.x - q.y * 0.20) * 15.0 - t * 0.17) * 0.5 + 0.5;
     float rays = pow(r1 * r2, 3.0) * smoothstep(0.1, 1.0, uv.y);
-    col += th.rays.rgb * rays * th.params.z * L;
+    // broad, slow beams under the narrow ones (they light up the marine snow too: Tank.rayLight)
+    float broad = pow(sin((q.x + q.y * 0.5) * 3.1 + t * 0.05) * 0.5 + 0.5, 6.0) * smoothstep(0.25, 1.0, uv.y);
+    rays += broad * 0.45;
+    float3 rayC = mix(th.rays.rgb, float3(0.55, 0.7, 1.0), u.grade.w);      // at night, moonlight
+    col += rayC * rays * th.params.z * max(L, u.grade.w * 0.8);
 
     // caustics
     float c = clamp(caustic(float2(q.x, q.y * 1.5) * 5.0 - 250.0, t * 0.35), 0.0, 1.0);
@@ -103,9 +108,13 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
         col = mix(col, th.surface.rgb * (0.4 + 0.6 * L), 0.55);
     }
     float surfLine = (1.0 - smoothstep(0.0, 0.004, abs(uv.y - surf))) * 0.35 * L;
+    // glints running along the underside of the surface
+    float glint = pow(max(0.0, sin(uv.x * 140.0 + t * 1.7) * sin(uv.x * 57.0 - t * 1.1)), 12.0)
+                * (1.0 - smoothstep(0.0, 0.012, surf - uv.y)) * step(uv.y, surf) * L;
+    surfLine += glint * 0.8;
     col += float3(0.6, 0.85, 0.9) * surfLine;
     // what glows in the background: the sun rays (a little) and the bright line of the surface
-    float3 glowBg = th.rays.rgb * rays * th.params.z * L * 0.5 + float3(0.6, 0.85, 0.9) * surfLine * 0.6;
+    float3 glowBg = rayC * rays * th.params.z * L * 0.5 + float3(0.6, 0.85, 0.9) * surfLine * 0.6;
 
     // in the distance: rocks and seaweed faded by the water (barely move with parallax)
     float3 fog = mix(deep, shallow, 0.35) * (0.55 + 0.45 * L);
@@ -172,8 +181,8 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     col += float3(0.55, 0.65, 0.85) * u.flash * (0.45 + 0.55 * uv.y);
 
     Frag2 o;
-    o.color = float4(col, 1.0);
-    o.glow = float4(glowBg * (1.0 - u.turbidity * 0.7), 1.0);
+    o.color = float4(col * u.grade.rgb, 1.0);
+    o.glow = float4(glowBg * u.grade.rgb * (1.0 - u.turbidity * 0.7), 1.0);
     return o;
 }
 
@@ -852,7 +861,7 @@ float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, fl
 
 // How much of each sprite kind glows (goes to the bloom). The rest only hides the glow behind it.
 float emissive(float k, float glow) {
-    if (k < 0.5) return clamp(glow, 0.0, 1.0) * 0.55;            // fish: when they light up (notes, waiting, a click)
+    if (k < 0.5) return clamp(glow, 0.0, 1.0) * 0.3;             // fish: when they light up (notes, waiting, a click)
     if (k < 1.5) return 0.12;                                      // bubble
     if (k < 2.5) return 0.5;                                       // ring
     if (k < 3.5) return 0.2;                                       // food
@@ -1128,6 +1137,7 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
     }
     // murky water fades what is far away
     outc *= 1.0 - u.turbidity * 0.35;
+    outc.rgb *= u.grade.rgb;                                         // the hour's color
     Frag2 o;
     o.color = outc;
     o.glow = float4(outc.rgb * emissive(k, in.glow), outc.a);       // opaque things also cover the glow behind them

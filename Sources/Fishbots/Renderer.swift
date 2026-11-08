@@ -12,6 +12,8 @@ struct Uniforms {
     var gaze: SIMD2<Float> = .zero
     /// Lightning (the scene's effect): how bright the water is, 0…1.
     var flash: Float = 0
+    /// The hour's color (Tank.grade): rgb multiplies the image, w is how much moonlight (the rays turn blue).
+    var grade: SIMD4<Float> = [1, 1, 1, 0]
 }
 
 struct Sprite {
@@ -62,7 +64,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     init?(view: MTKView) {
         guard let device = view.device ?? MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
         precondition(MemoryLayout<Sprite>.stride == 64, "Sprite must be 64 bytes")
-        precondition(MemoryLayout<Uniforms>.stride == 48, "Uniforms must be 48 bytes")
+        precondition(MemoryLayout<Uniforms>.stride == 64, "Uniforms must be 64 bytes")
         precondition(MemoryLayout<ThemeUniforms>.stride == 192, "ThemeUniforms must be 192 bytes")
         self.device = device
         self.queue = queue
@@ -148,6 +150,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) { glowTex = nil }
+
+    /// The shader's clock (u.time), so the CPU can follow what it draws (the rays lighting the marine snow).
+    var shaderTime: Float { Float(CACurrentMediaTime() - t0) }
 
     /// The bloom's textures, (re)made for the drawable's size.
     private func bloomTextures(_ w: Int, _ h: Int) -> (MTLTexture, MTLTexture, MTLTexture)? {

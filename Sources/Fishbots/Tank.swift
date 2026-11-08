@@ -715,14 +715,47 @@ final class Tank {
         }
     }
 
-    /// `front`: the near ones (in front of the fish). They move more with the parallax.
+    /// The shader's clock and the theme's ray strength (set by the app each frame), to know where the sun rays are.
+    var shaderTime: Float = 0
+    var rayStrength: Float = 0.3
+
+    /// How lit a point is by the sun rays: the same formula as the background shader (bg_fragment).
+    func rayLight(_ p: SIMD2<Float>) -> Float {
+        let uv = p / SIMD2(max(1, size.x), max(1, size.y))
+        let q: SIMD2<Float> = [uv.x * size.x / max(1, size.y), uv.y]
+        let t = shaderTime
+        let r1 = sinf((q.x + q.y * 0.35) * 9 + t * 0.25) * 0.5 + 0.5
+        let r2 = sinf((q.x - q.y * 0.2) * 15 - t * 0.17) * 0.5 + 0.5
+        let broad = powf(sinf((q.x + q.y * 0.5) * 3.1 + t * 0.05) * 0.5 + 0.5, 6) * smoothstep(0.25, 1, uv.y)
+        return (powf(r1 * r2, 3) * smoothstep(0.1, 1, uv.y) + broad * 0.45) * rayStrength
+    }
+
+    /// The color of the hour: warm at dawn, neutral by day, golden late afternoon, violet at dusk, blue at night.
+    /// rgb multiplies the image; w is moonlight (0…1).
+    static func grade(hour h: Float) -> SIMD4<Float> {
+        let keys: [(Float, SIMD4<Float>)] = [
+            (0, [0.72, 0.8, 1.05, 1]), (4.8, [0.72, 0.8, 1.05, 1]), (6.3, [1.12, 0.9, 0.78, 0.2]), (8.5, [1, 1, 1, 0]),
+            (16, [1, 1, 1, 0]), (18.2, [1.22, 0.98, 0.7, 0]), (19.6, [0.98, 0.8, 0.96, 0.3]), (21, [0.72, 0.8, 1.05, 1]),
+            (24, [0.72, 0.8, 1.05, 1]),
+        ]
+        for i in 1..<keys.count where h <= keys[i].0 {
+            let (h0, a) = keys[i - 1], (h1, b) = keys[i]
+            let k = smoothstep(0, 1, (h - h0) / max(0.001, h1 - h0))
+            return a + (b - a) * k
+        }
+        return keys[0].1
+    }
+
+    /// `front`: the near ones (in front of the fish). They move more with the parallax, and light up inside the sun rays.
     private func moteSprites(front: Bool) -> [Sprite] {
         let tint: SIMD3<Float> = SIMD3<Float>(0.78, 0.9, 0.95) * (0.55 + 0.45 * light)
         return motes.filter { ($0.depth < 0.3) == front }.map { m in
             let shift = gaze * (-12 * (1 - m.depth))
             let twinkle = 0.75 + 0.25 * sinf(m.phase * 1.7)
-            return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size, kind: 33, glow: (front ? 0.62 : 0.38) * twinkle,
-                          phase: 0, color: SIMD4(tint, 1), extra: [1, 0, 0, 0])
+            let lit = min(2.5, rayLight(m.pos) * 7)
+            return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * (1 + lit * 0.25), kind: 33,
+                          glow: min(1, (front ? 0.62 : 0.38) * twinkle * (1 + lit)),
+                          phase: 0, color: SIMD4(tint * (1 + lit * 0.3), 1), extra: [1, 0, 0, 0])
         }
     }
 
@@ -1092,7 +1125,17 @@ final class Tank {
             p.size += p.grow * dt
             particles[i] = p
         }
-        particles.removeAll { $0.life > $0.maxLife || ($0.kind == 1 && $0.pos.y > size.y + 10) }
+        // a bubble reaching the surface pops: a little ring spreads on the water
+        let surf = size.y * 0.965
+        var pops: [SIMD2<Float>] = []
+        particles.removeAll { p in
+            guard p.kind == 1, p.pos.y > surf - 2 else { return p.life > p.maxLife }
+            if p.size > 2.2 && pops.count < 6 && Float.random(in: 0...1) < 0.6 { pops.append([p.pos.x, surf]) }
+            return true
+        }
+        for p in pops {
+            particles.append(Particle(pos: p, vel: .zero, life: 0, maxLife: 1.1, size: 4, grow: 26, kind: 8, color: [0.85, 0.95, 1, 1]))
+        }
         if particles.count > 3000 { particles.removeFirst(particles.count - 3000) }
 
         // plugged-in battery releases little bubbles
@@ -1459,6 +1502,18 @@ final class Tank {
                               color: p.color, extra: [1, 0, 0, 0]))
         }
 
+        // fish near the surface show upside down on its underside, faint
+        let surfY = size.y * 0.965
+        for f in fish where !f.leaving && surfY - f.pos.y < f.size * 2.2 && f.pos.y < surfY {
+            let gap = surfY - f.pos.y
+            let a = (1 - gap / (f.size * 2.2)) * 0.28
+            let l = simd_length(f.vel)
+            let dx: Float = l > 0.01 && f.vel.x < 0 ? -1 : 1
+            out.append(Sprite(pos: [f.pos.x, surfY + gap * 0.6], dir: [dx, 0], size: f.size * (1 - 0.35 * f.depth), kind: 0,
+                              glow: 0, phase: f.tail, color: SIMD4(mix(f.color, [0.7, 0.9, 1], t: 0.4), a),
+                              extra: [-dx * max(abs(f.facingX), 0.12), Float(f.pattern + f.cut * 8), Float(f.species), 0]))
+        }
+
         // far ones first (they stay behind)
         for f in fish.sorted(by: { $0.depth > $1.depth }) {
             let l = simd_length(f.vel)
@@ -1549,6 +1604,11 @@ final class Tank {
         for p in particles where p.kind == 24 {
             let k = min(1, p.life / 0.4) * (1 - p.life / p.maxLife)
             out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size, kind: 24, glow: k, phase: 0, color: p.color, extra: [1, 0, 0, 0]))
+        }
+        // rings on the surface (bubbles popping)
+        for p in particles where p.kind == 8 {
+            let k = 1 - p.life / p.maxLife
+            out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size, kind: 8, glow: k * 0.8, phase: 0, color: p.color, extra: [1, 0, 0, 0]))
         }
         for p in particles where p.kind == 2 || p.kind == 4 {
             let k = 1 - p.life / p.maxLife

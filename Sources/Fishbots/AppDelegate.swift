@@ -1045,19 +1045,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let alert: Float = hasError ? 0.25 + 0.1 * sinf(Float(tank.time) * 3) : 0
         updateLabels()
         renderer.weeds = tank.weedUniforms()
+        tank.shaderTime = renderer.shaderTime
         // the quake also moves the background (the sprites move in Tank.sprites)
         let u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
-                         gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash)
+                         gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: Tank.grade(hour: hourNow()))
         visual.size = tank.size
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))
         return (u, visual.sprites() + tank.sprites())
     }
 
+    /// The hour now, with minutes (FISHBOTS_HOUR fixes it, to see dawn or dusk any time).
+    private func hourNow() -> Float {
+        if let h = Env.value("HOUR").flatMap(Float.init) { return h }
+        let c = Calendar.current.dateComponents([.hour, .minute], from: Date())
+        return Float(c.hour ?? 12) + Float(c.minute ?? 0) / 60
+    }
+
     /// Real daylight: brightens in the morning, darkens at night (without going black).
     private func daylight() -> Float {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: Date())
-        let h = Float(c.hour ?? 12) + Float(c.minute ?? 0) / 60
+        let h = hourNow()
         let day = smoothstep(5.5, 8, h) * (1 - smoothstep(18, 20.5, h))
         return 0.62 + 0.38 * day
     }
@@ -1343,6 +1350,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let t = Themes.current
         renderer.theme = t.uniforms
         tank.weedCount = t.weedCount
+        tank.rayStrength = t.uniforms.params.z
         visual.themeVisualizer = t.visualizer
         tank.fauna.select(t.fauna)
         tank.sceneryKinds = t.scenery
