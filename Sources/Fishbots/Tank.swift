@@ -680,7 +680,31 @@ final class Tank {
     private var weedBendVel = [Float](repeating: 0, count: 16)
 
     func weedUniforms() -> [SIMD4<Float>] {
-        (0..<16).map { k in k < weeds.count ? SIMD4(weeds[k].x, weeds[k].h, weedBend[k], 0) : .zero }
+        (0..<16).map { k in k < weeds.count ? SIMD4(weeds[k].x, weeds[k].h, weedBend[k], Float(Self.weedKind(k))) : .zero }
+    }
+
+    /// Each blade's kind: 0 thin blade, 1 kelp, 2 leafy stem (mixed, so neighbors differ).
+    static func weedKind(_ k: Int) -> Int { [0, 1, 2, 0, 2, 1, 0, 2, 1, 0, 1, 2, 0, 2, 0, 1][k % 16] }
+
+    private var oxygenAt: Double = 0
+
+    /// By day, the seaweed lets out little oxygen bubbles now and then; still fish breathe out a bubble.
+    private func breathe(dt: Float) {
+        if light > 0.8, time > oxygenAt, !weeds.isEmpty {
+            oxygenAt = time + Double.random(in: 1.2...3.5)
+            let wd = weeds[Int.random(in: 0..<weeds.count)]
+            let y = size.y * (sand(wd.x) + wd.h * Float.random(in: 0.4...0.95))
+            for i in 0..<Int.random(in: 1...3) {
+                after(Double(i) * 0.25) { [weak self] in
+                    guard let self else { return }
+                    self.bubble(at: [wd.x * self.size.x + Float.random(in: -4...4), y], size: Float.random(in: 1.1...2.2))
+                }
+            }
+        }
+        for f in fish where !f.decor && !f.leaving && (f.state == .idle || f.state == .ok) && !sleeping(f)
+            && simd_length(f.vel) < 25 && Float.random(in: 0...1) < dt * 0.06 {
+            bubble(at: f.pos + facing(f) * f.size * 0.9 + [0, 2], size: Float.random(in: 1.4...2.4))
+        }
     }
 
     private func updateWeeds(dt: Float) {
@@ -966,6 +990,7 @@ final class Tank {
 
         scene.update(self, dt: dt)
         updateWeeds(dt: dt)
+        breathe(dt: dt)
         updateMotes(dt: dt)
 
         // current: high CPU gently pushes everything to one side

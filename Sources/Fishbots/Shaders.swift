@@ -74,7 +74,8 @@ float caustic(float2 p, float t) {
     return pow(abs(c), 8.0);
 }
 
-// weeds[k]: x (0…1), height (0…1), bend (how far the tip is pushed, in widths), unused. From Tank.weedUniforms.
+// weeds[k]: x (0…1), height (0…1), bend (how far the tip is pushed, in widths), kind (0 blade, 1 kelp, 2 leafy).
+// From Tank.weedUniforms.
 fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(0)]], constant Theme& th [[buffer(1)]],
                             constant float4* weeds [[buffer(2)]]) {
     float2 uv = float2(in.position.x / u.pix.x, 1.0 - in.position.y / u.pix.y);
@@ -150,9 +151,32 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
             float sway = sin(yy * 11.0 - t * 1.1 + fk * 1.7) * 0.014 * k01 + sin(t * 0.4 + fk) * 0.01 * k01 * k01
                        + weeds[k].z * pow(k01, 1.5);                       // pushed aside by a fish going through
             float dx = (uv.x + u.gaze.x * 0.012 - x0 - sway) * aspect;
-            float w = 0.009 * (1.0 - 0.75 * k01);
-            float blade = 1.0 - smoothstep(w * 0.5, w, abs(dx));
+            int kind = int(weeds[k].w + 0.5);
             float3 green = mix(th.weedLow.rgb, th.weedHigh.rgb, k01) * (0.45 + 0.55 * L);
+            float blade;
+            if (kind == 1) {
+                // kelp: a wide ribbon with rippling edges and a darker midrib, a little browner
+                float w = 0.017 * (1.0 - 0.45 * k01) * (0.85 + 0.15 * sin(yy * 95.0 + t * 2.0 + fk));
+                blade = 1.0 - smoothstep(w * 0.75, w, abs(dx));
+                green = mix(green, float3(0.42, 0.36, 0.14) * (0.45 + 0.55 * L), 0.35);
+                green *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, w * 0.18, abs(dx)));
+                green *= 0.85 + 0.15 * smoothstep(-w, w, dx);                       // one side catches the light
+            } else if (kind == 2) {
+                // a thin stem with small oval leaves on alternating sides
+                float stem = 1.0 - smoothstep(0.0015, 0.003, abs(dx));
+                float spacing = 0.032;
+                float cell = floor(yy / spacing);
+                float side = fmod(cell, 2.0) < 0.5 ? 1.0 : -1.0;
+                float2 lp = float2(dx - side * 0.011, (fract(yy / spacing) - 0.5) * spacing);
+                float ang = side * 0.5;
+                lp = float2(lp.x * cos(ang) - lp.y * sin(ang), lp.x * sin(ang) + lp.y * cos(ang));
+                float leaf = (1.0 - smoothstep(0.85, 1.0, length(lp / float2(0.012, 0.0065)))) * step(0.04, k01) * step(k01, 0.97);
+                blade = max(stem, leaf);
+                green = mix(green, green * 1.25 + 0.03, leaf * 0.5);
+            } else {
+                float w = 0.009 * (1.0 - 0.75 * k01);
+                blade = 1.0 - smoothstep(w * 0.5, w, abs(dx));
+            }
             col = mix(col, green, blade * 0.9);
         }
     }
@@ -449,6 +473,13 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
         float sheen = sin(p.x * 7.0 + phase * 0.15) * 0.5 + 0.5;
         float3 iri = 0.5 + 0.5 * cos(6.2831 * (sheen * 0.35 + float3(0.0, 0.33, 0.67)));
         c3 += (iri - 0.5) * 0.06 * (1.0 - belly);
+    }
+    // gills: an arc behind the eye that opens and closes (breathing)
+    if (body < 0.0 && sp != 2) {
+        float gx = cx + rx * 0.3 + 0.035 * (p.y / ry) * (p.y / ry);
+        float breath = 0.5 + 0.5 * sin(phase * 0.45);
+        float gill = (1.0 - smoothstep(0.008, 0.016 + breath * 0.008, abs(p.x - gx))) * step(abs(p.y), ry * 0.6);
+        c3 *= 1.0 - gill * (0.18 + 0.14 * breath);
     }
     if (pect < 0.0 && body >= -0.01) c3 = base * 0.85 + 0.12;     // the fin outside the body
     else if (pect < 0.0) c3 = mix(c3, base * 0.8 + 0.2, 0.45);      // over the body: lighter, see-through
