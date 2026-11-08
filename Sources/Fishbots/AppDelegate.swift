@@ -339,10 +339,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         read(f)
     }
 
-    /// Reads a fish's question (or its last reply) aloud; again stops it. With the microphone on, it stops the
-    /// transcription instead (and doesn't read: the voice would be transcribed into the reply).
+    /// Reads a fish's question (or its last reply) aloud; again stops it.
     private func read(_ f: Fish) {
-        if Dictation.shared.listening { Dictation.shared.stop(); return }
         if Speaker.shared.speaking { Speaker.shared.stop(); return }
         let name = f.nickname ?? f.displayTitle ?? f.label
         if let q = f.asked { Speaker.shared.speak(tr("%@ pergunta: %@", name, q)) }
@@ -352,6 +350,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     /// Opens the card of whoever has waited longest with the microphone on: speak, then Enter sends.
     @objc func replyByVoice() {
+        // already listening: the same shortcut turns the microphone off
+        if Dictation.shared.listening, let card = hoverCard?.contentViewController as? FishCard { card.toggleDictation(); return }
         guard let f = longestWaiting else { show(); tank.notice = (tr("✓ ninguém esperando"), tank.time); return }
         show()
         guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return }
@@ -1460,7 +1460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case "⌘r": read(f)
         case "⌘d":
             guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return true }
-            (hoverCard?.contentViewController as? FishCard)?.startDictation()
+            (hoverCard?.contentViewController as? FishCard)?.toggleDictation()
         case "a", "n":
             guard let p = permissions.request(ofFish: f.id) else { return false }
             closeCard(); keyboardPick = nil

@@ -17,6 +17,9 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         return reading || !c.stringValue.isEmpty || c.currentEditor() != nil || Dictation.shared.listening
     }
     private var microphone: NSButton?
+    private var listenButton: NSButton?
+    /// Keeps 🔊 and 🎙 showing what's on (■ while reading aloud or listening), however it started or ended.
+    private var stateTimer: Timer?
     private var replySummary: NSTextField?
     private var showAllButton: NSButton?
     private var fullReply = ""
@@ -244,7 +247,8 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         // last reply (when it stopped): the end, which is where the conclusion is; "ver tudo" opens it whole
         if let r = f.lastReply, !r.isEmpty, [.done, .waiting, .idle, .ok].contains(f.state), request == nil {
             let title = text(tr("💬 última resposta"), 11, .medium, color: .secondaryLabelColor)
-            let listen = NSButton(title: "🔊", target: self, action: #selector(listenReply))
+            let listen = NSButton(title: Speaker.shared.speaking ? "■" : "🔊", target: self, action: #selector(listenReply))
+            listenButton = listen
             listen.bezelStyle = .inline
             listen.controlSize = .small
             listen.toolTip = tr("Ler em voz alta (clique de novo para parar)")
@@ -419,6 +423,13 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     /// Puts the cursor in the reply field (E, from the keyboard).
     func focusReply() { cursorAtEnd() }
 
+    /// ⌘D: the microphone on, or off if it's listening.
+    func toggleDictation() {
+        guard field != nil else { return }
+        if !Dictation.shared.listening { cursorAtEnd() }
+        speak()
+    }
+
     /// Starts the microphone (the global shortcut "reply by voice").
     func startDictation() {
         guard field != nil, !Dictation.shared.listening else { return }
@@ -453,7 +464,21 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                            })
     }
 
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        stateTimer?.invalidate()
+        stateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let reading = Speaker.shared.speaking ? "■" : "🔊"
+            if self.listenButton?.title != reading { self.listenButton?.title = reading }
+            let mic = Dictation.shared.listening ? "■" : "🎙"
+            if let m = self.microphone, m.title != mic { m.title = mic }
+        }
+    }
+
     override func viewWillDisappear() {
+        stateTimer?.invalidate()
+        stateTimer = nil
         super.viewWillDisappear()
         if Dictation.shared.listening { Dictation.shared.stop() }
     }
