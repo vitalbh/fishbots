@@ -89,9 +89,9 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     /// The field grows with the text (wrapping lines), up to about 6 lines; the card follows.
     private func fitField() {
         guard let c = field, let cell = c.cell else { return }
-        let width = c.frame.width > 0 ? c.frame.width : 230
-        let textHeight = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: 10_000)).height
-        fieldHeight?.constant = min(110, max(24, ceil(textHeight)))
+        let w = c.frame.width > 0 ? c.frame.width : width
+        let textHeight = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: w, height: 10_000)).height
+        fieldHeight?.constant = min(160, max(46, ceil(textHeight) + 8))
         view.layoutSubtreeIfNeeded()
         preferredContentSize = view.fittingSize
     }
@@ -164,13 +164,55 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     override func loadView() {
         var v: [NSView] = []
         let open = Self.expanded[f.id] ?? []
-        // header: name and where
         let species = ["oval": "Rex", "slender": "terminal", "puffer": "Claude", "angelfish": "editor", "octopus": "GitHub",
                        "stingray": "Codex"][f.kindID].map(tr) ?? tr(FishKinds.all[min(f.species, FishKinds.all.count - 1)].name)
+
+        // ── header: name and title on the left; state and context on the right
+        var left: [NSView] = []
         let name = text(f.nickname ?? f.label, 15, .semibold)
         name.font = rounded(15, .semibold)
-        v.append(name)
-        if f.nickname != nil { v.append(text(f.label, 11, color: .secondaryLabelColor)) }
+        name.preferredMaxLayoutWidth = width - 150
+        left.append(name)
+        if let t = f.displayTitle, !t.isEmpty {
+            let title = text(t, 12, .medium, color: .secondaryLabelColor)
+            title.preferredMaxLayoutWidth = width - 150
+            left.append(title)
+        }
+        if f.nickname != nil { left.append(text(f.label, 10.5, color: .tertiaryLabelColor)) }
+        let leftCol = NSStackView(views: left)
+        leftCol.orientation = .vertical
+        leftCol.alignment = .leading
+        leftCol.spacing = 2
+
+        var right: [NSView] = []
+        var state = f.state.label + " · " + Self.ha(Date(timeIntervalSinceNow: -(CACurrentMediaTime() - f.since)))
+        if f.compactingSince != nil { state = tr("🫧 compactando…") }
+        let stateColor: NSColor = f.state == .error ? .systemRed : f.state == .waiting ? .systemOrange
+            : f.state == .busy ? .systemTeal : .secondaryLabelColor
+        right.append(pill(state, stateColor))
+        if let c = f.context {
+            let bar = NSLevelIndicator()
+            bar.levelIndicatorStyle = .continuousCapacity
+            bar.minValue = 0; bar.maxValue = 1
+            bar.warningValue = 0.7; bar.criticalValue = 0.9
+            bar.doubleValue = Double(c)
+            bar.widthAnchor.constraint(equalToConstant: 70).isActive = true
+            let pct = text(tr("contexto %d%%", Int((c * 100).rounded())), 10.5, color: .secondaryLabelColor)
+            let line = NSStackView(views: [pct, bar])
+            line.spacing = 6
+            right.append(line)
+        }
+        if f.isAgent {
+            let age = Date().timeIntervalSince(f.createdAt)
+            right.append(text(tr("ativa %@", age < 60 ? tr("agora") : Journal.duration(age)), 10.5, color: .tertiaryLabelColor))
+        }
+        let rightCol = NSStackView(views: right)
+        rightCol.orientation = .vertical
+        rightCol.alignment = .trailing
+        rightCol.spacing = 4
+        v.append(row([leftCol, NSView(), rightCol], alignment: .top))
+
+        // where it runs (links): the branch, the place (go there), the folder
         var places: [NSView] = []
         if let b = f.branch, !["main", "master", "HEAD"].contains(b) {
             places.append(link("⎇ " + b, tip: tr("copiar o nome da branch")) { [weak self] in self?.copy(b) })
@@ -185,77 +227,27 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             })
         }
         if !places.isEmpty {
-            let row = NSStackView(views: places)
-            row.spacing = 10
-            v.append(row)
-        }
-        if let t = f.displayTitle, !t.isEmpty { v.append(text(t, 12, .medium)) }
-
-        if let q = f.asked, f.state == .waiting { v.append(text(tr("✋ te perguntou: ") + q, 12, .medium, color: .systemOrange)) }
-        // state and times
-        var state = f.state.label + " " + Self.ha(Date(timeIntervalSinceNow: -(CACurrentMediaTime() - f.since)))
-        if f.isAgent {
-            let age = Date().timeIntervalSince(f.createdAt)
-            state += tr("  ·  ativa %@", age < 60 ? tr("agora") : Journal.duration(age))
-        }
-        v.append(text(state, 11, color: f.state == .error ? .systemRed : f.state == .waiting ? .systemOrange : .secondaryLabelColor))
-
-        // context
-        if let c = f.context {
-            let bar = NSLevelIndicator()
-            bar.levelIndicatorStyle = .continuousCapacity
-            bar.minValue = 0; bar.maxValue = 1
-            bar.warningValue = 0.7; bar.criticalValue = 0.9
-            bar.doubleValue = Double(c)
-            bar.widthAnchor.constraint(equalToConstant: 160).isActive = true
-            let rot = text(tr("contexto %d%%", Int((c * 100).rounded())), 11, color: .secondaryLabelColor)
-            let line = NSStackView(views: [rot, bar])
-            line.spacing = 8
-            v.append(line)
+            let r = NSStackView(views: places)
+            r.spacing = 12
+            v.append(r)
         }
 
-        // latest tools (click: the whole recent history, with times)
-        let fmt = DateFormatter(); fmt.timeStyle = .medium; fmt.dateStyle = .none
-        func toolName(_ n: String) -> String { n.hasPrefix("mcp__") ? "mcp·" + (n.components(separatedBy: "__").dropFirst().first ?? "") : n }
-        if !f.history.isEmpty {
-            let names = f.history.suffix(6).reversed().map { toolName($0.name) }
-            let more = open.contains("tools")
-            v.append(link((more ? "▾ " : "▸ ") + "🛠 " + names.joined(separator: " · ") + "  (\(Self.ha(f.history.last!.when)))",
-                          tip: tr(more ? "recolher" : "ver o histórico")) { [weak self] in self?.toggle("tools") })
-            if more {
-                for h in f.history.reversed() { v.append(text("     \(fmt.string(from: h.when))  \(toolName(h.name))", 10.5, color: .tertiaryLabelColor, mono: true)) }
-            }
+        // ── what it says: the question, highlighted; then the last reply
+        if let q = f.asked, f.state == .waiting, request == nil {
+            v.append(divider())
+            v.append(tinted(text(tr("✋ ") + q, 13, .medium, color: .labelColor), .systemOrange))
         }
-
-        // today's tasks (click: all of them; click one: copy its title)
-        let today = f.finished.filter { Calendar.current.isDateInToday($0.when) }
-        if !today.isEmpty {
-            let short = DateFormatter(); short.timeStyle = .short; short.dateStyle = .none
-            let all = open.contains("tasks")
-            v.append(link((all || today.count <= 3 ? "" : "▸ ") + tr(today.count == 1 ? "✓ %d tarefa hoje" : "✓ %d tarefas hoje", today.count),
-                          color: .labelColor, tip: today.count > 3 ? tr(all ? "recolher" : "ver todas") : nil) { [weak self] in
-                if today.count > 3 { self?.toggle("tasks") }
-            })
-            for t in (all ? today : Array(today.suffix(3))).reversed() {
-                v.append(link("   \(short.string(from: t.when))  \(t.title)", tip: tr("copiar o título")) { [weak self] in self?.copy(t.title) })
-            }
-        }
-        if let e = f.lastError, Date().timeIntervalSince(e) < 3600, f.state != .error {
-            v.append(text(tr("✗ teve erro %@", Self.ha(e)), 11, color: .systemRed))
-        }
-
-        // last reply (when it stopped): the end, which is where the conclusion is; "ver tudo" opens it whole
-        if let r = f.lastReply, !r.isEmpty, [.done, .waiting, .idle, .ok].contains(f.state), request == nil {
-            let title = text(tr("💬 última resposta"), 11, .medium, color: .secondaryLabelColor)
-            let listen = NSButton(title: Speaker.shared.speaking ? "■" : "🔊", target: self, action: #selector(listenReply))
-            listenButton = listen
-            listen.bezelStyle = .inline
-            listen.controlSize = .small
-            listen.toolTip = tr("Ler em voz alta (clique de novo para parar)")
-            let header = NSStackView(views: [title, listen])
-            header.spacing = 6
-            v.append(header)
+        let hasReply = !(f.lastReply ?? "").isEmpty && [.done, .waiting, .idle, .ok].contains(f.state) && request == nil
+        if hasReply, let r = f.lastReply {
+            if f.asked == nil || f.state != .waiting { v.append(divider()) }
             let final = Self.textEnding(r, width > 400 ? 800 : 380, lines: width > 400 ? 10 : 6)
+            var head: [NSView] = [text(tr("💬 última resposta"), 11, .medium, color: .secondaryLabelColor), NSView()]
+            if final.hasPrefix("…") {
+                let more = link(tr("ver tudo"), color: .linkColor) { [weak self] in self?.showAll() }
+                showAllButton = more
+                head.append(more)
+            }
+            v.append(row(head))
             let t = text(final, 12.5, color: .labelColor)
             t.maximumNumberOfLines = 14
             let ps = NSMutableParagraphStyle(); ps.lineSpacing = 2
@@ -263,31 +255,60 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                                                                                   .foregroundColor: NSColor.labelColor, .paragraphStyle: ps])
             v.append(t)
             replySummary = t
-            if final.hasPrefix("…") {
-                let b = NSButton(title: tr("ver tudo"), target: self, action: #selector(showAll))
-                b.bezelStyle = .inline
-                b.controlSize = .small
-                v.append(b)
-                showAllButton = b
-            }
             fullReply = r
         }
 
-        // permission request: answer right here
+        // ── activity, compact: latest tools (click: the history with times) and today's tasks (click: all of them)
+        let fmt = DateFormatter(); fmt.timeStyle = .medium; fmt.dateStyle = .none
+        func toolName(_ n: String) -> String { n.hasPrefix("mcp__") ? "mcp·" + (n.components(separatedBy: "__").dropFirst().first ?? "") : n }
+        let today = f.finished.filter { Calendar.current.isDateInToday($0.when) }
+        var activity: [NSView] = []
+        if !f.history.isEmpty {
+            let names = f.history.suffix(4).reversed().map { toolName($0.name) }
+            let more = open.contains("tools")
+            activity.append(link((more ? "▾ " : "▸ ") + "🛠 " + names.joined(separator: " · ") + "  (\(Self.ha(f.history.last!.when)))",
+                                 tip: tr(more ? "recolher" : "ver o histórico")) { [weak self] in self?.toggle("tools") })
+        }
+        if !today.isEmpty {
+            let all = open.contains("tasks")
+            activity.append(link((all ? "▾ " : "▸ ") + tr(today.count == 1 ? "✓ %d tarefa hoje" : "✓ %d tarefas hoje", today.count),
+                                 tip: tr(all ? "recolher" : "ver todas")) { [weak self] in self?.toggle("tasks") })
+        }
+        if !activity.isEmpty {
+            v.append(divider())
+            let r = NSStackView(views: activity)
+            r.spacing = 14
+            v.append(r)
+        }
+        if open.contains("tools") {
+            for h in f.history.reversed() { v.append(text("   \(fmt.string(from: h.when))  \(toolName(h.name))", 10.5, color: .tertiaryLabelColor, mono: true)) }
+        }
+        if open.contains("tasks") {
+            let short = DateFormatter(); short.timeStyle = .short; short.dateStyle = .none
+            for t in today.reversed() {
+                v.append(link("   \(short.string(from: t.when))  \(t.title)", tip: tr("copiar o título")) { [weak self] in self?.copy(t.title) })
+            }
+        }
+        if let e = f.lastError, Date().timeIntervalSince(e) < 3600, f.state != .error {
+            v.append(text(tr("✗ teve erro %@", Self.ha(e)), 11, color: .systemRed))
+        }
+
+        // ── a permission request: answer right here
         if let p = request {
-            v.append(text(tr("✋ quer usar %@", p.tool), 12, .semibold, color: .systemOrange))
-            v.append(text(p.summary, 11, color: .secondaryLabelColor, mono: true))
+            v.append(divider())
+            v.append(text(tr("✋ quer usar %@", p.tool), 13, .semibold, color: .systemOrange))
+            v.append(tinted(text(p.summary, 11.5, color: .labelColor, mono: true), .secondaryLabelColor))
             func b(_ t: String, _ id: String, _ k: String = "") -> NSButton {
                 let x = NSButton(title: t, target: self, action: #selector(clicked(_:)))
                 x.identifier = NSUserInterfaceItemIdentifier(id); x.keyEquivalent = k; x.bezelStyle = .rounded
                 return x
             }
-            let buttons = NSStackView(views: [b(tr("Ir até lá"), "go"), NSView(), b(tr("Negar"), "deny"), b(tr("Permitir"), "allow", "\r")])
-            buttons.spacing = 8
-            v.append(buttons)
-            buttons.widthAnchor.constraint(equalToConstant: width).isActive = true
-        } else if reply != nil {
-            // reply from the aquarium: typed into the session's terminal, with Enter
+            v.append(row([b(tr("Ir até lá"), "go"), NSView(), b(tr("Negar"), "deny"), b(tr("Permitir"), "allow", "\r")]))
+        }
+
+        // ── the composer: a big field on its own, then the actions below
+        if request == nil, reply != nil {
+            v.append(divider())
             let c = NSTextField(wrappingLabelWithString: "")
             c.isEditable = true
             c.isSelectable = true
@@ -295,35 +316,53 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             c.isBezeled = true
             c.bezelStyle = .roundedBezel
             c.drawsBackground = true
-            c.font = .systemFont(ofSize: 12)
+            c.font = .systemFont(ofSize: 13)
             c.textColor = .labelColor
             c.maximumNumberOfLines = 0
             c.delegate = self
-            fieldHeight = c.heightAnchor.constraint(equalToConstant: 24)
+            fieldHeight = c.heightAnchor.constraint(equalToConstant: 46)
             fieldHeight?.isActive = true
             c.placeholderString = tr(f.asked != nil ? "Responder…" : "Mandar uma mensagem…")
             c.target = self
             c.action = #selector(send)
             c.cell?.sendsActionOnEndEditing = false     // closing the card must not send it again
+            c.widthAnchor.constraint(equalToConstant: width).isActive = true
             field = c
-            let b = NSButton(title: tr("Enviar"), target: self, action: #selector(send))
-            b.bezelStyle = .rounded
-            // talk to the little fish: the Mac's transcription
-            let mic = NSButton(title: "🎙", target: self, action: #selector(speak))
+            v.append(c)
+        }
+        var actions: [NSView] = []
+        if hasReply || (f.asked != nil && f.state == .waiting) {
+            let listen = NSButton(title: Self.listenTitle(Speaker.shared.speaking), target: self, action: #selector(listenReply))
+            listen.bezelStyle = .rounded
+            listen.toolTip = tr("Ler em voz alta (clique de novo para parar)")
+            listenButton = listen
+            actions.append(listen)
+        }
+        if field != nil {
+            let mic = NSButton(title: Self.micTitle(Dictation.shared.listening), target: self, action: #selector(speak))
             mic.bezelStyle = .rounded
             mic.toolTip = tr("Falar (clique de novo para parar)")
             microphone = mic
-            c.widthAnchor.constraint(equalToConstant: width - 110).isActive = true
-            let line = NSStackView(views: [mic, c, b])
-            line.alignment = .top
-            line.spacing = 6
-            v.append(line)
-            v.append(text(tr("vai digitado no terminal da sessão"), 10, color: .tertiaryLabelColor))
-        } else if stop != nil {
-            let b = NSButton(title: tr("Parar (Esc)"), target: self, action: #selector(stopClicked))
-            b.bezelStyle = .rounded
-            v.append(b)
+            actions.append(mic)
         }
+        if request == nil, !actions.isEmpty || stop != nil || field != nil {
+            actions.append(NSView())
+            if stop != nil {
+                let b = NSButton(title: tr("Parar (Esc)"), target: self, action: #selector(stopClicked))
+                b.bezelStyle = .rounded
+                actions.append(b)
+            }
+            if field != nil {
+                let send = NSButton(title: tr("Enviar"), target: self, action: #selector(send))
+                send.bezelStyle = .rounded
+                send.contentTintColor = .controlAccentColor
+                actions.append(send)
+            }
+            v.append(row(actions))
+        }
+        if field != nil && !keyboardHint { v.append(text(tr("vai digitado no terminal da sessão"), 10, color: .tertiaryLabelColor)) }
+
+        // ── the keys (opened with Tab) or the clicks
         if (request == nil && reply == nil) || keyboardHint {
             // the keys this fish really takes: speaking and writing only where the session can be replied to
             // (its provider's .reply), hearing only with something to read, allow/deny only with a request
@@ -341,10 +380,56 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         let stack = NSStackView(views: v)
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 6
-        stack.edgeInsets = NSEdgeInsets(top: 12, left: 18, bottom: 12, right: 14)
-        stack.widthAnchor.constraint(greaterThanOrEqualToConstant: 260).isActive = true
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 14, left: 18, bottom: 14, right: 18)
+        stack.widthAnchor.constraint(equalToConstant: width + 36).isActive = true
         view = glass(around: stack)
+    }
+
+    static func listenTitle(_ on: Bool) -> String { on ? tr("■ Parar leitura") : tr("🔊 Ouvir") }
+    static func micTitle(_ on: Bool) -> String { on ? tr("■ Parar microfone") : tr("🎙 Falar") }
+
+    /// A row as wide as the card (an empty NSView in it pushes what follows to the right).
+    private func row(_ views: [NSView], alignment: NSLayoutConstraint.Attribute = .centerY) -> NSStackView {
+        let r = NSStackView(views: views)
+        r.orientation = .horizontal
+        r.alignment = alignment
+        r.spacing = 8
+        r.distribution = .fill
+        for x in views where type(of: x) == NSView.self { x.setContentHuggingPriority(.init(1), for: .horizontal) }
+        r.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return r
+    }
+
+    private func divider() -> NSView {
+        let d = NSBox()
+        d.boxType = .separator
+        d.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return d
+    }
+
+    /// A rounded little label with a tint (the state).
+    private func pill(_ s: String, _ color: NSColor) -> NSView {
+        let t = text(s, 11, .semibold, color: color)
+        t.preferredMaxLayoutWidth = 200
+        let box = NSStackView(views: [t])
+        box.edgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
+        box.wantsLayer = true
+        box.layer?.backgroundColor = color.withAlphaComponent(0.16).cgColor
+        box.layer?.cornerRadius = 9
+        return box
+    }
+
+    /// Content on a softly tinted, rounded background, as wide as the card (the question, a command to approve).
+    private func tinted(_ content: NSTextField, _ color: NSColor) -> NSView {
+        content.preferredMaxLayoutWidth = width - 20
+        let box = NSStackView(views: [content])
+        box.edgeInsets = NSEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        box.wantsLayer = true
+        box.layer?.backgroundColor = color.withAlphaComponent(0.13).cgColor
+        box.layer?.cornerRadius = 7
+        box.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return box
     }
 
     /// The card's background: deep water with a touch of the fish's color.
@@ -443,7 +528,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             return
         }
         if Speaker.shared.speaking { Speaker.shared.stop() }     // the Mac's voice would end up transcribed
-        microphone?.title = "■"
+        microphone?.title = Self.micTitle(true)
         field?.placeholderString = tr("ouvindo…")
         // what you say now goes after what is already written
         let before = field?.stringValue.trimmingCharacters(in: .whitespaces) ?? ""
@@ -454,11 +539,11 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                                self.cursorAtEnd()
                            },
                            onError: { [weak self] e in
-                               self?.microphone?.title = "🎙"
+                               self?.microphone?.title = Self.micTitle(false)
                                self?.field?.placeholderString = e
                            },
                            end: { [weak self] in
-                               self?.microphone?.title = "🎙"
+                               self?.microphone?.title = Self.micTitle(false)
                                self?.fitField()
                                self?.cursorAtEnd()
                            })
@@ -469,9 +554,9 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         stateTimer?.invalidate()
         stateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             guard let self else { return }
-            let reading = Speaker.shared.speaking ? "■" : "🔊"
+            let reading = Self.listenTitle(Speaker.shared.speaking)
             if self.listenButton?.title != reading { self.listenButton?.title = reading }
-            let mic = Dictation.shared.listening ? "■" : "🎙"
+            let mic = Self.micTitle(Dictation.shared.listening)
             if let m = self.microphone, m.title != mic { m.title = mic }
         }
     }
