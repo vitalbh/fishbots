@@ -15,6 +15,8 @@ final class Dictation {
     /// Starts listening. `partial` receives the text while you speak; `onError`, if something gets in the way.
     /// Called when it stops listening (you clicked, or it stopped on its own after a silence).
     private var onStop: (() -> Void)?
+    /// Which listening this is: a late final result from a previous one must not touch the next.
+    private var session = 0
 
     func begin(partial: @escaping (String) -> Void, onError: @escaping (String) -> Void, end: (() -> Void)? = nil) {
         onStop = end
@@ -50,6 +52,8 @@ final class Dictation {
             return
         }
         listening = true
+        session += 1
+        let mine = session
         // after a pause, the recognizer closes the segment and starts over from scratch: we keep the segments and join them
         var stored = ""
         var last = ""
@@ -58,6 +62,7 @@ final class Dictation {
             if let res {
                 let t = res.bestTranscription.formattedString
                 DispatchQueue.main.async {
+                    guard self.session == mine else { return }
                     if res.isFinal {
                         stored = join(stored, t); last = ""
                         partial(stored)
@@ -68,7 +73,10 @@ final class Dictation {
                     }
                 }
             }
-            if err != nil || res?.isFinal == true { DispatchQueue.main.async { self.stop() } }
+            // the final words (or an error): now it's really over (the text above was updated first, on the same queue)
+            if err != nil || res?.isFinal == true {
+                DispatchQueue.main.async { guard self.session == mine else { return }; self.stop(); self.finishNow() }
+            }
         }
     }
 
@@ -80,17 +88,23 @@ final class Dictation {
         return !b.hasPrefix(start) && b.count < max(8, a.count * 2 / 3)
     }
 
+    /// Stops listening. The recognizer still has the last words to give: the end is announced (onStop) when they
+    /// arrive, or after 1.5 s, so whoever waits for it (sending the reply) gets the whole text.
     func stop() {
         guard listening else { return }
         listening = false
         audioEngine.inputNode.removeTap(onBus: 0)
         audioEngine.stop()
         request?.endAudio()
-        request = nil
         task?.finish()
-        task = nil
-        let f = onStop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.finishNow() }
+    }
+
+    private func finishNow() {
+        guard !listening, let f = onStop else { return }
         onStop = nil
-        f?()
+        request = nil
+        task = nil
+        f()
     }
 }

@@ -173,6 +173,7 @@ let english: [String: String] = [
     "Por volta das %@": "Around %@",
     "Ir para quem espera há mais tempo": "Go to whoever has waited longest",
     "Atalhos": "Shortcuts",
+    "terminando a transcrição…": "finishing the transcription…",
     "ativa %@": "active %@",
     "■ Parar leitura": "■ Stop reading",
     "🔊 Ouvir": "🔊 Hear",

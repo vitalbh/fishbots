@@ -482,10 +482,27 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
 
     @objc private func clicked(_ b: NSButton) { decide(b.identifier?.rawValue ?? "") }
     private var sent = false
+    /// Enter while the microphone is on: send once the transcription has its final words (or after 2 s).
+    private var sendWhenDone = false
     @objc private func send() {
+        guard !sent else { return }
+        if Dictation.shared.listening {
+            sendWhenDone = true
+            field?.placeholderString = tr("terminando a transcrição…")
+            Dictation.shared.stop()                    // its end handler sends (see speak)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self, self.sendWhenDone else { return }
+                self.sendWhenDone = false
+                self.sendNow()
+            }
+            return
+        }
+        sendNow()
+    }
+
+    private func sendNow() {
         guard !sent, let t = field?.stringValue, !t.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         sent = true                                   // only once
-        if Dictation.shared.listening { Dictation.shared.stop() }
         field?.stringValue = ""
         reply?(t)
     }
@@ -543,9 +560,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                                self?.field?.placeholderString = e
                            },
                            end: { [weak self] in
-                               self?.microphone?.title = Self.micTitle(false)
-                               self?.fitField()
-                               self?.cursorAtEnd()
+                               guard let self else { return }
+                               self.microphone?.title = Self.micTitle(false)
+                               self.fitField()
+                               self.cursorAtEnd()
+                               // Enter was pressed while listening: now the text is whole
+                               if self.sendWhenDone { self.sendWhenDone = false; self.sendNow() }
                            })
     }
 
