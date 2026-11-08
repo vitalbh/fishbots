@@ -12,9 +12,11 @@ visualizers, fish…) gets a clear seam, so that it can grow from two places wit
   talks to the protocol; built-ins call `register(...)` at launch. No dynamic loading of compiled
   code: dylib plugins clash with code signing and the hardened runtime, and xbar-style script plugins already cover
   "run my own code" for sources.
-- **Packs on disk.** `~/Library/Application Support/Fishbots/packs/<id>/pack.json` declares themes, music styles and
-  fish (each with a `.metal` file). Packs are data and GPU code only: they can't run anything on the Mac. Everything is
-  validated on load; a broken pack is skipped and reported in the menu.
+- **Packs on disk.** `~/Library/Application Support/Fishbots/packs/<id>/pack.json` declares themes, music styles,
+  fish, scenery and creatures (each drawing a `.metal` file) and agents (manifests). Packs are data and GPU code only:
+  they can't run anything on the Mac. Everything is validated on load; a broken piece is skipped and reported in the
+  menu, and a pack that slows the aquarium down is paused. How to make one: [packs.md](packs.md); the community
+  catalog: [../community/README.md](../community/README.md).
 
 ## The extension points
 

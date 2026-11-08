@@ -13,13 +13,16 @@ bin/fishbots pack dev sunken-ship            # links it into the app; it reloads
 ```
 
 Pick the pack's theme in the menu (Tema), and use its fish on a project through the fish's menu. From here, every
-save shows up in the aquarium within a couple of seconds. A drawing that doesn't compile is left out and listed
+save shows up in the aquarium within a couple of seconds (or use **Tema → Recarregar pacotes**, or
+`bin/fishbots pack reload`). A drawing that doesn't compile is left out and listed
 at the bottom of the Tema menu; the rest keeps working.
 
 ## 2. Look at the drawings up close
 
 ```sh
 bin/fishbots pack check sunken-ship          # validates pack.json and compiles each drawing: errors at file:line
+                                             # (--catalog: also the catalog's metadata and cover; --offline: compiles
+                                             #  with xcrun metal, for machines without a GPU like CI)
 bin/fishbots pack preview sunken-ship        # sunken-ship/preview.png and preview-small.png
 ```
 

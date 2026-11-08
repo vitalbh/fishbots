@@ -13,6 +13,8 @@ swift run -c release            # or: scripts/app.sh  →  build/Fishbots.app
 FISHBOTS_DEMO=1 swift run -c release   # opens straight into demo mode
 open --env FISHBOTS_HOUR=18.5 build/Fishbots.app   # see another hour's colors (dawn, late afternoon, night)
 open --env FISHBOTS_GPUSTATS=1 build/Fishbots.app  # prints the GPU time per frame every 5 s (FISHBOTS_BLOOM=0 turns the glow off)
+open --env FISHBOTS_CATALOG=file://$PWD/community/index.json build/Fishbots.app   # the pack catalog from this checkout (off: none)
+open --env FISHBOTS_PACK_BUDGET_MS=50 build/Fishbots.app   # how slow (ms per frame) before a pack is looked into (default 33)
 ```
 
 Keys and shortcuts:
@@ -117,6 +119,8 @@ bin/fishbots pack install <file|url>          # or install one someone shared
 bin/fishbots skill install                    # teach your coding agent to make packs
 ```
 
+**Tema → Explorar pacotes…** is the community catalog: install with a click, and the app tells you when a pack you have gets a new version. Sending one is a pull request ([community/README.md](community/README.md)); the catalog's address can be changed with `"catalog": "https://…/index.json"` in `config.json`. A pack whose drawings slow the aquarium down is paused by itself (**Tema → Reativar**).
+
 How to make one, step by step: [docs/packs.md](docs/packs.md). The format is in `Sources/Fishbots/Packs.swift` and the design of all the extension points in [docs/extensions.md](docs/extensions.md).
 
 ## Screen saver
@@ -168,7 +172,8 @@ Everything comes in through `POST http://127.0.0.1:7777/event` (local only) with
 
 **Effects and presences** change the aquarium itself, not just the fish: an effect is a one-off moment (fireworks, lightning, a quake, a school crossing, a shooting star…), and a presence is a creature or object a plugin keeps in the tank (shark, submarine, turtle, jellyfish, seahorse, crab, starfish, bottle, hourglass, anchor, flag, chest, battery) with a state, a label, a detail and a link. The full list, the states and how the text shows are in [docs/scene.md](docs/scene.md).
 
-States: `born busy idle waiting ok alert error done` (+ `end`). `GET /state` returns the aquarium as JSON.
+States: `born busy idle waiting ok alert error done` (+ `end`). `GET /state` returns the aquarium as JSON. Packs:
+`GET /packs` (what's installed and its problems), `POST /packs/reload`, `POST /packs/install` (`{"path": "…/x.fishbotspack"}`).
 
 From the command line (`bin/fishbots`):
 
