@@ -145,7 +145,19 @@ A pack theme can draw its own far background and give the built-in pieces anothe
 
   People can turn this off in Preferências → Aparência ("Vestir presenças e peixes com o tema").
 
-Anything a theme doesn't define comes from the app: no `background`, the usual one; no `looks`, the usual pieces.
+- `sky`: the light through the day. The color the hour casts over everything at `night`, `dawn`, `day`, the
+  `golden` hour and `dusk` (multipliers: `[r, g, b]` may go over 1 to warm or brighten), the water's brightness at
+  night and at midday (`"light": [0.5, 0.9]`), and how strong the `sun` and the `moon` are through the surface
+  (1 is the usual):
+
+  ```json
+  "sky": { "night": [0.55, 0.68, 1.15], "dawn": [0.95, 0.92, 1.05], "day": [0.92, 0.98, 1.1],
+           "golden": [1.0, 0.92, 0.95], "dusk": [0.75, 0.78, 1.1], "light": [0.45, 0.85], "sun": 0.5, "moon": 1.4 }
+  ```
+- `description` / `descriptions`: one sentence about the theme for the themes window (the pack's, if it has none).
+
+Anything a theme doesn't define comes from the app: no `background`, the usual one; no `looks`, the usual pieces;
+no `sky`, the usual day.
 
 #### Scenery from packs
 A pack can bring its own scenery: the drawing is a Metal function in the pack, the app places it, lights it, keeps

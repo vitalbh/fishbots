@@ -28,6 +28,10 @@ struct Theme {
     /// Names in other languages, from a pack: {"en": "Coral reef"}.
     var names: [String: String] = [:]
     var displayName: String { names[L10n.isPortuguese ? "pt" : "en"] ?? tr(name) }
+    /// One sentence about it ("description", "descriptions": {"en": …}); built-in ones go through tr().
+    var description = ""
+    var descriptions: [String: String] = [:]
+    var displayDescription: String { descriptions[L10n.resolved] ?? (description.isEmpty ? "" : tr(description)) }
     var uniforms: ThemeUniforms
     /// The visualizer used when the choice is "auto" (otherwise it follows the music style).
     var visualizer: String?
@@ -39,6 +43,8 @@ struct Theme {
     var scenery: [String]?
     /// A pack's drawing for a built-in piece ("chest": "shrine"): same place and behavior, another look.
     var looks: [String: String] = [:]
+    /// The theme's light through the day (nil: the usual one). See `Sky`.
+    var sky: Sky?
     var weedCount: Int { Int(uniforms.params.x) }
 
     /// A color from JSON: "#rrggbb" or [r, g, b] (0…1).
@@ -85,6 +91,9 @@ struct Theme {
         fauna = json["fauna"] as? [String] ?? base?.fauna
         scenery = json["scenery"] as? [String] ?? base?.scenery
         looks = json["looks"] as? [String: String] ?? [:]
+        description = json["description"] as? String ?? ""
+        descriptions = json["descriptions"] as? [String: String] ?? [:]
+        if let s = json["sky"] as? [String: Any] { sky = Sky(json: s) }
     }
 
     /// The original look.
@@ -114,13 +123,13 @@ enum Themes {
 
     private static func builtIns() -> [Theme] {
         let specs: [[String: Any]] = [
-            ["id": "classic", "name": "Aquário"],
-            ["id": "abyss", "name": "Fundo do mar", "visualizer": "constellation", "fauna": ["starfish", "snail", "lanternfish", "whale"], "scenery": ["rock", "chest"],
+            ["id": "classic", "name": "Aquário", "description": "O aquário de sempre: água azul, algas verdes, pedras, a ostra e o baú."],
+            ["id": "abyss", "name": "Fundo do mar", "description": "Quase escuro, poucas plantas, peixes-lanterna à noite e a baleia passando ao longe.", "visualizer": "constellation", "fauna": ["starfish", "snail", "lanternfish", "whale"], "scenery": ["rock", "chest"],
              "water": ["deep": "#010309", "shallow": "#0a2440", "rays": "#2a4d6e", "raysStrength": 0.08,
                        "caustics": "#4a7fb0", "causticsStrength": 0.03, "surface": "#123a5c", "murk": "#0d1420"],
              "weeds": ["count": 5, "farCount": 8, "far": "#0b1f33", "low": "#06202a", "high": "#1d5a6b"],
              "sand": ["dark": "#1c1d24", "light": "#3a3a44"]],
-            ["id": "lagoon", "name": "Lagoa", "visualizer": "surface", "fauna": ["crab", "turtle", "snail", "starfish"], "scenery": ["rock", "shell"],
+            ["id": "lagoon", "name": "Lagoa", "description": "Água verde e clara, muitas algas, caranguejos, a tartaruga e a superfície viva.", "visualizer": "surface", "fauna": ["crab", "turtle", "snail", "starfish"], "scenery": ["rock", "shell"],
              "water": ["deep": "#06231f", "shallow": "#2f8c7a", "rays": "#7fd1b0", "raysStrength": 0.3,
                        "caustics": "#bff2d8", "causticsStrength": 0.09, "surface": "#6cc2a8", "murk": "#3a3a1c"],
              "weeds": ["count": 14, "farCount": 16, "far": "#1f4a2a", "low": "#1a4a1c", "high": "#5c9a32"],
@@ -129,5 +138,39 @@ enum Themes {
         var out: [Theme] = []
         for s in specs { if let t = Theme(json: s, base: out.first) { out.append(t) } }
         return out
+    }
+}
+
+/// A theme's light through the day: the color the hour casts over everything (a multiplier: `[r, g, b]` may go over 1
+/// to warm or brighten; "#rrggbb" stays within 1) at night, dawn, day, the golden hour and dusk; how bright the
+/// water is at night and by day; and how strong the sun and the moon are through the surface.
+///
+///   "sky": {"night": [0.6, 0.72, 1.1], "dawn": [1.0, 0.92, 0.95], "day": [0.92, 0.97, 1.08],
+///           "golden": [1.05, 0.95, 0.9], "dusk": [0.8, 0.8, 1.05], "light": [0.5, 0.9], "sun": 0.6, "moon": 1.3}
+struct Sky {
+    var night: SIMD3<Float> = [0.72, 0.8, 1.05]
+    var dawn: SIMD3<Float> = [1.12, 0.9, 0.78]
+    var day: SIMD3<Float> = [1, 1, 1]
+    var golden: SIMD3<Float> = [1.22, 0.98, 0.7]
+    var dusk: SIMD3<Float> = [0.98, 0.8, 0.96]
+    /// The water's brightness at night and at midday.
+    var light: ClosedRange<Float> = 0.62...1.0
+    var sun: Float = 1
+    var moon: Float = 1
+
+    init() {}
+    init(json s: [String: Any]) {
+        func c(_ k: String) -> SIMD3<Float>? { Theme.color(s[k]).map { SIMD3(max(0, min(2, $0.x)), max(0, min(2, $0.y)), max(0, min(2, $0.z))) } }
+        if let v = c("night") { night = v }
+        if let v = c("dawn") { dawn = v }
+        if let v = c("day") { day = v }
+        if let v = c("golden") { golden = v }
+        if let v = c("dusk") { dusk = v }
+        if let a = s["light"] as? [NSNumber], a.count == 2 {
+            let lo = max(0.1, min(1.2, a[0].floatValue)), hi = max(lo, min(1.3, a[1].floatValue))
+            light = lo...hi
+        }
+        if let v = (s["sun"] as? NSNumber)?.floatValue { sun = max(0, min(3, v)) }
+        if let v = (s["moon"] as? NSNumber)?.floatValue { moon = max(0, min(3, v)) }
     }
 }

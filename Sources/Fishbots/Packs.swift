@@ -46,6 +46,8 @@ enum Packs {
     private(set) static var problems: [String] = []
     /// What the packs registered (to undo it on a reload).
     private(set) static var themeIds: [String] = []
+    /// Which pack each pack theme came from (theme id → pack id).
+    private(set) static var themePack: [String: String] = [:]
     /// Packs paused by the guard (too heavy for the GPU), by id, with the reason; they aren't read until turned back on.
     static var paused: [String: String] {
         get { UserDefaults.standard.dictionary(forKey: "pausedPacks") as? [String: String] ?? [:] }
@@ -236,7 +238,12 @@ enum Packs {
                         problems.append(tr("%@: fundo incompleto (%@)", name, theme.id))
                     }
                 }
-                Themes.register(theme); themeIds.append(theme.id); pack.contents.append(tr("tema %@", theme.displayName))
+                if theme.description.isEmpty, theme.descriptions.isEmpty {     // a theme without its own: the pack's
+                    theme.description = json["description"] as? String ?? ""
+                    theme.descriptions = json["descriptions"] as? [String: String] ?? [:]
+                }
+                Themes.register(theme); themeIds.append(theme.id); themePack[theme.id] = pack.id
+                pack.contents.append(tr("tema %@", theme.displayName))
             }
             else { problems.append(tr("%@: tema sem \"id\"", name)) }
         }

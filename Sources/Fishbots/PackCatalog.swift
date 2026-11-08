@@ -138,6 +138,9 @@ final class PackCatalogWindow: NSObject, NSWindowDelegate {
         list.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
+        // it fills what the window has, instead of asking for the whole list's height (which pushed the top out of view)
+        scroll.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        scroll.setContentHuggingPriority(.defaultLow, for: .vertical)
         scroll.drawsBackground = false
         let doc = FlippedView()
         doc.translatesAutoresizingMaskIntoConstraints = false
@@ -148,6 +151,9 @@ final class PackCatalogWindow: NSObject, NSWindowDelegate {
             list.topAnchor.constraint(equalTo: doc.topAnchor), list.leadingAnchor.constraint(equalTo: doc.leadingAnchor),
             list.trailingAnchor.constraint(equalTo: doc.trailingAnchor), list.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
             doc.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            // pinned to the clip view's top: the list starts at the top (scrolling moves the clip view's bounds)
+            doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            doc.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
         ])
         status.textColor = .secondaryLabelColor
         status.font = .systemFont(ofSize: 11)

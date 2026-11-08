@@ -137,16 +137,34 @@ enum PackPreview {
         return "?"
     }
 
-    private struct Cell { let call: String; let aspect: Float; let label: String; let sand: Bool }
+    struct Cell { let call: String; let aspect: Float; let label: String; let sand: Bool }
 
     /// A small tank in a theme's colors: water from deep to shallow, rays, the surface, seaweed and sand.
-    private static func themeCells() -> [Cell] {
-        Packs.themeIds.map { id in
-            let u = Themes.named(id).uniforms
-            func v(_ c: SIMD4<Float>) -> String { "float3(\(c.x), \(c.y), \(c.z))" }
-            let call = "pv_theme(c, \(v(u.deep)), \(v(u.shallow)), \(v(u.rays)), \(v(u.surface)), \(v(u.weedLow)), \(v(u.weedHigh)), \(v(u.sandDark)), \(v(u.sandLight)), \(v(u.farWeed)), \(u.params.z), \(Int(u.pack.x + 0.5) - 1))"
-            return Cell(call: call, aspect: 1.5, label: "theme \(Themes.named(id).name)", sand: false)
+    private static func themeCells() -> [Cell] { Packs.themeIds.map { themeCell(Themes.named($0)) } }
+
+    private static func themeCell(_ t: Theme) -> Cell {
+        let u = t.uniforms
+        func v(_ c: SIMD4<Float>) -> String { "float3(\(c.x), \(c.y), \(c.z))" }
+        let call = "pv_theme(c, \(v(u.deep)), \(v(u.shallow)), \(v(u.rays)), \(v(u.surface)), \(v(u.weedLow)), \(v(u.weedHigh)), \(v(u.sandDark)), \(v(u.sandLight)), \(v(u.farWeed)), \(u.params.z), \(Int(u.pack.x + 0.5) - 1))"
+        return Cell(call: call, aspect: 1.5, label: "theme \(t.name)", sand: false)
+    }
+
+    /// A small picture of each theme (water, light, seaweed, sand and its own background), for the Tema menu: one
+    /// render for all of them, cut into pieces. Prepare on the main thread (it reads the registries), draw anywhere
+    /// (it compiles the shader, which takes a moment).
+    struct SwatchJob { let ids: [String]; let cells: [Cell]; let base: String; let cellW: Int }
+    static func swatchJob(_ themes: [Theme], cellW: Int = 120) -> SwatchJob {
+        SwatchJob(ids: themes.map(\.id), cells: themes.map(themeCell), base: FishKinds.shaderSource(), cellW: cellW)
+    }
+    static func themeSwatches(_ job: SwatchJob) -> [String: CGImage] {
+        guard !job.ids.isEmpty, let device = MTLCreateSystemDefaultDevice(),
+              let img = renderImage(device, job.cells, cellW: job.cellW, labels: false, scale: 1, cols: job.ids.count, base: job.base) else { return [:] }
+        let themes = job.ids.map { (id: $0, 0) }
+        var out: [String: CGImage] = [:]
+        for (i, t) in themes.enumerated() {
+            if let piece = img.cropping(to: CGRect(x: i * job.cellW, y: 0, width: job.cellW, height: job.cellW * 2 / 3)) { out[t.id] = piece }
         }
+        return out
     }
 
     /// Each fish, piece of scenery and creature in six moments (phase or time), to see that it moves.
@@ -232,13 +250,21 @@ enum PackPreview {
 
     private static func render(_ device: MTLDevice, _ cs: [Cell], cellW: Int, labels: Bool, scale: Int, cols: Int = 6, maxRows: Int = 1000,
                                to path: String) -> Bool {
+        guard let final = renderImage(device, cs, cellW: cellW, labels: labels, scale: scale, cols: cols, maxRows: maxRows),
+              let dst = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, "public.png" as CFString, 1, nil) else { return false }
+        CGImageDestinationAddImage(dst, final, nil)
+        return CGImageDestinationFinalize(dst)
+    }
+
+    private static func renderImage(_ device: MTLDevice, _ cs: [Cell], cellW: Int, labels: Bool, scale: Int, cols: Int = 6,
+                                    maxRows: Int = 1000, base: String? = nil) -> CGImage? {
         let cellH = cellW * 2 / 3, rows = min(maxRows, (cs.count + cols - 1) / cols)
         var sw = ""
         for (i, c) in cs.enumerated() {
             sw += "    case \(i): { float asp = \(c.aspect) / \(Float(cellW) / Float(cellH)); if (asp < 1.0) c.x /= asp; else c.y *= asp; c *= 1.1;"
             sw += " sand = \(c.sand ? "1.0" : "0.0") * step(c.y, -0.9); o = \(c.call); break; }\n"
         }
-        let src = FishKinds.shaderSource() + """
+        let src = (base ?? FishKinds.shaderSource()) + """
 
         float4 pv_theme(float2 c, float3 deep, float3 shallow, float3 rays, float3 surf, float3 wl, float3 wh,
                         float3 sd, float3 sl, float3 far, float raysK, int bg) {
@@ -297,10 +323,10 @@ enum PackPreview {
             let W = cellW * cols, H = cellH * rows
             let td = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: W, height: H, mipmapped: false)
             td.usage = [.renderTarget]; td.storageMode = .shared
-            guard let tex = device.makeTexture(descriptor: td), let q = device.makeCommandQueue(), let cb = q.makeCommandBuffer() else { return false }
+            guard let tex = device.makeTexture(descriptor: td), let q = device.makeCommandQueue(), let cb = q.makeCommandBuffer() else { return nil }
             let rp = MTLRenderPassDescriptor()
             rp.colorAttachments[0].texture = tex; rp.colorAttachments[0].loadAction = .clear; rp.colorAttachments[0].storeAction = .store
-            guard let enc = cb.makeRenderCommandEncoder(descriptor: rp) else { return false }
+            guard let enc = cb.makeRenderCommandEncoder(descriptor: rp) else { return nil }
             enc.setRenderPipelineState(pso)
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             enc.endEncoding(); cb.commit(); cb.waitUntilCompleted()
@@ -310,7 +336,7 @@ enum PackPreview {
                                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
                   let img = src.makeImage(),
                   let ctx = CGContext(data: nil, width: W * scale, height: H * scale, bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return false }
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
             ctx.interpolationQuality = .none
             ctx.draw(img, in: CGRect(x: 0, y: 0, width: W * scale, height: H * scale))
             if labels {
@@ -323,13 +349,10 @@ enum PackPreview {
                 }
                 NSGraphicsContext.restoreGraphicsState()
             }
-            guard let final = ctx.makeImage(),
-                  let dst = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, "public.png" as CFString, 1, nil) else { return false }
-            CGImageDestinationAddImage(dst, final, nil)
-            return CGImageDestinationFinalize(dst)
+            return ctx.makeImage()
         } catch {
             say("✗ the sheet didn't compile: \(error)")
-            return false
+            return nil
         }
     }
 }

@@ -986,15 +986,15 @@ final class Tank {
 
     /// The sun by day and the moon by night, seen through the surface: (x 0…1, strength, warmth, unused).
     /// The sun crosses from left (morning) to right (evening), warmer when low; the moon crosses at night.
-    static func sky(hour h: Float) -> SIMD4<Float> {
+    static func sky(hour h: Float, sky s: Sky = Sky()) -> SIMD4<Float> {
         if h >= 6 && h <= 18.5 {
             let k = (h - 6) / 12.5
             let low = 1 - sinf(k * .pi)                                         // 1 at sunrise and sunset
-            return [0.1 + 0.8 * k, 0.36 - 0.06 * low, min(1, low * 1.3), 0]
+            return [0.1 + 0.8 * k, (0.36 - 0.06 * low) * s.sun, min(1, low * 1.3), 0]
         }
         let n = (h > 18.5 ? h - 18.5 : h + 5.5) / 11.5                           // 18:30 → 6:00
         let fade = smoothstep(0, 0.08, n) * (1 - smoothstep(0.92, 1, n))
-        return [0.1 + 0.8 * n, 0.32 * fade, 0, 0]
+        return [0.1 + 0.8 * n, 0.32 * fade * s.moon, 0, 0]
     }
 
     /// Pebbles and tiny shells scattered on the sand (fixed places, away from the big scenery).
@@ -1005,11 +1005,12 @@ final class Tank {
 
     /// The color of the hour: warm at dawn, neutral by day, golden late afternoon, violet at dusk, blue at night.
     /// rgb multiplies the image; w is moonlight (0…1).
-    static func grade(hour h: Float) -> SIMD4<Float> {
+    static func grade(hour h: Float, sky: Sky = Sky()) -> SIMD4<Float> {
+        func k(_ c: SIMD3<Float>, _ moon: Float) -> SIMD4<Float> { SIMD4(c, min(1, moon * sky.moon)) }
         let keys: [(Float, SIMD4<Float>)] = [
-            (0, [0.72, 0.8, 1.05, 1]), (4.8, [0.72, 0.8, 1.05, 1]), (6.3, [1.12, 0.9, 0.78, 0.2]), (8.5, [1, 1, 1, 0]),
-            (16, [1, 1, 1, 0]), (18.2, [1.22, 0.98, 0.7, 0]), (19.6, [0.98, 0.8, 0.96, 0.3]), (21, [0.72, 0.8, 1.05, 1]),
-            (24, [0.72, 0.8, 1.05, 1]),
+            (0, k(sky.night, 1)), (4.8, k(sky.night, 1)), (6.3, k(sky.dawn, 0.2)), (8.5, k(sky.day, 0)),
+            (16, k(sky.day, 0)), (18.2, k(sky.golden, 0)), (19.6, k(sky.dusk, 0.3)), (21, k(sky.night, 1)),
+            (24, k(sky.night, 1)),
         ]
         for i in 1..<keys.count where h <= keys[i].0 {
             let (h0, a) = keys[i - 1], (h1, b) = keys[i]

@@ -150,6 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         if let p = Env.value("PORT"), let n = UInt16(p) { port = n }
         buildMenu()
         watchPacks()
+        // the surprise theme, if it's on
+        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.surpriseTheme() }
         // the catalog: a while after launch, then once a day (FISHBOTS_CATALOG=off skips it)
         if Env.value("CATALOG") != "off" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.checkCatalog() }
@@ -667,6 +669,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                     self.music.yielded = true
                     self.music.onUserMusicPaused?()
                     return (200, Data(#"{"ok":true}"#.utf8))
+                case ("POST", "/test/themes"):
+                    self.openThemePicker()
+                    return (200, Data(#"{"ok":true}"#.utf8))
+                case ("POST", "/test/swatches"):
+                    // the Tema menu's pictures, side by side, written to ?out=<file.png>
+                    let out = path.components(separatedBy: "out=").dropFirst().first?.removingPercentEncoding ?? "/tmp/swatches.png"
+                    let shots = self.themeSwatches
+                    let w = 120 * shots.count
+                    if w > 0, let ctx = CGContext(data: nil, width: w, height: 80, bitsPerComponent: 8, bytesPerRow: 0,
+                                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) {
+                        for (i, t) in Themes.all.enumerated() { if let img = shots[t.id] { ctx.draw(img, in: CGRect(x: i * 120, y: 0, width: 120, height: 80)) } }
+                        if let img = ctx.makeImage(), let dst = CGImageDestinationCreateWithURL(URL(fileURLWithPath: out) as CFURL, "public.png" as CFString, 1, nil) {
+                            CGImageDestinationAddImage(dst, img, nil); CGImageDestinationFinalize(dst)
+                        }
+                    }
+                    return (200, Data("{\"themes\":\(shots.count)}".utf8))
                 case ("POST", "/test/catalog"):
                     // ?install=<id>: installs that pack from the catalog, as the button would
                     if let id = path.components(separatedBy: "install=").dropFirst().first {
@@ -1310,10 +1328,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let hourColors = d.object(forKey: "hourColors") as? Bool ?? true
         // the quake also moves the background (the sprites move in Tank.sprites)
         let u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
-                         gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? Tank.grade(hour: hourNow()) : [1, 1, 1, 0],
+                         gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? Tank.grade(hour: hourNow(), sky: Themes.current.sky ?? Sky()) : [1, 1, 1, 0],
                          scene: [tank.sceneGauge("waves") ?? 0, tank.sceneGauge("rain") ?? 0,
                                  tank.sceneGauge("temperature") ?? 0.5, tank.sceneGauge("fog") ?? 0],
-                         sky: Tank.sky(hour: hourNow()))
+                         sky: Tank.sky(hour: hourNow(), sky: Themes.current.sky ?? Sky()))
         visual.size = tank.size
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))
@@ -1340,7 +1358,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private func daylight() -> Float {
         let h = hourNow()
         let day = smoothstep(5.5, 8, h) * (1 - smoothstep(18, 20.5, h))
-        return 0.62 + 0.38 * day
+        let range = (Themes.current.sky ?? Sky()).light                         // the theme's night and midday brightness
+        return range.lowerBound + (range.upperBound - range.lowerBound) * day
     }
 
     private func setupFooter() {
@@ -1437,7 +1456,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         presenceLabels(scale)
 
         var parts = [tr("clique no peixe: ir até ele"), tr("no vazio: alimentar"), "D demo\(demo.on ? " ✓" : "")", tr("M som") + (synth.muted.load(ordering: .relaxed) ? " ✗" : ""),
-                      tr("T flutuar") + (window.level == .floating ? " ✓" : ""), tr("S foco") + (Attention.focus ? " ✓" : ""), tr("L rótulos"), "127.0.0.1:\(port)"]
+                      tr("T flutuar") + (window.level == .floating ? " ✓" : ""), tr("S foco") + (Attention.focus ? " ✓" : ""), tr("L rótulos"), tr("E temas"), "127.0.0.1:\(port)"]
         for (k, v) in tank.gauges.sorted(by: { $0.key < $1.key }) where k != "mac:battery" && k != "mac:charging" {
             parts.append("\(k.split(separator: ":").last ?? "") \(Int(v * 100))%")
         }
@@ -1569,6 +1588,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case "d": toggleDemo()
         case "m": toggleMute()
         case "t": toggleFloat()
+        case "e": openThemePicker()
         case "w": toggleWidget()
         case "s": toggleFocus()
         case "r": recentSummary()
@@ -1726,8 +1746,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             let it = NSMenuItem(title: t.displayName, action: #selector(chooseTheme(_:)), keyEquivalent: "")
             it.target = self
             it.representedObject = t.id
+            if let img = themeSwatches[t.id] { it.image = NSImage(cgImage: img, size: NSSize(width: 54, height: 36)) }
             m.addItem(it)
         }
+        drawThemeSwatches()
         m.addItem(.separator())
         for p in Packs.loaded {
             let it = NSMenuItem(title: "📦 \(p.name)" + (p.contents.isEmpty ? "" : ": " + p.contents.joined(separator: ", ")), action: nil, keyEquivalent: "")
@@ -1739,6 +1761,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             it.isEnabled = false
             m.addItem(it)
         }
+        let pick = NSMenuItem(title: tr("Escolher tema…"), action: #selector(openThemePicker), keyEquivalent: "e")
+        pick.target = self
+        m.insertItem(pick, at: 0)
+        m.insertItem(.separator(), at: 1)
         let explore = NSMenuItem(title: tr("Explorar pacotes…") + (catalogUpdates > 0 ? "  " + tr("(%@ atualização)", "\(catalogUpdates)") : ""),
                                  action: #selector(explorePacks), keyEquivalent: "")
         explore.target = self
@@ -1759,6 +1785,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         return item
     }
     @objc func openPacks() { NSWorkspace.shared.open(Packs.folder) }
+
+    /// The Tema menu's pictures, drawn in the background once per set of themes (and again after the packs change).
+    private var themeSwatches: [String: CGImage] = [:]
+    private var swatchesFor = ""
+    private func drawThemeSwatches() {
+        let key = Themes.all.map(\.id).joined(separator: ",") + "|" + packsSignature
+        guard key != swatchesFor else { return }
+        swatchesFor = key
+        let job = PackPreview.swatchJob(Themes.all)
+        DispatchQueue.global(qos: .utility).async {
+            let images = PackPreview.themeSwatches(job)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.swatchesFor == key, !images.isEmpty else { return }
+                self.themeSwatches = images
+                self.buildMenu()
+            }
+        }
+    }
 
     /// Reads the packs again, recompiles the shader and applies the theme, without restarting (a pack being made).
     /// The fish keep their kind by its id (the indices may move).
@@ -1840,9 +1884,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     }
     @objc func chooseTheme(_ i: NSMenuItem) {
         guard let id = i.representedObject as? String else { return }
+        useTheme(id)
+    }
+    func useTheme(_ id: String) {
         Themes.current = Themes.named(id)
         applyTheme()
         tank.notice = (tr("tema: ") + Themes.current.displayName, tank.time)
+    }
+
+    /// The themes window (E): pictures, where each comes from, what it brings; the surprise mode; the catalog.
+    private lazy var themePicker: ThemePickerWindow = {
+        let w = ThemePickerWindow()
+        w.onChoose = { [unowned self] id in self.useTheme(id) }
+        w.onExplore = { [unowned self] in self.explorePacks() }
+        return w
+    }()
+    @objc func openThemePicker() { themePicker.show() }
+
+    /// The surprise mode: another theme by itself, every hour or every day (checked every minute).
+    private func surpriseTheme() {
+        let d = UserDefaults.standard
+        guard let mode = d.string(forKey: "surpriseTheme"), mode != "off" else { return }
+        let every: Double = mode == "hour" ? 3600 : 86_400
+        let at = d.double(forKey: "surpriseThemeAt")
+        guard Date().timeIntervalSince1970 - at >= every else { return }
+        d.set(Date().timeIntervalSince1970, forKey: "surpriseThemeAt")
+        guard let next = Themes.all.filter({ $0.id != Themes.current.id }).randomElement() else { return }
+        useTheme(next.id)
     }
     /// The scene's colors go to the shader; the seaweed count to the tank (the fish nibble it); the default visualizer.
     private func applyTheme() {
