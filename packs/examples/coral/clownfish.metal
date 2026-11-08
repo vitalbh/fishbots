@@ -78,3 +78,9 @@ float4 draw_clownfish(float2 c, float phase, float glow, float4 col, float4 extr
     float halo = glow * exp(-max(d, 0.0) * 12.0) * edge;
     return float4(c3 * a + orange * halo * (1.0 - a), a + halo * (1.0 - a) * 0.55);
 }
+
+// The clownfish that live in the anemones (a creature with "behavior": "home"): the pack's clownfish drawing, the
+// orange kind, its tail going as it swims about.
+float4 draw_coral_clown_home(float2 c, float phase, float glow, float4 col, float4 extra) {
+    return draw_clownfish(c, phase, 0.0, float4(1.0), float4(1.0, extra.y < 0.85 ? 0.0 : 1.0, 0.0, 0.2));
+}

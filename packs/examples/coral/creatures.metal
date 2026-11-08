@@ -44,3 +44,4 @@ float4 draw_coral_tang(float2 c, float phase, float glow, float4 col, float4 ext
     c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.025, -d)) * 0.25;
     return float4(c3 * a * col.a, a * col.a);
 }
+

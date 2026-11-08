@@ -67,7 +67,7 @@ return float4(color * a, a);
 - **Creature** `float4 f(float2 c, float phase, float glow, float4 col, float4 extra)`: quad = `extent` × size, faces
   +x; `float2 p = c * extent` for square units. `phase` runs while it moves; `extra.w` 1 moving / 0 resting (legs
   step, wings flap only when moving); `extra.y` seed. Movement comes from `behavior`: cross, pass, crawl, rest,
-  glass, drift, school, skim, perch.
+  glass, drift, school, skim, perch, home.
 
 **Where the ground and the water are**, in `c`:
 - Scenery on the `sand` and creatures that `crawl`, `rest` or `perch`: the ground is at **c.y ≈ -0.9**. Put the

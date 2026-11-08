@@ -549,6 +549,7 @@ behaviors, with parameters. Only themes that list it get it.
 | `school` | a little group wandering together | the decorative schools |
 | `skim` | just under the surface (the water line at c.y ≈ 0.6), darting and stopping | — |
 | `perch` | sits on a piece of scenery (`on`: its id; its feet at c.y ≈ -0.9), hopping to another copy now and then | — |
+| `home` | lives around a piece of scenery (`on`: its id): swims about it, never far, pauses, goes back in | a clownfish in its anemone |
 
 | Field | |
 |---|---|

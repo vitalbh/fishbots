@@ -3,7 +3,7 @@
 //   phase  runs while it moves: legs, fins, wings
 //   col    its color, lit by the hour
 //   extra  y: a seed (0…1), w: 1 while it moves, 0 while it rests
-// How it moves comes from "behavior" in pack.json (cross, pass, crawl, rest, glass, drift, school, skim, perch).
+// How it moves comes from "behavior" in pack.json (cross, pass, crawl, rest, glass, drift, school, skim, perch, home).
 // A hermit crab: a spiral shell on its back, eyestalks, a big claw, legs that step while it walks.
 float4 draw_template_creature(float2 c, float phase, float glow, float4 col, float4 extra) {
     const float2 E = float2(1.4, 1.0);

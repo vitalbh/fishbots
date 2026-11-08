@@ -4,7 +4,7 @@
   "names": {
     "en": "Coral reef"
   },
-  "version": "2.2",
+  "version": "2.3",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -27,7 +27,8 @@
         "snail",
         "whale",
         "chromis",
-        "tang"
+        "tang",
+        "clowns"
       ],
       "water": {
         "deep": "#04263a",
@@ -306,6 +307,28 @@
         120
       ],
       "color": "#2a5af0"
+    },
+    {
+      "id": "clowns",
+      "name": "peixes-palhaço da anêmona",
+      "names": {
+        "en": "anemone clownfish"
+      },
+      "metal": "clownfish.metal",
+      "function": "draw_coral_clown_home",
+      "behavior": "home",
+      "on": "anemone",
+      "size": 13,
+      "extent": [
+        1.25,
+        0.8
+      ],
+      "count": [
+        3,
+        4
+      ],
+      "speed": 26,
+      "color": "#ff8a30"
     }
   ],
   "presences": [

@@ -43,7 +43,7 @@
     {
       "id": "coral",
       "name": "Recife de coral",
-      "version": "2.2",
+      "version": "2.3",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -70,7 +70,7 @@
         "styles": 1,
         "fish": 2,
         "scenery": 2,
-        "fauna": 2,
+        "fauna": 3,
         "presences": 1,
         "sounds": 1
       }

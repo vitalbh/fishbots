@@ -17,6 +17,7 @@ struct FaunaKind {
         case school     // a little group wandering together
         case skim       // just under the surface, darting and stopping
         case perch      // sits on a piece of scenery (`on`), hopping between copies now and then
+        case home       // lives around a piece of scenery (`on`): swims about it, never far, and back in (a clownfish and its anemone)
     }
     enum When: String { case any, day, night }
     let id: String
@@ -211,6 +212,47 @@ final class PackCreature: Creature {
                 if abs(dx) > 2 { o.pos.x += dx * min(1, dt * max(0.5, k.speed / 40)); o.dir = dx > 0 ? 1 : -1; o.moving = 1 } else { o.moving = 0 }
                 o.phase += dt * (o.moving > 0.5 ? 6 : 2)
                 o.pos.y = t.surfaceY(o.pos.x) - k.size * k.extent.y * 0.6
+                ones[i] = o
+            }
+
+        case .home:
+            // around a home: pick a spot near it, swim there (facing the way it goes), pause, pick another
+            let homes = t.scenery.filter { $0.id == k.on }.map { s -> (SIMD2<Float>, Float) in
+                let (c, sz) = t.place(s)
+                return (c + [0, sz * s.extent.y * 0.2], sz * max(s.extent.x, s.extent.y) * 0.75)
+            }
+            guard !homes.isEmpty else { ones = []; return }
+            if ones.isEmpty {
+                for i in 0..<n() {
+                    let (c, _) = homes[i % homes.count]
+                    var o = One(pos: c)
+                    o.perch = i % homes.count
+                    o.goal = c
+                    ones.append(o)
+                }
+            }
+            for i in ones.indices {
+                var o = ones[i]
+                o.perch = min(o.perch, homes.count - 1)
+                let (c, r) = homes[o.perch]
+                let d = o.goal - o.pos
+                if simd_length(d) < 3 {
+                    o.wait -= dt
+                    o.moving = 0
+                    if o.wait <= 0 {
+                        // mostly close in (nestled in it), sometimes out to the edge of its range
+                        let a = Float.random(in: 0...(2 * .pi)), far = Float.random(in: 0...1) < 0.3 ? r : r * 0.5
+                        o.goal = c + SIMD2(cosf(a), sinf(a) * 0.7 + 0.3) * Float.random(in: 0...far)
+                        o.wait = Float.random(in: 0.5...2.5)
+                    }
+                } else {
+                    let v = simd_normalize(d) * k.speed
+                    o.vel += (v - o.vel) * min(1, dt * 3)
+                    o.pos += o.vel * dt
+                    if abs(o.vel.x) > 1 { o.dir = o.vel.x > 0 ? 1 : -1 }
+                    o.moving = 1
+                }
+                o.phase += dt * (o.moving > 0.5 ? 9 : 4)              // the tail keeps going, slower when it hovers
                 ones[i] = o
             }
 
