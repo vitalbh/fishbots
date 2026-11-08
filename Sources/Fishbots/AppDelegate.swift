@@ -92,6 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private let banner = CATextLayer()
     private let batteryText = CATextLayer()
     private let calmText = CATextLayer()
+    private var hotkey: Hotkey?
     private var activity: NSObjectProtocol?
     private var port: UInt16 = 7777
     private let notifier = Notifier()
@@ -272,6 +273,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         plugins = Plugins(tank: tank)
         nowPlaying = NowPlaying(tank: tank)
         setupStatusItem()
+        // ⌃⌥F from any app: the session that has been waiting the longest (or the aquarium, if nobody is)
+        hotkey = Hotkey.waitingLongest { [unowned self] in self.goToLongestWaiting() }
+        if hotkey == nil { FileHandle.standardError.write("fishbots: couldn't register the ⌃⌥F shortcut (another app has it?)\n".data(using: .utf8)!) }
         if UserDefaults.standard.bool(forKey: "menuBarOnly") { NSApp.setActivationPolicy(.accessory) }
 
         window.makeKeyAndOrderFront(nil)
@@ -287,6 +291,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         show()
         return true
+    }
+
+    /// The session waiting for you the longest: its terminal comes forward (the hot key ⌃⌥F).
+    @objc func goToLongestWaiting() {
+        let waiting = tank.fish.filter { !$0.decor && !$0.leaving && $0.state == .waiting }.sorted { $0.since < $1.since }
+        if let f = waiting.first, Whereabouts.go(f) {
+            f.glow = 1
+            tank.ring(at: f.pos, color: [1, 0.9, 0.5], size: f.size * 0.5, grow: 140, life: 0.7)
+        } else {
+            show()
+            tank.notice = (waiting.isEmpty ? tr("✓ ninguém esperando") : tr("%@: não sei onde fica", waiting[0].label), tank.time)
+        }
     }
 
     @objc func show() {
@@ -1538,6 +1554,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         add("Som ligado/desligado", #selector(toggleMute), "m")
         add("Flutuar sobre as janelas", #selector(toggleFloat), "t")
         add("Modo widget (janelinha no canto)", #selector(toggleWidget), "w")
+        add("Ir para quem espera há mais tempo (⌃⌥F)", #selector(goToLongestWaiting), "")
         aq.addItem(.separator())
         add("Música ambiente (tocar o tempo todo)", #selector(toggleAmbientMusic), "a")
         add("Modo foco (só o que pede atenção)", #selector(toggleFocus), "s")

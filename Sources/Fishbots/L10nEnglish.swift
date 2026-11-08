@@ -170,6 +170,7 @@ let english: [String: String] = [
     "Cena": "Scene",
     "Brilho (bloom)": "Glow (bloom)",
     "Modo widget (janelinha no canto)": "Widget mode (a little window in the corner)",
+    "Ir para quem espera há mais tempo (⌃⌥F)": "Go to whoever has waited longest (⌃⌥F)",
     "✓ ninguém esperando": "✓ nobody waiting",
     "Desligado": "Off",
     "Suave": "Soft",
