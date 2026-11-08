@@ -75,6 +75,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     static var packFishFailed: ((FishKind, String) -> Void)?
     static var packSceneryFailed: ((SceneryKind, String) -> Void)?
     static var packFaunaFailed: ((FaunaKind, String) -> Void)?
+    static var packPresenceFailed: ((PackPresence, String) -> Void)?
+    static var packBackgroundFailed: ((PackBackground, String) -> Void)?
 
     /// The scene's colors (see Theme.swift).
     var theme = Theme.classicUniforms
@@ -91,7 +93,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         guard let device = view.device ?? MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
         precondition(MemoryLayout<Sprite>.stride == 80, "Sprite must be 80 bytes")
         precondition(MemoryLayout<Uniforms>.stride == 96, "Uniforms must be 96 bytes")
-        precondition(MemoryLayout<ThemeUniforms>.stride == 192, "ThemeUniforms must be 192 bytes")
+        precondition(MemoryLayout<ThemeUniforms>.stride == 208, "ThemeUniforms must be 208 bytes")
         self.device = device
         self.queue = queue
         colorFormat = view.colorPixelFormat
@@ -120,7 +122,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     static func library(_ device: MTLDevice) throws -> MTLLibrary {
         do {
             return try device.makeLibrary(source: FishKinds.shaderSource(), options: nil)
-        } catch where FishKinds.all.contains(where: { $0.pack != nil }) || !SceneryKinds.all.isEmpty || !FaunaKinds.all.isEmpty {
+        } catch where FishKinds.all.contains(where: { $0.pack != nil }) || !SceneryKinds.all.isEmpty || !FaunaKinds.all.isEmpty
+                        || !PackPresences.all.isEmpty || !PackBackgrounds.all.isEmpty {
             for k in FishKinds.all where k.pack != nil {
                 do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
                 catch { Renderer.packFishFailed?(k, "\(error)"); FishKinds.drop(k.id) }
@@ -132,6 +135,14 @@ final class Renderer: NSObject, MTKViewDelegate {
             for k in FaunaKinds.all {
                 do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
                 catch { Renderer.packFaunaFailed?(k, "\(error)"); FaunaKinds.drop(k.id) }
+            }
+            for k in PackBackgrounds.all where !k.source.isEmpty {
+                do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
+                catch { Renderer.packBackgroundFailed?(k, "\(error)"); PackBackgrounds.blank(k.id) }
+            }
+            for k in PackPresences.all {
+                do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
+                catch { Renderer.packPresenceFailed?(k, "\(error)"); PackPresences.all.removeAll { $0.id == k.id } }
             }
             return try device.makeLibrary(source: FishKinds.shaderSource(), options: nil)
         }

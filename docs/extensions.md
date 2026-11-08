@@ -119,6 +119,26 @@ Ideas for packs: coral reef, deep sea (dark, bioluminescent), Japanese pond (koi
 `packs/examples/`: `coral` (a theme, a music style, the clownfish) and `koi` (a theme, a music style, the koi, a stone
 lantern and lily pads as scenery, and a frog, tadpoles and shrimp as creatures).
 
+#### A theme's own background and looks
+A pack theme can draw its own far background and give the built-in pieces another look:
+
+```json
+{ "id": "koi-pond", …,
+  "background": { "metal": "background.metal", "function": "draw_koi_background", "replaceReef": true },
+  "looks": { "chest": "shrine" } }
+```
+
+- `background`: drawn over the water and behind the seaweed, by
+  `float4 f(float2 uv, float t, float light, float2 gaze, float3 water, float4 extra)`: uv 0…1 over the window
+  (y up), t seconds, light the daylight (0…1), gaze the parallax (-1…1: move far things a little with it), water the
+  water's color there (mix toward it for haze), extra.x the aspect, extra.y moonlight, extra.z the sand line's height at
+  this x. `replaceReef` (default true) leaves out the distant reef the aquarium draws.
+- `looks`: a built-in piece (`rock`, `shell`, `chest`, `coral`) drawn by one of the pack's scenery pieces, in the same
+  place and with the same behavior (the chest still opens the summary). A chest's drawing gets how open it is in
+  `extra.y` (instead of the seed) and glows while it's open. The piece doesn't need to be in the theme's `scenery`.
+
+Anything a theme doesn't define comes from the app: no `background`, the usual one; no `looks`, the usual pieces.
+
 #### Scenery from packs
 A pack can bring its own scenery: the drawing is a Metal function in the pack, the app places it, lights it, keeps
 the fish, crabs and pearls clear of it and draws it with the rest of the scenery.
@@ -163,8 +183,16 @@ timbre. It becomes a table that providers extend (`"Bash": .bubbles`, `"mcp__*":
 tests" → a new action), with glob patterns for tool names.
 
 ### 6. Music styles and timbres
-`Style` is already data. It moves into a registry and packs can add styles (bpm range, scale, progressions, rhythm,
-voices). Timbres stay in Swift for now (`Synth.render` is real-time audio code).
+`Style` is data: packs add styles (bpm range, scale, progressions, rhythm, voices). The synthesized timbres stay in
+Swift (`Synth.render` is real-time audio code), but a pack can bring **recorded sounds** that become timbres:
+
+```json
+"sounds": [ { "id": "koto", "name": "koto", "file": "koto.wav", "root": "A3", "gain": 0.9 } ]
+```
+
+`file` is a wav, aiff or caf in the pack (mixed down to mono, at most 12 s); `root` is the pitch it was recorded at (a
+note name or a MIDI number); the note is resampled to each pitch. Styles use it by id in `lead` and `accompTimbre`,
+next to the built-in timbres. Up to 16 sounds in all packs together.
 
 ### 7. Fauna
 Each creature (crab, turtle, whale, snail, lanternfish) is a `Creature` with `update`, sprites per layer
@@ -216,6 +244,32 @@ float4 draw_frog(float2 c, float phase, float glow, float4 col, float4 extra) { 
 
 An id that's already a built-in creature is refused; a function that doesn't compile is dropped and reported in the
 menu.
+
+#### Presences from packs
+New kinds of presence that plugins can use (`"kind": "floating-lantern"`), drawn by the pack and moved by the app
+like the built-in ones:
+
+```json
+"presences": [
+  { "id": "floating-lantern", "name": "lanterna flutuante", "metal": "floating.metal",
+    "function": "draw_koi_floating_lantern", "motion": "float", "size": 26, "extent": [0.8, 1.0],
+    "color": "#c8503c", "sound": "chime" }
+]
+```
+
+| Field | |
+|---|---|
+| `motion` | `swim` (across, facing where it goes), `drift`, `hover`, `walk` (on the sand), `sit` (on the sand), `float` (at the surface) |
+| `size`, `extent` | size in points, and the quad (width, height) relative to it |
+| `band` | `[lo, hi]`, 0…1 from the bottom, where swimmers, drifters and hoverers stay |
+| `meter` | shows `value` (0…1) in its drawing; the label adds the percentage |
+| `drops` | drops from the surface when it arrives |
+| `sound` | its voice when its state changes (one of the scene's voices, docs/scene.md) |
+
+`float4 f(float2 c, float phase, float glow, float4 col, float4 extra)`: as a creature's, plus `extra.y` its value and
+`extra.w` its state: 0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born. `glow` rises with attention
+(waiting, error). On the sand (`walk`, `sit`) the ground is at c.y ≈ -0.9. An id that's already a built-in kind is
+refused.
 
 ### 8. Outputs (sinks)
 The opposite of providers: `EventSink` receives what happens in the tank (state changes, done, error, permission

@@ -29,6 +29,9 @@ struct PresenceKind {
     var sound = "soft"
     /// Hangs on the side glass while there's room (helms); otherwise it sits on the sand.
     var wall = false
+    /// From a pack: its index in PackPresences (the sprite is kind 37) and its quad (width, height relative to size).
+    var pack: Int? = nil
+    var extent: SIMD2<Float> = [1, 1]
 }
 
 /// A creature or object a plugin keeps in the tank, with a state and its own text.
@@ -119,6 +122,16 @@ final class Scene {
     }()
 
     static func register(_ k: PresenceKind) { kinds[k.id] = k }
+    /// Drops the kinds that came from packs (before the packs are read again).
+    static func unregisterPacks() { kinds = kinds.filter { $0.value.pack == nil } }
+    static func unregister(_ id: String) { if kinds[id]?.pack != nil { kinds[id] = nil } }
+
+    /// After the packs are read again: the presences of a pack's kind take its new index (or vanish if it's gone).
+    func refreshPackKinds() {
+        for p in presences where p.kind.sprite == 37 {
+            if let k = Self.kinds[p.kind.id] { p.kind = k } else { p.kind.pack = nil }
+        }
+    }
 
     /// What the tank can't draw by itself: fireworks and shooting stars live in the visualizer, the whale's song in
     /// the music. (effect, where, color)
@@ -188,16 +201,18 @@ final class Scene {
     func labelAnchor(_ p: Presence) -> (SIMD2<Float>, above: Bool) {
         if p.onWall { return (p.pos + p.shakeOffset - [0, p.kind.size * 1.15 + 2], false) }
         if p.kind.motion.grounded {
-            let top: Float = [27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 2.05, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite] ?? 1.2
+            let top: Float = [27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 2.05, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
+                ?? (p.kind.pack != nil ? p.kind.extent.y * 1.9 : 1.2)
             return (p.pos + p.shakeOffset + [0, p.kind.size * top + 4], true)
         }
-        let below: Float = p.kind.motion == .float ? 0.55 : [5: 1.5, 25: 0.8, 26: 0.85, 13: 1.2, 15: 0.95][p.kind.sprite] ?? 1
+        let below: Float = p.kind.motion == .float ? 0.55 : [5: 1.5, 25: 0.8, 26: 0.85, 13: 1.2, 15: 0.95][p.kind.sprite]
+            ?? (p.kind.pack != nil ? p.kind.extent.y : 1)
         return (p.pos + p.shakeOffset - [0, p.kind.size * below + 2], false)
     }
 
     /// Objects on the sand are drawn above their anchor point.
     private func hitCenter(_ p: Presence) -> SIMD2<Float> {
-        p.kind.motion.grounded && !p.onWall ? p.pos + [0, p.kind.size * 0.4] : p.pos
+        p.kind.motion.grounded && !p.onWall ? p.pos + [0, p.kind.size * (p.kind.pack != nil ? p.kind.extent.y * 0.9 : 0.4)] : p.pos
     }
 
     /// Creates or updates. Returns an error for the protocol's response.
@@ -642,6 +657,17 @@ final class Scene {
                 let open: Float = p.state == .done || p.state == .waiting ? 1 : 0.25
                 out.append(Sprite(pos: pos + [0, p.kind.size * 0.55], dir: [1, 0], size: p.kind.size, kind: 23, glow: open, phase: Float(t.time),
                                   color: SIMD4(c, a), extra: [1, open > 0.5 ? 1 : 0, 0, 0]))
+            case 37:     // a pack's presence: its own drawing (extra.z: its index, extra.w: its state)
+                guard let i = p.kind.pack, i < PackPresences.all.count else { break }
+                let mirrored = p.kind.motion == .swim || p.kind.motion == .hover
+                let tilt: Float = p.kind.motion == .swim ? max(-0.25, min(0.25, p.vel.y / 120))
+                    : p.kind.motion == .float ? sinf(p.phase * 1.1) * 0.22 : 0
+                let theta = !mirrored || p.dir >= 0 ? tilt : .pi - tilt
+                let up: Float = p.kind.motion.grounded && !p.onWall ? p.kind.extent.y * 0.9 : 0   // its feet (c.y = -0.9) on the sand
+                out.append(Sprite(pos: pos + [0, p.kind.size * up], dir: [cosf(theta), sinf(theta)], size: p.kind.size, kind: 37,
+                                  glow: glow, phase: p.phase * (p.state == .busy ? 1.8 : 1), color: SIMD4(c, a),
+                                  extra: [mirrored ? p.dir : 1, value, Float(i), PackPresences.stateCode(p.state)],
+                                  aux: [p.kind.extent.x, p.kind.extent.y, 0, 0]))
             default:
                 // the presences' own drawings (25–30) and the static ones (starfish)
                 let up: Float = p.kind.motion.grounded ? [27: 0.3, 28: 0.85, 29: 0.85, 30: 1.0, 17: 0.15][p.kind.sprite] ?? 0 : 0

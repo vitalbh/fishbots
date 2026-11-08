@@ -4,7 +4,7 @@
     {
       "id": "koi",
       "name": "Lago japonês",
-      "version": "1.0",
+      "version": "1.1",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -16,20 +16,26 @@
       },
       "path": "packs/examples/koi",
       "files": [
+        "background.metal",
         "cover.png",
         "creatures.metal",
+        "floating.metal",
         "koi.metal",
+        "koto.wav",
         "lantern.metal",
         "lily.metal",
-        "pack.json"
+        "pack.json",
+        "shrine.metal"
       ],
       "cover": "cover.png",
       "contents": {
         "themes": 1,
         "styles": 1,
         "fish": 1,
-        "scenery": 2,
-        "fauna": 3
+        "scenery": 3,
+        "fauna": 3,
+        "presences": 1,
+        "sounds": 1
       }
     },
     {

@@ -13,7 +13,7 @@ import json, os, re, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIRS = ["packs/examples", "community/packs"]
 REQUIRED = ["id", "name", "version", "author", "license", "description"]
-KEEP = (".json", ".metal", ".md", ".txt")
+KEEP = (".json", ".metal", ".md", ".txt", ".wav", ".aif", ".aiff", ".caf")
 
 
 def pack_entry(rel):
@@ -33,7 +33,7 @@ def pack_entry(rel):
     e["path"] = rel
     e["files"] = files
     e["cover"] = "cover.png"
-    e["contents"] = {k: len(p.get(k, [])) for k in ["themes", "styles", "fish", "scenery", "fauna", "agents"] if p.get(k)}
+    e["contents"] = {k: len(p.get(k, [])) for k in ["themes", "styles", "fish", "scenery", "fauna", "presences", "agents", "sounds"] if p.get(k)}
     return e
 
 

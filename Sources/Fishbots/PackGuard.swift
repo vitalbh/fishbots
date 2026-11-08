@@ -41,6 +41,7 @@ final class PackGuard {
         case 0: return FishKinds.all.indices.contains(i) ? FishKinds.all[i].pack : nil
         case 35: return SceneryKinds.all.indices.contains(i) ? SceneryKinds.all[i].pack : nil
         case 36: return FaunaKinds.all.indices.contains(i) ? FaunaKinds.all[i].pack : nil
+        case 37: return PackPresences.all.indices.contains(i) ? PackPresences.all[i].pack : nil
         default: return nil
         }
     }
@@ -56,6 +57,9 @@ final class PackGuard {
         present = seen
         return out
     }
+
+    /// Something of this pack is drawn this frame that isn't a sprite (its theme's background).
+    func notePresent(_ pack: String) { present.insert(pack) }
 
     private func average(since t0: Double) -> (ms: Double, n: Int) {
         let s = samples.filter { $0.t >= t0 }

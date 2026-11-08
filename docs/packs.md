@@ -75,6 +75,16 @@ Rules that keep a pack working:
 - Stay inside the quad: what goes past ±1 is cut off with a straight edge. Fade glows out before the edge.
 - Several pieces can share one `.metal` file; it goes into the shader once.
 
+## More a pack can bring
+
+- **A background** for its theme (`"background"`: a far side, a skyline, ice overhead), drawn behind the seaweed.
+- **Another look for the built-in pieces** (`"looks": {"chest": "shrine"}`): same place and behavior, its drawing.
+- **Presences** plugins can use (`"presences"`), with a state they show (ok, busy, error…).
+- **Recorded sounds** (`"sounds"`: a wav with the pitch it was recorded at) for its music styles.
+
+The fields and the functions' signatures are in [extensions.md](extensions.md). Anything a pack doesn't define comes
+from the app. `packs/examples/koi` uses all of them.
+
 ## 4. Making it look good
 
 What we learned redrawing the built-in fish and scenery:

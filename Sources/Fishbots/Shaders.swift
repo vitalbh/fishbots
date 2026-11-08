@@ -31,6 +31,7 @@ float3 scene_tint(float3 c, float a, constant Uniforms& u) {
 struct Theme {
     float4 deep, shallow, rays, caustics, surface, farWeed, weedLow, weedHigh, sandDark, sandLight, murk;
     float4 params;     // x: seaweed count, y: distant seaweed count, z: rays strength, w: caustics strength
+    float4 pack;       // x: the pack background's index + 1 (0: none), y: it replaces the distant reef
 };
 
 struct Sprite {
@@ -85,6 +86,9 @@ float caustic(float2 p, float t) {
     c = 1.17 - pow(c, 1.4);
     return pow(abs(c), 8.0);
 }
+
+// a pack theme's background (generated at "@fish-kinds", see FishKinds.shaderSource)
+float4 draw_background_pack(int k, float2 uv, float t, float light, float2 gaze, float3 water, float4 extra);
 
 // weeds[k]: x (0…1), height (0…1), bend (how far the tip is pushed, in widths), kind (0 blade, 1 kelp, 2 leafy).
 // From Tank.weedUniforms.
@@ -174,7 +178,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float pebbles = 0.1 + 0.05 * vnoise(float2(ux * 7.0, 1.3)) + 0.035 * vnoise(float2(ux * 19.0, 4.1));
     if (uv.y < pebbles) col = mix(col, fog * 0.75, 0.55 * (1.0 - smoothstep(pebbles - 0.012, pebbles, uv.y) * 0.4));
     // a distant reef: soft silhouettes of rock and coral far away in the haze, higher in two outcrops (barely any parallax)
-    if (uv.y < 0.37) {                                                   // (the reef never goes higher: skip the noise above it)
+    if (th.pack.y < 0.5 && uv.y < 0.37) {                                // (the reef never goes higher: skip the noise above it)
         float rx = uv.x + u.gaze.x * 0.003;
         float ridge = 0.12 + 0.1 * vnoise(float2(rx * 4.0, 2.7)) + 0.05 * vnoise(float2(rx * 13.0, 5.3));
         ridge += 0.09 * smoothstep(0.17, 0.0, abs(rx - 0.24)) + 0.07 * smoothstep(0.2, 0.0, abs(rx - 0.8));
@@ -182,6 +186,12 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
             col = mix(col, fog * 0.52, 0.6 * (0.75 + 0.25 * smoothstep(ridge - 0.1, ridge, uv.y)));
             col += fog * 0.18 * (1.0 - smoothstep(0.0, 0.006, ridge - uv.y)) * L;     // its top catches a little light
         }
+    }
+    // a pack's own background, over the water and behind the seaweed
+    if (th.pack.x > 0.5) {
+        float sandLine = 0.075 + 0.018 * sin(uv.x * 7.0 + 1.3) + 0.008 * sin(uv.x * 23.0);
+        float4 b = draw_background_pack(int(th.pack.x - 0.5), uv, t, L, u.gaze, col, float4(aspect, u.grade.w, sandLine, 0.0));
+        col = col * (1.0 - b.a) + b.rgb;
     }
     int farCount = int(th.params.y + 0.5);
     for (int k = 0; k < farCount; k++) {
@@ -1614,6 +1624,9 @@ float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, fl
     }
 }
 
+// a background that didn't compile is replaced by this one (nothing): the theme keeps the usual background
+float4 fishbots_no_background(float2 uv, float t, float light, float2 gaze, float3 water, float4 extra) { return float4(0.0); }
+
 // @fish-kinds
 
 // How much of each sprite kind glows (goes to the bloom). The rest only hides the glow behind it.
@@ -1698,6 +1711,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float border = 1.0 - smoothstep(0.5, 1.0, max(abs(c.x), abs(c.y)));
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
+    } else if (k > 36.5) {             // a pack's presence (extra.z: its index, extra.w: its state)
+        outc = draw_presence_pack(int(in.extra.z + 0.5), c, in.phase, in.glow, in.color, in.extra);
     } else if (k > 35.5) {             // a pack's creature (extra.z: its index)
         outc = draw_fauna_pack(int(in.extra.z + 0.5), c, in.phase, in.glow, in.color, in.extra);
     } else if (k > 34.5) {             // a pack's scenery (extra.z: its index)

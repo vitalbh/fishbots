@@ -16,6 +16,8 @@ struct ThemeUniforms {
     var murk: SIMD4<Float>         // the color of murky water (disk filling up)
     /// x: seaweed count (0…16), y: distant seaweed count (0…16), z: rays strength, w: caustics strength.
     var params: SIMD4<Float>
+    /// x: the pack background's index + 1 (0: none), y: 1 when it replaces the distant reef.
+    var pack: SIMD4<Float> = .zero
 }
 
 /// A scene: water, light, seaweed and sand, plus optional defaults for the visualizer, the music and the fauna.
@@ -35,6 +37,8 @@ struct Theme {
     var fauna: [String]?
     /// Which scenery sits on the sand: "rock", "shell", "chest" (nil: all of it).
     var scenery: [String]?
+    /// A pack's drawing for a built-in piece ("chest": "shrine"): same place and behavior, another look.
+    var looks: [String: String] = [:]
     var weedCount: Int { Int(uniforms.params.x) }
 
     /// A color from JSON: "#rrggbb" or [r, g, b] (0…1).
@@ -80,6 +84,7 @@ struct Theme {
         music = json["music"] as? String ?? base?.music
         fauna = json["fauna"] as? [String] ?? base?.fauna
         scenery = json["scenery"] as? [String] ?? base?.scenery
+        looks = json["looks"] as? [String: String] ?? [:]
     }
 
     /// The original look.

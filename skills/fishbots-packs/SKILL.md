@@ -120,6 +120,23 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
   legs, a pulsing throat. Subtle and continuous.
 - Colors come from `col` (the project or the pack's color); derive shades from it so every color works.
 
+## Backgrounds, looks, presences and sounds
+
+- **Theme background:** `"background": {"metal", "function", "replaceReef": true}` on a theme; the function is
+  `float4 f(float2 uv, float t, float light, float2 gaze, float3 water, float4 extra)` (uv 0…1 over the window, y up;
+  mix toward `water` for distance haze; `extra.x` aspect, `extra.z` the sand line's height). It covers the whole
+  window: keep it cheap (skip pixels early, e.g. `if (uv.y > 0.6) return float4(0.0);`).
+- **Looks:** `"looks": {"chest": "shrine"}` on a theme draws a built-in piece (`rock shell chest coral`) with one of
+  the pack's scenery ids. A chest gets how open it is in `extra.y` and glows while open.
+- **Presences** (`"presences"`): kinds plugins can send (`"kind": "<id>"`), with `motion` (swim drift hover walk sit
+  float), `size`, `extent`, `band`, `meter`, `sound`. Function like a creature's; `extra.y` is the value (0…1) and
+  `extra.w` the state (0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born): show it (color, light,
+  motion). The preview draws them as ok, busy, error and waiting.
+- **Sounds** (`"sounds"`): `{"id", "file": "x.wav", "root": "A3", "gain"}`, a short recorded note (wav/aiff/caf, ≤ 12 s)
+  used by id in a style's `lead` / `accompTimbre`. You can't hear the result: say so, and describe what you made.
+
+Anything left out comes from the app (the usual background, pieces, presences and timbres).
+
 ## Themes and music (no drawing)
 
 A **theme** in `pack.json`:

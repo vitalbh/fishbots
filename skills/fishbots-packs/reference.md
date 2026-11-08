@@ -6,6 +6,12 @@
 {
   "id": "koi",
   "name": "Lago japonês",
+  "names": {"en": "Japanese pond"},
+  "version": "1.1",
+  "author": "Fishbots",
+  "license": "MIT",
+  "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
+  "descriptions": {"en": "A Japanese pond: koi in four varieties, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp and zen music."},
   "themes": [
     {
       "id": "koi-pond",
@@ -14,7 +20,9 @@
       "visualizer": "surface",
       "music": "zen",
       "fauna": ["snail", "turtle", "frog", "tadpoles", "shrimp"],
-      "scenery": ["rock", "lantern", "lilypad"],
+      "scenery": ["rock", "lantern", "lilypad", "chest"],
+      "looks": { "chest": "shrine" },
+      "background": { "metal": "background.metal", "function": "draw_koi_background", "replaceReef": true },
       "water": {
         "deep": "#0b2420", "shallow": "#3f7d62", "rays": "#cfe8b0", "raysStrength": 0.18,
         "caustics": "#e8f5c8", "causticsStrength": 0.07, "surface": "#7fb88f", "murk": "#2e3a1c"
@@ -29,34 +37,64 @@
   "progressions": { "Pond": ["Fm(add9)", "Dbmaj7", "Bbm7", "Csus4"] },
   "styles": [
     {
-      "id": "zen", "name": "zen", "bpm": [50, 60], "progressions": ["Pond"], "scale": [0, 1, 5, 7, 8],
-      "lead": ["kalimba", "pluck", "flute"], "accomp": "arpeggio", "accompTimbre": ["pluck", "soft"],
+      "id": "zen", "name": "zen", "names": {"en": "zen"}, "bpm": [50, 60], "progressions": ["Pond"], "scale": [0, 1, 5, 7, 8],
+      "lead": ["koto", "koto", "flute"], "accomp": "arpeggio", "accompTimbre": ["pluck", "soft"],
       "notesPerBar": [1, 3], "swing": [0, 0.05], "keys": [0, 2, 5], "energy": 0.2, "rest": 0.5,
       "visualizer": "surface"
     }
   ],
   "fish": [
-    { "id": "koi", "name": "carpa koi", "metal": "koi.metal", "function": "draw_koi" }
+    { "id": "koi", "name": "carpa koi", "names": {"en": "koi carp"}, "metal": "koi.metal", "function": "draw_koi" }
   ],
   "scenery": [
-    { "id": "lantern", "name": "lanterna de pedra", "metal": "lantern.metal", "function": "draw_lantern",
+    { "id": "lantern", "name": "lanterna de pedra", "names": {"en": "stone lantern"}, "metal": "lantern.metal", "function": "draw_lantern",
       "anchor": "sand", "size": 0.11, "extent": [0.6, 1.0], "at": [0.27], "glowAtNight": true, "color": "#8c8c88" },
-    { "id": "lilypad", "name": "vitória-régia", "metal": "lily.metal", "function": "draw_lily",
+    { "id": "shrine", "name": "santuário", "names": {"en": "shrine"}, "metal": "shrine.metal", "function": "draw_koi_shrine",
+      "anchor": "sand", "size": 0.06, "extent": [1.0, 1.0], "color": "#8a8a88" },
+    { "id": "lilypad", "name": "vitória-régia", "names": {"en": "lily pad"}, "metal": "lily.metal", "function": "draw_lily",
       "anchor": "surface", "size": 0.06, "extent": [1.0, 0.7], "at": [0.12, 0.3, 0.52, 0.71, 0.88], "color": "#4f8a3e" }
   ],
+  "sounds": [
+    { "id": "koto", "name": "koto", "file": "koto.wav", "root": "A3", "gain": 0.9 }
+  ],
+  "presences": [
+    { "id": "floating-lantern", "name": "lanterna flutuante", "names": {"en": "floating lantern"}, "metal": "floating.metal",
+      "function": "draw_koi_floating_lantern", "motion": "float", "size": 26, "extent": [0.8, 1.0], "color": "#c8503c", "sound": "chime" }
+  ],
   "fauna": [
-    { "id": "frog", "name": "sapo", "metal": "creatures.metal", "function": "draw_frog",
+    { "id": "frog", "name": "sapo", "names": {"en": "frog"}, "metal": "creatures.metal", "function": "draw_frog",
       "behavior": "perch", "on": "lilypad", "size": 15, "extent": [1.2, 1.0], "count": 2, "color": "#5f8f3e" },
-    { "id": "tadpoles", "name": "girinos", "metal": "creatures.metal", "function": "draw_tadpole",
+    { "id": "tadpoles", "name": "girinos", "names": {"en": "tadpoles"}, "metal": "creatures.metal", "function": "draw_tadpole",
       "behavior": "school", "size": 7, "extent": [2.0, 1.0], "count": [6, 9], "speed": 18, "height": [0.15, 0.45],
       "color": "#3a3328", "shy": true },
-    { "id": "shrimp", "name": "camarão", "metal": "creatures.metal", "function": "draw_shrimp",
+    { "id": "shrimp", "name": "camarão", "names": {"en": "shrimp"}, "metal": "creatures.metal", "function": "draw_shrimp",
       "behavior": "crawl", "size": 10, "extent": [1.6, 1.0], "count": [2, 3], "speed": 8, "color": "#d9806a" }
   ]
 }
 ```
 
 Fish entries: `{"id", "name", "metal", "function"}`.
+
+## A theme's own background and looks
+A pack theme can draw its own far background and give the built-in pieces another look:
+
+```json
+{ "id": "koi-pond", …,
+  "background": { "metal": "background.metal", "function": "draw_koi_background", "replaceReef": true },
+  "looks": { "chest": "shrine" } }
+```
+
+- `background`: drawn over the water and behind the seaweed, by
+  `float4 f(float2 uv, float t, float light, float2 gaze, float3 water, float4 extra)`: uv 0…1 over the window
+  (y up), t seconds, light the daylight (0…1), gaze the parallax (-1…1: move far things a little with it), water the
+  water's color there (mix toward it for haze), extra.x the aspect, extra.y moonlight, extra.z the sand line's height at
+  this x. `replaceReef` (default true) leaves out the distant reef the aquarium draws.
+- `looks`: a built-in piece (`rock`, `shell`, `chest`, `coral`) drawn by one of the pack's scenery pieces, in the same
+  place and with the same behavior (the chest still opens the summary). A chest's drawing gets how open it is in
+  `extra.y` (instead of the seed) and glows while it's open. The piece doesn't need to be in the theme's `scenery`.
+
+Anything a theme doesn't define comes from the app: no `background`, the usual one; no `looks`, the usual pieces.
+
 
 ## Scenery from packs
 A pack can bring its own scenery: the drawing is a Metal function in the pack, the app places it, lights it, keeps
@@ -143,4 +181,30 @@ float4 draw_frog(float2 c, float phase, float glow, float4 col, float4 extra) { 
 
 An id that's already a built-in creature is refused; a function that doesn't compile is dropped and reported in the
 menu.
+
+## Presences from packs
+New kinds of presence that plugins can use (`"kind": "floating-lantern"`), drawn by the pack and moved by the app
+like the built-in ones:
+
+```json
+"presences": [
+  { "id": "floating-lantern", "name": "lanterna flutuante", "metal": "floating.metal",
+    "function": "draw_koi_floating_lantern", "motion": "float", "size": 26, "extent": [0.8, 1.0],
+    "color": "#c8503c", "sound": "chime" }
+]
+```
+
+| Field | |
+|---|---|
+| `motion` | `swim` (across, facing where it goes), `drift`, `hover`, `walk` (on the sand), `sit` (on the sand), `float` (at the surface) |
+| `size`, `extent` | size in points, and the quad (width, height) relative to it |
+| `band` | `[lo, hi]`, 0…1 from the bottom, where swimmers, drifters and hoverers stay |
+| `meter` | shows `value` (0…1) in its drawing; the label adds the percentage |
+| `drops` | drops from the surface when it arrives |
+| `sound` | its voice when its state changes (one of the scene's voices, docs/scene.md) |
+
+`float4 f(float2 c, float phase, float glow, float4 col, float4 extra)`: as a creature's, plus `extra.y` its value and
+`extra.w` its state: 0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born. `glow` rises with attention
+(waiting, error). On the sand (`walk`, `sit`) the ground is at c.y ≈ -0.9. An id that's already a built-in kind is
+refused.
 

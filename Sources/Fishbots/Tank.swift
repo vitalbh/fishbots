@@ -741,11 +741,19 @@ final class Tank {
         SceneryItem(id: "coral", kind: 34, u: 0.905, scale: 0.1, color: [0.98, 0.58, 0.3], seed: 1.4),
     ]
     /// The theme's list (nil: all the built-in scenery; a pack's scenery only shows up where a theme lists it).
-    var sceneryKinds: [String]? = nil { didSet { scenery = Self.scenery(for: sceneryKinds) } }
-    private(set) var scenery: [SceneryItem] = Tank.scenery(for: nil)
+    var sceneryKinds: [String]? = nil { didSet { scenery = Self.scenery(for: sceneryKinds, looks: sceneryLooks) } }
+    /// Built-in pieces drawn by a pack's scenery instead (the theme's "looks": "chest": "shrine").
+    var sceneryLooks: [String: String] = [:] { didSet { scenery = Self.scenery(for: sceneryKinds, looks: sceneryLooks) } }
+    private(set) var scenery: [SceneryItem] = Tank.scenery(for: nil, looks: [:])
 
-    private static func scenery(for ids: [String]?) -> [SceneryItem] {
-        var out = allScenery.filter { ids?.contains($0.id) ?? true }
+    private static func scenery(for ids: [String]?, looks: [String: String]) -> [SceneryItem] {
+        var out = allScenery.filter { ids?.contains($0.id) ?? true }.map { s -> SceneryItem in
+            // another look for a built-in piece: the pack's drawing, extent and color, in the same place
+            guard let look = looks[s.id], let i = SceneryKinds.index(of: look) else { return s }
+            let k = SceneryKinds.all[i]
+            return SceneryItem(id: s.id, kind: 35, u: s.u, scale: s.scale, color: k.color, seed: s.seed, pack: i,
+                               anchor: .sand, extent: k.extent, glowAtNight: k.glowAtNight)
+        }
         for (i, k) in SceneryKinds.all.enumerated() where ids?.contains(k.id) == true {
             for (j, u) in k.at.enumerated() {
                 out.append(SceneryItem(id: k.id, kind: 35, u: u, scale: k.size, color: k.color,
@@ -1933,9 +1941,13 @@ final class Tank {
             let (c, sz) = place(s)
             let color = mix(s.color * lit, water, t: 0.15)
             if let i = s.pack {
-                // a pack's piece: its own drawing (kind 35, its index in extra.z), the quad from its extent
-                out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: 35, glow: s.glowAtNight ? night : 0, phase: Float(time),
-                                  color: SIMD4(color, 1), extra: [1, s.seed, Float(i), night], aux: [s.extent.x, s.extent.y, 0, 0]))
+                // a pack's piece: its own drawing (kind 35, its index in extra.z), the quad from its extent. A chest
+                // drawn by a pack gets how open it is in extra.y (instead of the seed) and glows while it's open.
+                let isChest = s.id == "chest"
+                let glow = max(s.glowAtNight ? night : 0, isChest ? min(1, chestLid) : 0)
+                out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: 35, glow: glow, phase: Float(time),
+                                  color: SIMD4(color, 1), extra: [1, isChest ? min(1, chestLid) : s.seed, Float(i), night],
+                                  aux: [s.extent.x, s.extent.y, 0, 0]))
                 continue
             }
             out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 + chestLid * 0.6 : 0,

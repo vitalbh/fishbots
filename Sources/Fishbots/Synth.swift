@@ -15,6 +15,9 @@ enum Timbre: Int32 {
     case kalimba = 9 // music box / kalimba
     case tap = 10  // knuckle on the glass, tuned: the "knock knock" of finished
     case rumble = 11 // low-passed noise that rolls (thunder, quake): the frequency sets how dark, `dur` how long
+    // sounds brought by packs (SampleBank's slots): a recorded note played at the note's pitch
+    case sample0 = 100, sample1, sample2, sample3, sample4, sample5, sample6, sample7
+    case sample8, sample9, sample10, sample11, sample12, sample13, sample14, sample15
 }
 
 struct NoteEvent {
@@ -68,6 +71,59 @@ struct Voice {
     var ph2: Float = 0
     var lp: Float = 0
     var seed: UInt32 = 1
+}
+
+/// The packs' sounds: up to 16 recorded notes (mono floats), each with the pitch it was recorded at. Filled on the main
+/// thread before anything plays them; the audio thread only reads. A slot's old buffer is never freed (a voice may
+/// still be reading it after a reload): they're small and reloads are rare.
+final class SampleBank {
+    struct Slot {
+        var data: UnsafeMutablePointer<Float>? = nil
+        var count = 0          // set last, read first: 0 means "nothing here"
+        var rate: Float = 44100
+        var root: Float = 440   // the frequency it was recorded at
+        var gain: Float = 1
+    }
+    static let capacity = 16
+    static let slots: UnsafeMutablePointer<Slot> = {
+        let p = UnsafeMutablePointer<Slot>.allocate(capacity: capacity)
+        p.initialize(repeating: Slot(), count: capacity)
+        return p
+    }()
+    private static var used = 0
+
+    /// Forgets the packs' sounds (before the packs are read again).
+    static func reset() {
+        for i in 0..<capacity { slots[i].count = 0 }
+        used = 0
+    }
+
+    /// Loads an audio file (wav, aiff, caf; mixed down to mono, at most 12 s) into the next slot. Returns its timbre.
+    static func load(_ url: URL, root: Float, gain: Float) -> Timbre? {
+        guard used < capacity, let file = try? AVAudioFile(forReading: url),
+              let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
+                                         frameCapacity: AVAudioFrameCount(min(file.length, Int64(file.processingFormat.sampleRate * 12)))),
+              (try? file.read(into: buf)) != nil, let ch = buf.floatChannelData, buf.frameLength > 0 else { return nil }
+        let n = Int(buf.frameLength), channels = Int(buf.format.channelCount)
+        let data = UnsafeMutablePointer<Float>.allocate(capacity: n)
+        var peak: Float = 0
+        for i in 0..<n {
+            var v: Float = 0
+            for c in 0..<channels { v += ch[c][i] }
+            data[i] = v / Float(channels)
+            peak = max(peak, abs(data[i]))
+        }
+        if peak > 0 { for i in 0..<n { data[i] /= peak } }      // normalized: `gain` sets the level
+        let i = used
+        slots[i].count = 0
+        slots[i].data = data
+        slots[i].rate = Float(buf.format.sampleRate)
+        slots[i].root = root
+        slots[i].gain = max(0, min(2, gain))
+        slots[i].count = n
+        used += 1
+        return Timbre(rawValue: 100 + Int32(i))
+    }
 }
 
 /// Custom polyphonic synthesizer inside an AVAudioSourceNode.
@@ -296,6 +352,19 @@ final class Synth {
                 v.lp += k * (noise - v.lp)
                 v.ph2 += k * (v.lp - v.ph2)
                 s = v.ph2 * env * (0.75 + 0.25 * sinf(twoPi * 2.7 * ts)) * 3.2
+            case 100...115: // a pack's sound: the recording, resampled to the note's pitch
+                let slot = SampleBank.slots[Int(v.timbre - 100)]
+                guard slot.count > 0, let data = slot.data else { v.active = false; return }
+                let pos = v.ph1
+                let i0 = Int(pos)
+                if i0 + 1 >= slot.count { v.active = false; return }
+                let f = pos - Float(i0)
+                var env: Float = ts < 0.003 ? ts / 0.003 : 1
+                if v.dur > 0 && ts > v.dur { env *= max(0, 1 - (ts - v.dur) / 0.25) }      // held notes fade after `dur`
+                if v.dur > 0 && ts > v.dur + 0.25 { v.active = false; return }
+                s = (data[i0] * (1 - f) + data[i0 + 1] * f) * env * slot.gain * 0.8
+                v.ph1 += (v.freq / slot.root) * (slot.rate / sr)
+                maxLen = 13
             default: // bubble
                 maxLen = 0.3
                 let env = (ts < 0.001 ? ts / 0.001 : 1) * expf(-ts / 0.05)

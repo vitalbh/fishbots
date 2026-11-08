@@ -83,6 +83,11 @@ enum Packs {
         FishKinds.dropPacks()
         SceneryKinds.all = []
         for k in FaunaKinds.all { FaunaKinds.drop(k.id) }
+        PackPresences.all = []
+        PackBackgrounds.all = []
+        Scene.unregisterPacks()
+        SampleBank.reset()
+        soundTimbres = [:]
         load()
     }
 
@@ -147,7 +152,7 @@ enum Packs {
               let id = json["id"] as? String, id.range(of: #"^[a-z0-9][a-z0-9_-]{0,40}$"#, options: .regularExpression) != nil else {
             throw Failure(errorDescription: tr("o pacote não tem um pack.json com um \"id\" válido"))
         }
-        let allowed: Set<String> = ["json", "metal", "md", "txt", "png"]
+        let allowed: Set<String> = ["json", "metal", "md", "txt", "png", "wav", "aif", "aiff", "caf"]
         for f in (fm.enumerator(at: root, includingPropertiesForKeys: [.isSymbolicLinkKey])?.allObjects as? [URL]) ?? [] {
             if (try? f.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true {
                 throw Failure(errorDescription: tr("o pacote tem links para fora dele"))
@@ -218,12 +223,40 @@ enum Packs {
             else { pack.contents.append(tr("agente %@", a["name"] as? String ?? a["id"] as? String ?? "")) }
         }
         for t in json["themes"] as? [[String: Any]] ?? [] {
-            if let theme = Theme(json: t, base: Themes.named("classic")) {
+            if var theme = Theme(json: t, base: Themes.named("classic")) {
+                // its own background, drawn by the pack
+                if let bg = t["background"] as? [String: Any] {
+                    if let file = bg["metal"] as? String, let fn = bg["function"] as? String, !file.contains("/"),
+                       fn.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil,
+                       let src = try? String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8) {
+                        PackBackgrounds.all.removeAll { $0.id == theme.id }
+                        PackBackgrounds.all.append(PackBackground(id: theme.id, source: src, function: fn, pack: pack.id))
+                        theme.uniforms.pack = [Float(PackBackgrounds.all.count), bg["replaceReef"] as? Bool ?? true ? 1 : 0, 0, 0]
+                    } else {
+                        problems.append(tr("%@: fundo incompleto (%@)", name, theme.id))
+                    }
+                }
                 Themes.register(theme); themeIds.append(theme.id); pack.contents.append(tr("tema %@", theme.displayName))
             }
             else { problems.append(tr("%@: tema sem \"id\"", name)) }
         }
 
+        // sounds first: the styles below may play them
+        for snd in json["sounds"] as? [[String: Any]] ?? [] {
+            guard let id = snd["id"] as? String, let file = snd["file"] as? String, !file.contains("/"),
+                  ["wav", "aif", "aiff", "caf"].contains((file as NSString).pathExtension.lowercased()) else {
+                problems.append(tr("%@: som incompleto (%@)", name, snd["id"] as? String ?? "?"))
+                continue
+            }
+            guard builtInTimbres[id] == nil else { problems.append(tr("%@: o som %@ já existe", name, id)); continue }
+            guard let timbre = SampleBank.load(dir.appendingPathComponent(file), root: frequency(snd["root"]) ?? 440,
+                                               gain: (snd["gain"] as? NSNumber)?.floatValue ?? 1) else {
+                problems.append(tr("%@: não consegui ler o som %@", name, file))
+                continue
+            }
+            soundTimbres[id] = timbre
+            pack.contents.append(tr("som %@", localName(snd, id)))
+        }
         let chords = (json["chords"] as? [String: [NSNumber]] ?? [:]).mapValues { $0.map { $0.intValue % 12 } }
         let progressions = json["progressions"] as? [String: [String]] ?? [:]
         for s in json["styles"] as? [[String: Any]] ?? [] {
@@ -307,7 +340,49 @@ enum Packs {
                 on: fa["on"] as? String, front: fa["front"] as? Bool ?? false))
             pack.contents.append(tr("criatura %@", localName(fa, id)))
         }
+        for pr in json["presences"] as? [[String: Any]] ?? [] {
+            guard let id = pr["id"] as? String, let file = pr["metal"] as? String, let fn = pr["function"] as? String,
+                  fn.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil,
+                  !file.contains("/"), let src = try? String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8) else {
+                problems.append(tr("%@: presença incompleta (%@)", name, pr["id"] as? String ?? "?"))
+                continue
+            }
+            guard Scene.kinds[id] == nil || Scene.kinds[id]?.pack != nil else {
+                problems.append(tr("%@: a presença %@ já existe", name, id))
+                continue
+            }
+            let motions: [String: PresenceKind.Motion] = ["swim": .swim, "drift": .drift, "hover": .hover, "walk": .walk, "sit": .sit, "float": .float]
+            func num(_ k: String, _ def: Float) -> Float { (pr[k] as? NSNumber)?.floatValue ?? def }
+            let band = (pr["band"] as? [NSNumber]).flatMap { $0.count == 2 && $0[0].floatValue <= $0[1].floatValue
+                ? max(0.05, $0[0].floatValue)...min(0.95, $0[1].floatValue) : nil } ?? 0.3...0.6
+            let ext = (pr["extent"] as? [NSNumber]).flatMap { $0.count == 2 ? SIMD2($0[0].floatValue, $0[1].floatValue) : nil } ?? [1, 1]
+            PackPresences.all.removeAll { $0.id == id }
+            PackPresences.all.append(PackPresence(id: id, source: src, function: fn, pack: pack.id))
+            var k = PresenceKind(id: id, sprite: 37, motion: motions[pr["motion"] as? String ?? "swim"] ?? .swim,
+                                 size: max(6, min(200, num("size", 30))),
+                                 color: Theme.color(pr["color"]).map { SIMD3($0.x, $0.y, $0.z) } ?? [0.7, 0.7, 0.7], band: band)
+            k.meter = pr["meter"] as? Bool ?? false
+            k.drops = pr["drops"] as? Bool ?? false
+            if let snd = pr["sound"] as? String, Scene.voices.contains(snd) { k.sound = snd }
+            k.pack = PackPresences.all.count - 1
+            k.extent = ext
+            Scene.register(k)
+            pack.contents.append(tr("presença %@", localName(pr, id)))
+        }
         loaded.append(pack)
+    }
+
+    /// The renderer couldn't compile a pack theme's background: the theme stays, with the usual background.
+    static func backgroundFailed(_ bg: PackBackground, _ error: String) {
+        let line = error.split(separator: "\n").first { $0.contains("error") } ?? Substring(error)
+        problems.append(tr("%@: o fundo do tema %@ não compilou (%@)", bg.pack, bg.id, String(line.prefix(140))))
+    }
+
+    /// The renderer couldn't compile a pack's presence: it's dropped and reported.
+    static func presenceFailed(_ kind: PackPresence, _ error: String) {
+        let line = error.split(separator: "\n").first { $0.contains("error") } ?? Substring(error)
+        problems.append(tr("%@: a presença %@ não compilou (%@)", kind.pack, kind.id, String(line.prefix(140))))
+        Scene.unregister(kind.id)
     }
 
     /// The renderer couldn't compile a pack's creature: it's dropped and reported.
@@ -331,10 +406,24 @@ enum Packs {
         if let i = loaded.firstIndex(where: { $0.id == kind.pack }) { loaded[i].contents.removeAll { $0 == tr("peixe %@", kind.name) } }
     }
 
-    private static let timbres: [String: Timbre] = [
+    private static let builtInTimbres: [String: Timbre] = [
         "pluck": .pluck, "bell": .bell, "pad": .pad, "bass": .bass, "glass": .glass, "bubble": .bubble,
         "soft": .soft, "rhodes": .rhodes, "flute": .flute, "kalimba": .kalimba, "tap": .tap,
     ]
+    /// The built-in timbres and the packs' sounds, by name (a style's "lead" and "accompTimbre").
+    private(set) static var soundTimbres: [String: Timbre] = [:]
+    private static var timbres: [String: Timbre] { builtInTimbres.merging(soundTimbres) { a, _ in a } }
+
+    /// A note name ("A3", "C#4") or a MIDI number to a frequency.
+    private static func frequency(_ v: Any?) -> Float? {
+        if let n = v as? NSNumber { return 440 * powf(2, (n.floatValue - 69) / 12) }
+        guard let s = v as? String, let m = s.range(of: #"^([A-Ga-g])([#b]?)(-?\d)$"#, options: .regularExpression) else { return nil }
+        let t = String(s[m]), letters: [Character: Int] = ["C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11]
+        var semis = letters[Character(t.prefix(1).uppercased())] ?? 0
+        if t.contains("#") { semis += 1 } else if t.dropFirst().hasPrefix("b") { semis -= 1 }
+        guard let oct = Int(t.filter { $0.isNumber || $0 == "-" }) else { return nil }
+        return 440 * powf(2, Float((oct + 1) * 12 + semis - 69) / 12)
+    }
 
     /// A music style from JSON (missing values get the calm defaults).
     private static func style(_ s: [String: Any]) -> Style? {

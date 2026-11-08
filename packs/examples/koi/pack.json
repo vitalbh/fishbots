@@ -2,7 +2,7 @@
   "id": "koi",
   "name": "Lago japonês",
   "names": {"en": "Japanese pond"},
-  "version": "1.0",
+  "version": "1.1",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -15,7 +15,9 @@
       "visualizer": "surface",
       "music": "zen",
       "fauna": ["snail", "turtle", "frog", "tadpoles", "shrimp"],
-      "scenery": ["rock", "lantern", "lilypad"],
+      "scenery": ["rock", "lantern", "lilypad", "chest"],
+      "looks": { "chest": "shrine" },
+      "background": { "metal": "background.metal", "function": "draw_koi_background", "replaceReef": true },
       "water": {
         "deep": "#0b2420", "shallow": "#3f7d62", "rays": "#cfe8b0", "raysStrength": 0.18,
         "caustics": "#e8f5c8", "causticsStrength": 0.07, "surface": "#7fb88f", "murk": "#2e3a1c"
@@ -31,7 +33,7 @@
   "styles": [
     {
       "id": "zen", "name": "zen", "names": {"en": "zen"}, "bpm": [50, 60], "progressions": ["Pond"], "scale": [0, 1, 5, 7, 8],
-      "lead": ["kalimba", "pluck", "flute"], "accomp": "arpeggio", "accompTimbre": ["pluck", "soft"],
+      "lead": ["koto", "koto", "flute"], "accomp": "arpeggio", "accompTimbre": ["pluck", "soft"],
       "notesPerBar": [1, 3], "swing": [0, 0.05], "keys": [0, 2, 5], "energy": 0.2, "rest": 0.5,
       "visualizer": "surface"
     }
@@ -42,8 +44,17 @@
   "scenery": [
     { "id": "lantern", "name": "lanterna de pedra", "names": {"en": "stone lantern"}, "metal": "lantern.metal", "function": "draw_lantern",
       "anchor": "sand", "size": 0.11, "extent": [0.6, 1.0], "at": [0.27], "glowAtNight": true, "color": "#8c8c88" },
+    { "id": "shrine", "name": "santuário", "names": {"en": "shrine"}, "metal": "shrine.metal", "function": "draw_koi_shrine",
+      "anchor": "sand", "size": 0.06, "extent": [1.0, 1.0], "color": "#8a8a88" },
     { "id": "lilypad", "name": "vitória-régia", "names": {"en": "lily pad"}, "metal": "lily.metal", "function": "draw_lily",
       "anchor": "surface", "size": 0.06, "extent": [1.0, 0.7], "at": [0.12, 0.3, 0.52, 0.71, 0.88], "color": "#4f8a3e" }
+  ],
+  "sounds": [
+    { "id": "koto", "name": "koto", "file": "koto.wav", "root": "A3", "gain": 0.9 }
+  ],
+  "presences": [
+    { "id": "floating-lantern", "name": "lanterna flutuante", "names": {"en": "floating lantern"}, "metal": "floating.metal",
+      "function": "draw_koi_floating_lantern", "motion": "float", "size": 26, "extent": [0.8, 1.0], "color": "#c8503c", "sound": "chime" }
   ],
   "fauna": [
     { "id": "frog", "name": "sapo", "names": {"en": "frog"}, "metal": "creatures.metal", "function": "draw_frog",

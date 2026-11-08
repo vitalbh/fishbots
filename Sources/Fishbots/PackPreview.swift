@@ -74,6 +74,12 @@ enum PackPreview {
         }
         for k in SceneryKinds.all where !check("scenery", k.id, k.source, FishKinds.shaderSource(testing: k)) { Packs.sceneryFailed(k, ""); SceneryKinds.drop(k.id) }
         for k in FaunaKinds.all where !check("creature", k.id, k.source, FishKinds.shaderSource(testing: k)) { Packs.faunaFailed(k, ""); FaunaKinds.drop(k.id) }
+        for k in PackBackgrounds.all where !check("background of", k.id, k.source, FishKinds.shaderSource(testing: k)) {
+            Packs.backgroundFailed(k, ""); PackBackgrounds.blank(k.id)
+        }
+        for k in PackPresences.all where !check("presence", k.id, k.source, FishKinds.shaderSource(testing: k)) {
+            Packs.presenceFailed(k, ""); PackPresences.all.removeAll { $0.id == k.id }
+        }
 
         let p = Packs.loaded.first
         say((failures == 0 ? "✓ " : "• ") + (p.map { "\($0.name) (\($0.id)): " + ($0.contents.isEmpty ? "nothing" : $0.contents.joined(separator: ", ")) } ?? "no pack"))
@@ -138,7 +144,7 @@ enum PackPreview {
         Packs.themeIds.map { id in
             let u = Themes.named(id).uniforms
             func v(_ c: SIMD4<Float>) -> String { "float3(\(c.x), \(c.y), \(c.z))" }
-            let call = "pv_theme(c, \(v(u.deep)), \(v(u.shallow)), \(v(u.rays)), \(v(u.surface)), \(v(u.weedLow)), \(v(u.weedHigh)), \(v(u.sandDark)), \(v(u.sandLight)), \(v(u.farWeed)), \(u.params.z))"
+            let call = "pv_theme(c, \(v(u.deep)), \(v(u.shallow)), \(v(u.rays)), \(v(u.surface)), \(v(u.weedLow)), \(v(u.weedHigh)), \(v(u.sandDark)), \(v(u.sandLight)), \(v(u.farWeed)), \(u.params.z), \(Int(u.pack.x + 0.5) - 1))"
             return Cell(call: call, aspect: 1.5, label: "theme \(Themes.named(id).name)", sand: false)
         }
     }
@@ -199,6 +205,14 @@ enum PackPreview {
                                 sand: k.behavior == .crawl || k.behavior == .rest))
             }
         }
+        for (i, pr) in PackPresences.all.enumerated() {
+            guard let k = Scene.kinds[pr.id] else { continue }
+            let col = "float4(\(k.color.x), \(k.color.y), \(k.color.z), 1)"
+            for (state, name, value) in [(3, "ok", 1.0), (1, "busy", 0.6), (5, "error", 0.3), (2, "waiting", 0.8)] {
+                out.append(Cell(call: "draw_presence_pack(\(i), c, 1.3, \(state == 2 ? 0.6 : 0.0), \(col), float4(1, \(value), \(i), \(state)))",
+                                aspect: k.extent.x / k.extent.y, label: "\(pr.id) · \(name)", sand: k.motion.grounded))
+            }
+        }
         return out
     }
 
@@ -227,13 +241,18 @@ enum PackPreview {
         let src = FishKinds.shaderSource() + """
 
         float4 pv_theme(float2 c, float3 deep, float3 shallow, float3 rays, float3 surf, float3 wl, float3 wh,
-                        float3 sd, float3 sl, float3 far, float raysK) {
+                        float3 sd, float3 sl, float3 far, float raysK, int bg) {
             float2 uv = clamp(c * 0.5 + 0.5, 0.0, 1.0);
             float3 col = mix(deep, shallow, pow(uv.y, 1.3));
             float r = pow(sin((uv.x + uv.y * 0.35) * 9.0) * 0.5 + 0.5, 3.0) * smoothstep(0.1, 1.0, uv.y);
             col += rays * r * raysK * 1.5;
             col = mix(col, surf, (1.0 - smoothstep(0.0, 0.015, abs(uv.y - 0.94 - 0.01 * sin(uv.x * 30.0)))) * 0.8);
             col = mix(col, deep * 0.9, step(0.95, uv.y) * 0.5);
+            if (bg >= 0) {
+                float sandLine = 0.17 + 0.02 * sin(uv.x * 7.0);
+                float4 b = draw_background_pack(bg, uv, 2.0, 1.0, float2(0.0), col, float4(1.5, 0.0, sandLine, 0.0));
+                col = col * (1.0 - b.a) + b.rgb;
+            }
             for (int k = 0; k < 7; k++) {
                 float x0 = 0.08 + float(k) * 0.14, h = 0.35 + 0.3 * fract(float(k) * 0.618);
                 float yy = uv.y - 0.15, t = clamp(yy / h, 0.0, 1.0);

@@ -84,7 +84,7 @@ enum PackCatalog {
         let fm = FileManager.default
         let tmp = fm.temporaryDirectory.appendingPathComponent("fishbots-catalog-\(UUID().uuidString)")
         let dir = tmp.appendingPathComponent(e.id)
-        let ok = Set(["json", "metal", "md", "txt", "png"])
+        let ok = Set(["json", "metal", "md", "txt", "png", "wav", "aif", "aiff", "caf"])
         let files = e.files.filter { !$0.contains("/") && !$0.hasPrefix(".") && ok.contains(($0 as NSString).pathExtension.lowercased()) }
         guard files.contains("pack.json"), (try? fm.createDirectory(at: dir, withIntermediateDirectories: true)) != nil else {
             done(.failure(Failure(errorDescription: tr("o pacote do catálogo está incompleto")))); return
@@ -211,8 +211,8 @@ final class PackCatalogWindow: NSObject, NSWindowDelegate {
         let desc = NSTextField(wrappingLabelWithString: e.description)
         desc.font = .systemFont(ofSize: 12)
         desc.preferredMaxLayoutWidth = 340
-        let names = ["themes": tr("tema"), "styles": tr("música"), "fish": tr("peixe"), "scenery": tr("cenário"), "fauna": tr("criatura"), "agents": tr("agente")]
-        let brings = ["themes", "fish", "scenery", "fauna", "styles", "agents"].compactMap { k in e.contents[k].map { "\($0) \(names[k]!)" } }
+        let names = ["themes": tr("tema"), "styles": tr("música"), "fish": tr("peixe"), "scenery": tr("cenário"), "fauna": tr("criatura"), "agents": tr("agente"), "presences": tr("presença"), "sounds": tr("som")]
+        let brings = ["themes", "fish", "scenery", "fauna", "presences", "styles", "sounds", "agents"].compactMap { k in e.contents[k].map { "\($0) \(names[k]!)" } }
         let what = NSTextField(labelWithString: brings.joined(separator: " · "))
         what.font = .systemFont(ofSize: 11)
         what.textColor = .tertiaryLabelColor

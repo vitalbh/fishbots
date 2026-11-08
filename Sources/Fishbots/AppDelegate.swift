@@ -141,6 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         Renderer.packFishFailed = Packs.fishFailed
         Renderer.packSceneryFailed = Packs.sceneryFailed
         Renderer.packFaunaFailed = Packs.faunaFailed
+        Renderer.packPresenceFailed = Packs.presenceFailed
+        Renderer.packBackgroundFailed = Packs.backgroundFailed
         TankProtocol.stateExtras = { ["packs": Packs.loaded.map { ["id": $0.id, "name": $0.name, "contents": $0.contents] },
                                       "packProblems": Packs.problems + AgentManifests.problems, "fishKinds": FishKinds.all.map(\.id),
                                       "notifications": self.notifier.permission, "onScreen": self.onScreen] }
@@ -1289,7 +1291,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         visual.size = tank.size
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))
-        return (u, packGuard.filter(visual.sprites() + tank.sprites()))
+        let sprites = packGuard.filter(visual.sprites() + tank.sprites())
+        // the theme's background from a pack: counted by the guard, and left out while it's being tested
+        let theme = Themes.current
+        if theme.uniforms.pack.x > 0.5, let bg = PackBackgrounds.all.first(where: { $0.id == theme.id }) {
+            packGuard.notePresent(bg.pack)
+            renderer.theme.pack = packGuard.hidden.contains(bg.pack) ? .zero : theme.uniforms.pack
+        }
+        return (u, sprites)
     }
 
     /// The hour now, with minutes (FISHBOTS_HOUR fixes it, to see dawn or dusk any time).
@@ -1722,6 +1731,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         Packs.reload()
         let ok = renderer.reload()
         for (f, id) in kinds { f.species = FishKinds.index(of: id) }
+        tank.scene.refreshPackKinds()
         applyTheme()
         buildMenu()
         packsSignature = Packs.signature()
@@ -1803,6 +1813,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         tank.rayStrength = t.uniforms.params.z
         visual.themeVisualizer = t.visualizer
         tank.fauna.select(t.fauna)
+        tank.sceneryLooks = t.looks
         tank.sceneryKinds = t.scenery
         Generator.preferredStyle = t.music
     }

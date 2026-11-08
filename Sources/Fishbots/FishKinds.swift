@@ -43,28 +43,46 @@ enum FishKinds {
 
     /// The shader with only the built-in kinds and this one, and no pack scenery (to find which pack fish breaks it).
     static func shaderSource(testing k: FishKind) -> String {
-        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all
+        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all, keepPres = PackPresences.all, keepBg = PackBackgrounds.all
         all = all.filter { $0.pack == nil } + [k]
-        SceneryKinds.all = []; FaunaKinds.all = []
-        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna }
+        SceneryKinds.all = []; FaunaKinds.all = []; PackPresences.all = []; PackBackgrounds.all = []
+        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna; PackPresences.all = keepPres; PackBackgrounds.all = keepBg }
         return shaderSource()
     }
 
     /// The shader with the built-in fish and only this pack scenery (to find which one breaks it).
     static func shaderSource(testing k: SceneryKind) -> String {
-        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all
+        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all, keepPres = PackPresences.all, keepBg = PackBackgrounds.all
         all = all.filter { $0.pack == nil }
-        SceneryKinds.all = [k]; FaunaKinds.all = []
-        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna }
+        SceneryKinds.all = [k]; FaunaKinds.all = []; PackPresences.all = []; PackBackgrounds.all = []
+        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna; PackPresences.all = keepPres; PackBackgrounds.all = keepBg }
+        return shaderSource()
+    }
+
+    /// The shader with the built-in fish and only this pack background (to find which one breaks it).
+    static func shaderSource(testing k: PackBackground) -> String {
+        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all, keepPres = PackPresences.all, keepBg = PackBackgrounds.all
+        all = all.filter { $0.pack == nil }
+        SceneryKinds.all = []; FaunaKinds.all = []; PackPresences.all = []; PackBackgrounds.all = [k]
+        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna; PackPresences.all = keepPres; PackBackgrounds.all = keepBg }
+        return shaderSource()
+    }
+
+    /// The shader with the built-in fish and only this pack presence (to find which one breaks it).
+    static func shaderSource(testing k: PackPresence) -> String {
+        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all, keepPres = PackPresences.all, keepBg = PackBackgrounds.all
+        all = all.filter { $0.pack == nil }
+        SceneryKinds.all = []; FaunaKinds.all = []; PackPresences.all = [k]; PackBackgrounds.all = []
+        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna; PackPresences.all = keepPres; PackBackgrounds.all = keepBg }
         return shaderSource()
     }
 
     /// The shader with the built-in fish and only this pack creature (to find which one breaks it).
     static func shaderSource(testing k: FaunaKind) -> String {
-        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all
+        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all, keepPres = PackPresences.all, keepBg = PackBackgrounds.all
         all = all.filter { $0.pack == nil }
-        SceneryKinds.all = []; FaunaKinds.all = [k]
-        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna }
+        SceneryKinds.all = []; FaunaKinds.all = [k]; PackPresences.all = []; PackBackgrounds.all = []
+        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna; PackPresences.all = keepPres; PackBackgrounds.all = keepBg }
         return shaderSource()
     }
 
@@ -96,6 +114,16 @@ enum FishKinds {
         gen += SceneryKinds.all.map(\.source).filter { seen.insert($0).inserted }.joined(separator: "\n\n")
         gen += "\n\nfloat4 draw_scenery_pack(int k, float2 c, float t, float glow, float4 col, float4 extra) {\n    switch (k) {\n"
         for (i, k) in SceneryKinds.all.enumerated() { gen += "    case \(i): return \(k.function)(c, t, glow, col, extra);\n" }
+        gen += "    default: return float4(0.0);\n    }\n}\n"
+        // the packs' theme backgrounds (the theme's uniforms carry the index + 1)
+        gen += "\n" + PackBackgrounds.all.map(\.source).filter { seen.insert($0).inserted }.joined(separator: "\n\n")
+        gen += "\n\nfloat4 draw_background_pack(int k, float2 uv, float t, float light, float2 gaze, float3 water, float4 extra) {\n    switch (k) {\n"
+        for (i, k) in PackBackgrounds.all.enumerated() { gen += "    case \(i): return \(k.function)(uv, t, light, gaze, water, extra);\n" }
+        gen += "    default: return float4(0.0);\n    }\n}\n"
+        // the packs' presences (extra.z: the index)
+        gen += "\n" + PackPresences.all.map(\.source).filter { seen.insert($0).inserted }.joined(separator: "\n\n")
+        gen += "\n\nfloat4 draw_presence_pack(int k, float2 c, float phase, float glow, float4 col, float4 extra) {\n    switch (k) {\n"
+        for (i, k) in PackPresences.all.enumerated() { gen += "    case \(i): return \(k.function)(c, phase, glow, col, extra);\n" }
         gen += "    default: return float4(0.0);\n    }\n}\n"
         // the packs' creatures, the same way (extra.z: the index)
         gen += "\n" + FaunaKinds.all.map(\.source).filter { seen.insert($0).inserted }.joined(separator: "\n\n")
@@ -136,6 +164,46 @@ struct SceneryKind {
     let drift: Bool
     /// The fish swim around it (default: on the sand and in the water yes, at the surface no).
     let solid: Bool
+}
+
+/// A kind of presence that comes from a pack (plugins use it like the built-in ones: "kind": "<id>"), drawn by its own
+/// Metal function `float4 draw_<id>(float2 c, float phase, float glow, float4 col, float4 extra)`, moved by the app like
+/// the built-in presences. In the function: extra.y is its value (0…1, for meters), extra.w its state
+/// (0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born). A sprite of kind 37 carries its index in extra.z.
+struct PackPresence {
+    let id: String
+    let source: String
+    let function: String
+    let pack: String
+}
+
+/// A pack theme's own background, drawn over the water and behind the seaweed by
+/// `float4 draw_<id>(float2 uv, float t, float light, float2 gaze, float3 water, float4 extra)`: uv 0…1 over the
+/// window (y up), t seconds, light the daylight (0…1), gaze the parallax (-1…1, move far things a little with it),
+/// water the water's color there (mix toward it for haze), extra.x the aspect (width / height), extra.y moonlight
+/// (0…1), extra.z the sand line's height at this x. Returns premultiplied rgba.
+struct PackBackground {
+    let id: String       // the theme's id
+    let source: String
+    let function: String
+    let pack: String
+}
+
+enum PackBackgrounds {
+    static var all: [PackBackground] = []
+    /// One that didn't compile: it stays in its place (the themes keep their index) and draws nothing.
+    static func blank(_ id: String) {
+        guard let i = all.firstIndex(where: { $0.id == id }) else { return }
+        all[i] = PackBackground(id: id, source: "", function: "fishbots_no_background", pack: all[i].pack)
+    }
+}
+
+enum PackPresences {
+    static var all: [PackPresence] = []
+    static func index(of id: String) -> Int? { all.firstIndex { $0.id == id } }
+    static func stateCode(_ s: State) -> Float {
+        switch s { case .idle: 0; case .busy: 1; case .waiting: 2; case .ok: 3; case .alert: 4; case .error: 5; case .done: 6; case .born: 7 }
+    }
 }
 
 /// The registry of pack scenery. A sprite of kind 35 carries its index in extra.z.
