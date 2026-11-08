@@ -64,6 +64,8 @@ final class Presence {
     /// Something changed (state or text): the detail shows for a few seconds.
     var changedAt: Double
     var leaving = false
+    /// The pack kind it asked for, while it's drawn by a built-in stand-in (the pack isn't loaded, or left).
+    var wantedKind: String?
     var party = false
     var alpha: Float = 0
     var shake: Float = 0
@@ -128,8 +130,19 @@ final class Scene {
 
     /// After the packs are read again: the presences of a pack's kind take its new index (or vanish if it's gone).
     func refreshPackKinds() {
-        for p in presences where p.kind.sprite == 37 {
-            if let k = Self.kinds[p.kind.id] { p.kind = k } else { p.kind.pack = nil }
+        for p in presences {
+            if let w = p.wantedKind, let k = Self.kinds[w] {
+                p.kind = k; p.wantedKind = nil                         // its pack is here now: the real drawing
+            } else if p.kind.sprite == 37 {
+                if let k = Self.kinds[p.kind.id] { p.kind = k }
+                else {
+                    // its pack left (removed or paused): a built-in kind that moves the same way stands in
+                    let stand: [PresenceKind.Motion: String] = [.swim: "turtle", .drift: "jellyfish", .hover: "seahorse",
+                                                                .walk: "crab", .sit: "flag", .float: "bottle"]
+                    p.wantedKind = p.kind.id
+                    if let k = Self.kinds[stand[p.kind.motion] ?? "flag"] { p.kind = k }
+                }
+            }
         }
     }
 
@@ -217,17 +230,25 @@ final class Scene {
 
     /// Creates or updates. Returns an error for the protocol's response.
     func upsert(_ t: Tank, source: String, id: String, kind kindName: String?, state: State?, label: String?, detail: String?,
-                link: String?, value: Float?, color: SIMD3<Float>?, x: Float?, sound: String? = nil) -> String? {
+                link: String?, value: Float?, color: SIMD3<Float>?, x: Float?, sound: String? = nil, fallback: String? = nil) -> String? {
         if let e = Self.checkSound(sound) { return e }
         var kind: PresenceKind?
+        var wanted: String?
         if let k = kindName {
-            guard let known = Self.kinds[k] else {
-                return "unknown kind: \(k) (use \(Self.kinds.keys.sorted().joined(separator: ", ")))"
+            if let known = Self.kinds[k] {
+                kind = known
+            } else if let f = fallback, let stand = Self.kinds[f] {
+                // a pack's kind that isn't here (yet): a built-in one stands in, and it turns into the real one when
+                // the pack is installed
+                kind = stand
+                wanted = k
+            } else {
+                return "unknown kind: \(k) (use \(Self.kinds.keys.sorted().joined(separator: ", ")), or send \"fallback\": a built-in kind)"
             }
-            kind = known
         }
         if let p = presence(source: source, id: id) {
             p.leaving = false
+            if kindName != nil { p.wantedKind = wanted }
             if let kind, kind.id != p.kind.id { p.kind = kind; place(p, t, fresh: false) }
             var changed = false
             if let label, !label.isEmpty, label != p.label { p.label = label; changed = true }
@@ -245,6 +266,7 @@ final class Scene {
         let u = x ?? spot(for: "\(source):\(id)", kind.motion, t)
         let p = Presence(id: "\(source):\(id)", source: source, kind: kind, state: state ?? .ok, label: label ?? id,
                          u: u, pos: [t.size.x * u, t.size.y * 0.5], now: t.time)
+        p.wantedKind = wanted
         p.detail = detail?.isEmpty == false ? detail : nil
         p.link = link
         p.value = value

@@ -80,7 +80,10 @@ interval (`name.5m.sh`) get the same clean-up as fish: a presence that isn't in 
 | `anchor` | drops from the top and stays | something pinned, a blocker |
 
 Packs can add kinds of their own (a drawing in Metal plus how it moves): see `presences` in
-[extensions.md](extensions.md#presences-from-packs). Plugins use them like these, by id.
+[extensions.md](extensions.md#presences-from-packs). Plugins use them like these, by id, in any theme. Send
+`"fallback"` with a built-in kind for people who don't have the pack: it stands in, and turns into the pack's kind when
+the pack is installed (`{"kind": "floating-lantern", "fallback": "bottle", …}`). If a pack is removed or paused, its
+presences are drawn by a built-in kind that moves the same way until it comes back.
 | `flag` | stands on the sand, waving; its cloth takes the state's color | a status (green/yellow/red) |
 | `helm` | a ship's wheel hanging on the side glass (on the sand once the sides are full); its hub takes the state's color and it turns while `busy` | a cluster, something you steer |
 | `chest` | stays on the sand; glows when `done` or `waiting` | a goal, a reward |
