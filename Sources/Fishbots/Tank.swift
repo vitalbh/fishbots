@@ -315,15 +315,25 @@ final class Tank {
 
     init() {
         loadPearls()
-        // school of decorative neons (no sound, no label)
-        for i in 0..<7 {
-            let f = Fish(id: "decor:\(i)", source: "decor", label: "", pos: [Float.random(in: 200...700), Float.random(in: 250...450)],
-                         size: 9, color: [0.35, 0.75, 1.0], stripes: true, motif: 0, timbre: .pluck, phase: i,
-                         decor: true, now: time)
-            f.state = .idle
-            f.pattern = 1
-            f.depth = Float.random(in: 0.25...0.7)
-            fish.append(f)
+        // decorative schools (no sound, no label), so the tank is alive even with few sessions. The phase says the school
+        // (phase / 100) and the place in it (phase % 100 == 0: the leader): blue neons in the middle, orange tetras up high,
+        // silversides deep in the back (slender, blurred by the distance)
+        let schools: [(n: Int, size: ClosedRange<Float>, color: SIMD3<Float>, pattern: Int, depth: ClosedRange<Float>, kind: String)] = [
+            (10, 9.5...11, [0.35, 0.75, 1.0], 1, 0.2...0.6, "oval"),
+            (8, 8...9.5, [1.0, 0.62, 0.25], 3, 0.25...0.5, "oval"),
+            (6, 14...17, [0.72, 0.8, 0.88], 0, 0.6...0.8, "slender"),
+        ]
+        for (s, sc) in schools.enumerated() {
+            for i in 0..<sc.n {
+                let f = Fish(id: "decor:\(s * 100 + i)", source: "decor", label: "",
+                             pos: [Float.random(in: 200...700), Float.random(in: 250...450)], size: Float.random(in: sc.size),
+                             color: sc.color, stripes: true, motif: 0, timbre: .pluck, phase: s * 100 + i, decor: true, now: time)
+                f.state = .idle
+                f.pattern = sc.pattern
+                f.depth = Float.random(in: sc.depth)
+                f.species = FishKinds.index(of: sc.kind)
+                fish.append(f)
+            }
         }
     }
 
@@ -921,7 +931,9 @@ final class Tank {
     private static func weeds(_ n: Int) -> [(x: Float, h: Float)] { (0..<n).map { k in
         let fk = Float(k)
         let fr: (Float) -> Float = { $0 - floorf($0) }
-        return (fr(sinf(fk * 91.7) * 437.1) * 0.9 + 0.05, 0.16 + fr(sinf(fk * 13.1) * 91.3) * 0.28)
+        // spread over the whole width: each blade in its own slice, at a random place within it (so it doesn't look lined up)
+        let slice = 0.9 / Float(max(1, n))
+        return (0.05 + (fk + 0.1 + 0.8 * fr(sinf(fk * 91.7) * 437.1)) * slice, 0.16 + fr(sinf(fk * 13.1) * 91.3) * 0.28)
     } }
 
     private func nearestWeed(_ p: SIMD2<Float>) -> SIMD2<Float> {
@@ -1208,7 +1220,7 @@ final class Tank {
         if let b = game, time > b.until { game = nil }
         if game == nil && light < 0.75 && time > nextGame {
             nextGame = time + Double.random(in: 70...140)
-            let freeSlots = fish.filter { !$0.leaving && !sleeping($0) && ($0.decor ? $0.parent == nil && $0.phase != 0 : ($0.state == .idle || $0.state == .ok)) }
+            let freeSlots = fish.filter { !$0.leaving && !sleeping($0) && ($0.decor ? $0.parent == nil && $0.phase % 100 != 0 : ($0.state == .idle || $0.state == .ok)) }
             if freeSlots.count >= 2 {
                 let stopFn = freeSlots.shuffled().prefix(2)
                 game = (stopFn.first!.id, stopFn.last!.id, time + 18)
@@ -1474,22 +1486,26 @@ final class Tank {
             }
         } else if f.decor {
             // the school follows the neons' center, wandering
-            if f.phase == 0 && (time > f.wanderAt || simd_distance(f.pos, f.wander) < 30) {
-                f.wander = [Float.random(in: w * 0.15...w * 0.85), Float.random(in: h * 0.3...h * 0.85)]
-                f.wanderAt = time + Double.random(in: 4...9)
+            let school = f.phase / 100
+            let leads = f.phase % 100 == 0
+            if leads && (time > f.wanderAt || simd_distance(f.pos, f.wander) < 30) {
+                // each school keeps to its own height: neons in the middle, tetras up high, silversides low in the back
+                let band: ClosedRange<Float> = school == 1 ? 0.55...0.88 : school == 2 ? 0.18...0.48 : 0.3...0.8
+                f.wander = [Float.random(in: w * 0.12...w * 0.88), h * Float.random(in: band)]
+                f.wanderAt = time + Double.random(in: school == 2 ? 7...14 : 4...9)
             }
-            let leader = fish.first { $0.decor && $0.phase == 0 && $0.parent == nil }!
-            if f.phase == 0 {
+            let leader = fish.first { $0.decor && $0.parent == nil && $0.phase == school * 100 } ?? f
+            if leads {
                 target = f.wander
             } else {
                 // a school: toward the group's center, heading where the group heads, following the leader from a distance
                 var center = SIMD2<Float>.zero, heading = SIMD2<Float>.zero, n: Float = 0
-                for o in fish where o.decor && o.parent == nil && o !== f { center += o.pos; heading += o.vel; n += 1 }
+                for o in fish where o.decor && o.parent == nil && o !== f && o.phase / 100 == school { center += o.pos; heading += o.vel; n += 1 }
                 if n > 0 { center /= n; heading /= n }
                 let wobble = SIMD2(sinf(Float(time) * 0.7 + Float(f.phase) * 1.9), cosf(Float(time) * 0.5 + Float(f.phase))) * 9
                 target = f.pos + (center - f.pos) * 0.35 + (leader.pos - f.pos) * 0.3 + heading * 0.8 + wobble
             }
-            speed = f.phase == 0 ? 45 : 75
+            speed = (leads ? 45 : 75) * (school == 2 ? 0.7 : 1)
             // a real school: they part around a big fish passing through and close up again behind it,
             // and keep a little room between each other
             var away: SIMD2<Float> = .zero

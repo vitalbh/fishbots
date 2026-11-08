@@ -173,6 +173,16 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float ux = uv.x + u.gaze.x * 0.006;
     float pebbles = 0.1 + 0.05 * vnoise(float2(ux * 7.0, 1.3)) + 0.035 * vnoise(float2(ux * 19.0, 4.1));
     if (uv.y < pebbles) col = mix(col, fog * 0.75, 0.55 * (1.0 - smoothstep(pebbles - 0.012, pebbles, uv.y) * 0.4));
+    // a distant reef: soft silhouettes of rock and coral far away in the haze, higher in two outcrops (barely any parallax)
+    if (uv.y < 0.37) {                                                   // (the reef never goes higher: skip the noise above it)
+        float rx = uv.x + u.gaze.x * 0.003;
+        float ridge = 0.12 + 0.1 * vnoise(float2(rx * 4.0, 2.7)) + 0.05 * vnoise(float2(rx * 13.0, 5.3));
+        ridge += 0.09 * smoothstep(0.17, 0.0, abs(rx - 0.24)) + 0.07 * smoothstep(0.2, 0.0, abs(rx - 0.8));
+        if (uv.y < ridge) {
+            col = mix(col, fog * 0.52, 0.6 * (0.75 + 0.25 * smoothstep(ridge - 0.1, ridge, uv.y)));
+            col += fog * 0.18 * (1.0 - smoothstep(0.0, 0.006, ridge - uv.y)) * L;     // its top catches a little light
+        }
+    }
     int farCount = int(th.params.y + 0.5);
     for (int k = 0; k < farCount; k++) {
         float fk = float(k) + 20.0;
@@ -196,7 +206,8 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     for (int k = 0; k < weedCount; k++) {
         float fk = float(k);
         float x0 = weeds[k].x;
-        if (abs(uv.x + u.gaze.x * 0.012 - x0) > 0.045 + abs(weeds[k].z)) continue;   // far from this blade: skip it
+        // far from this blade: skip it (leafy stems reach a little wider than blades and kelp)
+        if (abs(uv.x + u.gaze.x * 0.012 - x0) > (weeds[k].w > 1.5 ? 0.045 : 0.035) + abs(weeds[k].z)) continue;
         float hgt = weeds[k].y;
         float yy = uv.y - (0.075 + 0.018 * sin(x0 * 7.0 + 1.3) + 0.008 * sin(x0 * 23.0) - 0.015);
         if (yy > 0.0 && yy < hgt) {

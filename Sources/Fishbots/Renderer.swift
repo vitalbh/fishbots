@@ -46,6 +46,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var glowTex: MTLTexture?
     private var quarterA: MTLTexture?
     private var quarterB: MTLTexture?
+    /// The glow target is full size and written by every pass: 8 bits per channel is plenty (values stay within 0…1),
+    /// and half the memory traffic of 16. The blur's small textures keep 16 bits (no banding in the soft halos).
+    private static let glowTargetFormat = MTLPixelFormat.rgba8Unorm
     private static let glowFormat = MTLPixelFormat.rgba16Float
     /// How strong the bloom is (0: off).
     var bloom: Float = Env.value("BLOOM").flatMap(Float.init) ?? 1.1
@@ -95,7 +98,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             bg.vertexFunction = lib.makeFunction(name: "bg_vertex")
             bg.fragmentFunction = lib.makeFunction(name: "bg_fragment")
             bg.colorAttachments[0].pixelFormat = view.colorPixelFormat
-            bg.colorAttachments[1].pixelFormat = Self.glowFormat
+            bg.colorAttachments[1].pixelFormat = Self.glowTargetFormat
             bgPipeline = try device.makeRenderPipelineState(descriptor: bg)
 
             let sp = MTLRenderPipelineDescriptor()
@@ -112,7 +115,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             ca.destinationAlphaBlendFactor = .oneMinusSourceAlpha
             // the glow target blends the same way (what's in front covers the glow behind it)
             let cg = sp.colorAttachments[1]!
-            cg.pixelFormat = Self.glowFormat
+            cg.pixelFormat = Self.glowTargetFormat
             cg.isBlendingEnabled = true
             cg.rgbBlendOperation = .add
             cg.alphaBlendOperation = .add
@@ -168,13 +171,13 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// The bloom's textures, (re)made for the drawable's size.
     private func bloomTextures(_ w: Int, _ h: Int) -> (MTLTexture, MTLTexture, MTLTexture)? {
         if let g = glowTex, g.width == w, g.height == h, let a = quarterA, let b = quarterB { return (g, a, b) }
-        func make(_ w: Int, _ h: Int) -> MTLTexture? {
-            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.glowFormat, width: max(1, w), height: max(1, h), mipmapped: false)
+        func make(_ w: Int, _ h: Int, _ format: MTLPixelFormat = Self.glowFormat) -> MTLTexture? {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: format, width: max(1, w), height: max(1, h), mipmapped: false)
             d.usage = [.renderTarget, .shaderRead]
             d.storageMode = .private
             return device.makeTexture(descriptor: d)
         }
-        guard let g = make(w, h), let a = make(w / 4, h / 4), let b = make(w / 4, h / 4) else { return nil }
+        guard let g = make(w, h, Self.glowTargetFormat), let a = make(w / 4, h / 4), let b = make(w / 4, h / 4) else { return nil }
         glowTex = g; quarterA = a; quarterB = b
         return (g, a, b)
     }

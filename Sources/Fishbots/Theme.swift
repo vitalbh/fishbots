@@ -85,7 +85,7 @@ struct Theme {
         caustics: [0.5, 0.75, 0.75, 1], surface: [0.35, 0.6, 0.65, 1], farWeed: [0.08, 0.2, 0.14, 1],
         weedLow: [0.05, 0.22, 0.12, 1], weedHigh: [0.18, 0.45, 0.22, 1],
         sandDark: [0.40, 0.33, 0.22, 1], sandLight: [0.62, 0.53, 0.38, 1], murk: [0.17, 0.2, 0.11, 1],
-        params: [9, 12, 0.22, 0.06])
+        params: [12, 12, 0.22, 0.06])
 }
 
 /// The registry of themes. The chosen one is stored under "theme".
