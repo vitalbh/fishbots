@@ -45,6 +45,11 @@ struct Theme {
     var looks: [String: String] = [:]
     /// The theme's light through the day (nil: the usual one). See `Sky`.
     var sky: Sky?
+    /// The decorative schools (nil: the usual neons, tetras and silversides). At most 3: the first swims in the middle,
+    /// the second up high, the third low and far.
+    var schools: [School]?
+    /// The jellyfish that drifts around (false: none here).
+    var jellyfish = true
     var weedCount: Int { Int(uniforms.params.x) }
 
     /// A color from JSON: "#rrggbb" or [r, g, b] (0…1).
@@ -94,6 +99,8 @@ struct Theme {
         description = json["description"] as? String ?? ""
         descriptions = json["descriptions"] as? [String: String] ?? [:]
         if let s = json["sky"] as? [String: Any] { sky = Sky(json: s) }
+        if let list = json["schools"] as? [[String: Any]] { schools = list.prefix(3).map(School.init(json:)) }
+        jellyfish = json["jellyfish"] as? Bool ?? true
     }
 
     /// The original look.
@@ -173,4 +180,36 @@ struct Sky {
         if let v = (s["sun"] as? NSNumber)?.floatValue { sun = max(0, min(3, v)) }
         if let v = (s["moon"] as? NSNumber)?.floatValue { moon = max(0, min(3, v)) }
     }
+}
+
+/// A decorative school: how many, how big, their color, the fish kind (a built-in one or a pack's), the pattern and
+/// how far back they swim (0 near … 1 far).
+///
+///   "schools": [{"color": "#c8d4dc", "kind": "slender", "count": 12, "size": [7, 9], "pattern": 0, "depth": [0.3, 0.7]}]
+struct School {
+    var count = 8
+    var size: ClosedRange<Float> = 8...10
+    var color: SIMD3<Float> = [0.6, 0.7, 0.8]
+    var pattern = 0
+    var depth: ClosedRange<Float> = 0.2...0.6
+    var kind = "oval"
+
+    init(count: Int, size: ClosedRange<Float>, color: SIMD3<Float>, pattern: Int, depth: ClosedRange<Float>, kind: String) {
+        self.count = count; self.size = size; self.color = color; self.pattern = pattern; self.depth = depth; self.kind = kind
+    }
+    init(json s: [String: Any]) {
+        if let n = (s["count"] as? NSNumber)?.intValue { count = max(1, min(16, n)) }
+        if let a = s["size"] as? [NSNumber], a.count == 2 { let lo = max(4, a[0].floatValue); size = lo...max(lo, min(30, a[1].floatValue)) }
+        if let c = Theme.color(s["color"]) { color = [c.x, c.y, c.z] }
+        if let p = (s["pattern"] as? NSNumber)?.intValue { pattern = max(0, min(7, p)) }
+        if let a = s["depth"] as? [NSNumber], a.count == 2 { let lo = max(0, min(0.9, a[0].floatValue)); depth = lo...max(lo, min(0.9, a[1].floatValue)) }
+        if let k = s["kind"] as? String { kind = k }
+    }
+
+    /// The usual ones: blue neons in the middle, orange tetras up high, silversides deep in the back.
+    static let usual: [School] = [
+        School(count: 10, size: 9.5...11, color: [0.35, 0.75, 1.0], pattern: 1, depth: 0.2...0.6, kind: "oval"),
+        School(count: 8, size: 8...9.5, color: [1.0, 0.62, 0.25], pattern: 3, depth: 0.25...0.5, kind: "oval"),
+        School(count: 6, size: 14...17, color: [0.72, 0.8, 0.88], pattern: 0, depth: 0.6...0.8, kind: "slender"),
+    ]
 }

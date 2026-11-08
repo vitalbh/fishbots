@@ -4,7 +4,7 @@
   "names": {
     "en": "Coral reef"
   },
-  "version": "2.1",
+  "version": "2.2",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -60,13 +60,58 @@
       ],
       "looks": {
         "oval": "clownfish",
-        "helm": "shellwheel"
+        "helm": "shellwheel",
+        "betta": "mandarin"
       },
       "background": {
         "metal": "reef.metal",
         "function": "draw_coral_background",
         "replaceReef": true
-      }
+      },
+      "schools": [
+        {
+          "color": "#ff8a6a",
+          "kind": "oval",
+          "count": 10,
+          "size": [
+            8,
+            9.5
+          ],
+          "pattern": 0,
+          "depth": [
+            0.2,
+            0.55
+          ]
+        },
+        {
+          "color": "#ffd040",
+          "kind": "oval",
+          "count": 7,
+          "size": [
+            8,
+            9
+          ],
+          "pattern": 5,
+          "depth": [
+            0.25,
+            0.5
+          ]
+        },
+        {
+          "color": "#6ac8e8",
+          "kind": "slender",
+          "count": 6,
+          "size": [
+            12,
+            15
+          ],
+          "pattern": 0,
+          "depth": [
+            0.6,
+            0.8
+          ]
+        }
+      ]
     }
   ],
   "chords": {
@@ -147,6 +192,15 @@
       },
       "metal": "clownfish.metal",
       "function": "draw_clownfish"
+    },
+    {
+      "id": "mandarin",
+      "name": "peixe-mandarim",
+      "names": {
+        "en": "mandarinfish"
+      },
+      "metal": "mandarin.metal",
+      "function": "draw_coral_mandarin"
     }
   ],
   "sounds": [

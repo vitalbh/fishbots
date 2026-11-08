@@ -4,7 +4,7 @@
   "names": {
     "en": "Japanese pond"
   },
-  "version": "1.3",
+  "version": "1.4",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -40,7 +40,8 @@
         "slender": "koi",
         "flag": "koinobori",
         "helm": "suisha",
-        "shark": "namazu"
+        "shark": "namazu",
+        "betta": "ryukin"
       },
       "background": {
         "metal": "background.metal",
@@ -67,7 +68,52 @@
       "sand": {
         "dark": "#3a3a34",
         "light": "#7a786a"
-      }
+      },
+      "jellyfish": false,
+      "schools": [
+        {
+          "color": "#c9c2a0",
+          "kind": "slender",
+          "count": 12,
+          "size": [
+            6,
+            7.5
+          ],
+          "pattern": 0,
+          "depth": [
+            0.2,
+            0.55
+          ]
+        },
+        {
+          "color": "#d8b0b8",
+          "kind": "oval",
+          "count": 8,
+          "size": [
+            7,
+            8.5
+          ],
+          "pattern": 0,
+          "depth": [
+            0.25,
+            0.5
+          ]
+        },
+        {
+          "color": "#8a9a7a",
+          "kind": "slender",
+          "count": 5,
+          "size": [
+            12,
+            15
+          ],
+          "pattern": 0,
+          "depth": [
+            0.6,
+            0.8
+          ]
+        }
+      ]
     }
   ],
   "chords": {
@@ -161,6 +207,15 @@
       },
       "metal": "koi.metal",
       "function": "draw_koi"
+    },
+    {
+      "id": "ryukin",
+      "name": "peixe-dourado ryukin",
+      "names": {
+        "en": "ryukin goldfish"
+      },
+      "metal": "ryukin.metal",
+      "function": "draw_koi_ryukin"
     }
   ],
   "scenery": [

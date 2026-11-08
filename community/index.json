@@ -4,7 +4,7 @@
     {
       "id": "koi",
       "name": "Lago japonês",
-      "version": "1.3",
+      "version": "1.4",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -26,13 +26,14 @@
         "lantern.metal",
         "lily.metal",
         "pack.json",
+        "ryukin.metal",
         "shrine.metal"
       ],
       "cover": "cover.png",
       "contents": {
         "themes": 1,
         "styles": 1,
-        "fish": 1,
+        "fish": 2,
         "scenery": 3,
         "fauna": 3,
         "presences": 4,
@@ -42,7 +43,7 @@
     {
       "id": "coral",
       "name": "Recife de coral",
-      "version": "2.1",
+      "version": "2.2",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -57,6 +58,7 @@
         "clownfish.metal",
         "cover.png",
         "creatures.metal",
+        "mandarin.metal",
         "marimba.wav",
         "pack.json",
         "presences.metal",
@@ -66,7 +68,7 @@
       "contents": {
         "themes": 1,
         "styles": 1,
-        "fish": 1,
+        "fish": 2,
         "scenery": 2,
         "fauna": 2,
         "presences": 1,
@@ -76,7 +78,7 @@
     {
       "id": "arctic",
       "name": "Ártico",
-      "version": "1.1",
+      "version": "1.2",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
@@ -88,6 +90,7 @@
       },
       "path": "packs/examples/arctic",
       "files": [
+        "angel.metal",
         "char.metal",
         "cover.png",
         "creatures.metal",
@@ -99,7 +102,7 @@
       "contents": {
         "themes": 1,
         "styles": 1,
-        "fish": 1,
+        "fish": 2,
         "scenery": 2,
         "fauna": 3,
         "presences": 4

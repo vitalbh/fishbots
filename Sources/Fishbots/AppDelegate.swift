@@ -1846,6 +1846,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }
     }
 
+    /// The theme whose schools are swimming (they're made again only when the theme changes).
+    private var appliedSchools = ""
     /// The theme and the dressing setting last applied (to notice when the setting changes).
     private var dressedWith: (theme: String, on: Bool) = ("", true)
 
@@ -1924,9 +1926,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         tank.sceneryKinds = t.scenery
         // the theme's looks for presences and fish kinds (Preferences: "Vestir presenças e peixes com o tema")
         tank.scene.themeLooks = t.looks
+        if appliedSchools != t.id { appliedSchools = t.id; tank.setSchools(t.schools ?? School.usual) }
         tank.scene.dressByTheme = FishKinds.dressByTheme
         dressedWith = (t.id, FishKinds.dressByTheme)
-        for f in tank.fish where !f.decor && !f.sings { Providers.refresh(f) }
+        for f in tank.fish where !f.decor { Providers.refresh(f) }      // (the music fish too: "looks": {"betta": …})
         Generator.preferredStyle = t.music
     }
     @objc func chooseVisual(_ i: NSMenuItem) {

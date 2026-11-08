@@ -4,7 +4,7 @@
   "names": {
     "en": "Arctic"
   },
-  "version": "1.1",
+  "version": "1.2",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
@@ -37,7 +37,8 @@
         "helm": "compass",
         "shark": "orca",
         "bottle": "ice-message",
-        "flag": "expedition-flag"
+        "flag": "expedition-flag",
+        "betta": "sea-angel"
       },
       "background": {
         "metal": "ice.metal",
@@ -97,7 +98,51 @@
       "sand": {
         "dark": "#2a3036",
         "light": "#6a7178"
-      }
+      },
+      "schools": [
+        {
+          "color": "#b8c8d0",
+          "kind": "slender",
+          "count": 14,
+          "size": [
+            7,
+            8.5
+          ],
+          "pattern": 0,
+          "depth": [
+            0.2,
+            0.6
+          ]
+        },
+        {
+          "color": "#9ab0b8",
+          "kind": "slender",
+          "count": 8,
+          "size": [
+            6,
+            7
+          ],
+          "pattern": 0,
+          "depth": [
+            0.3,
+            0.55
+          ]
+        },
+        {
+          "color": "#7a8a94",
+          "kind": "slender",
+          "count": 5,
+          "size": [
+            13,
+            16
+          ],
+          "pattern": 0,
+          "depth": [
+            0.6,
+            0.85
+          ]
+        }
+      ]
     }
   ],
   "chords": {
@@ -303,6 +348,15 @@
       },
       "metal": "char.metal",
       "function": "draw_arctic_char"
+    },
+    {
+      "id": "sea-angel",
+      "name": "anjo-do-mar",
+      "names": {
+        "en": "sea angel"
+      },
+      "metal": "angel.metal",
+      "function": "draw_arctic_sea_angel"
     }
   ],
   "presences": [

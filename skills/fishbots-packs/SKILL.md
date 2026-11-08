@@ -129,7 +129,11 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
 - **Looks:** `"looks"` on a theme dresses built-in things by id, keeping what they mean: a piece (`rock shell chest
   coral`) → one of the pack's scenery ids (a chest gets how open it is in `extra.y` and glows while open); a presence
   kind (`"bottle": "floating-lantern"`) → one of the pack's presences that moves the same way (checked); a fish kind
-  (`"oval": "koi"`) → one of the pack's fish (a kind picked by hand stays). Users can turn dressing off.
+  (`"oval": "koi"`; `"betta"` is the music fish, `"lanternfish"` the night one) → one of the pack's fish (a kind picked
+  by hand stays); a built-in creature (`crab turtle snail starfish whale jellyfish`) → one of the pack's creatures.
+  Users can turn dressing off.
+- **Schools and jellyfish:** `"schools": [{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}]`
+  (up to 3: middle, high, low and far) replaces the tropical neons; `"jellyfish": false` removes the drifting one.
 - **Presences** (`"presences"`): kinds plugins can send (`"kind": "<id>"`), with `motion` (swim drift hover walk sit
   float), `size`, `extent`, `band`, `meter`, `sound`. Function like a creature's; `extra.y` is the value (0…1) and
   `extra.w` the state (0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born): show it (color, light,

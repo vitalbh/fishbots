@@ -142,7 +142,10 @@ A pack theme can draw its own far background and give the built-in pieces anothe
     the same way (checked on load), keeping its label, state, link and sound. A plugin that wants its own drawing
     sends `"override_theme": true`;
   - a **fish kind** (`"oval": "koi"`): the fish of that kind are drawn as the pack's fish. A kind someone picked by hand
-    in the fish menu stays as picked.
+    in the fish menu stays as picked. `"betta"` is the music fish (it keeps dancing and letting out notes);
+    `"lanternfish"` the night lanternfish;
+  - a **built-in creature** (`crab`, `turtle`, `snail`, `starfish`, `whale`, `jellyfish`): drawn as one of the pack's
+    creatures (or, for the jellyfish, a presence), moving as always.
 
   People can turn this off in Preferências → Aparência ("Vestir presenças e peixes com o tema").
 
@@ -155,6 +158,10 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   "sky": { "night": [0.55, 0.68, 1.15], "dawn": [0.95, 0.92, 1.05], "day": [0.92, 0.98, 1.1],
            "golden": [1.0, 0.92, 0.95], "dusk": [0.75, 0.78, 1.1], "light": [0.45, 0.85], "sun": 0.5, "moon": 1.4 }
   ```
+- `schools`: up to three decorative schools (the first swims in the middle, the second up high, the third low and
+  far), each `{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}`; `kind` may be a pack's fish.
+  Without it, the usual neons, tetras and silversides.
+- `jellyfish`: `false` leaves out the jellyfish that drifts around.
 - `description` / `descriptions`: one sentence about the theme for the themes window (the pack's, if it has none).
 
 Anything a theme doesn't define comes from the app: no `background`, the usual one; no `looks`, the usual pieces;

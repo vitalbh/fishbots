@@ -338,18 +338,54 @@ final class Tank {
 
     init() {
         loadPearls()
-        // decorative schools (no sound, no label), so the tank is alive even with few sessions. The phase says the school
-        // (phase / 100) and the place in it (phase % 100 == 0: the leader): blue neons in the middle, orange tetras up high,
-        // silversides deep in the back (slender, blurred by the distance)
-        let schools: [(n: Int, size: ClosedRange<Float>, color: SIMD3<Float>, pattern: Int, depth: ClosedRange<Float>, kind: String)] = [
-            (10, 9.5...11, [0.35, 0.75, 1.0], 1, 0.2...0.6, "oval"),
-            (8, 8...9.5, [1.0, 0.62, 0.25], 3, 0.25...0.5, "oval"),
-            (6, 14...17, [0.72, 0.8, 0.88], 0, 0.6...0.8, "slender"),
-        ]
+        setSchools(School.usual)
+    }
+
+    /// The built-in creatures dressed by the theme ("looks": {"starfish": "<a pack creature>", "lanternfish": "<a pack
+    /// fish>", "jellyfish": "<a pack creature or presence>"}): they move as always, drawn by the pack.
+    private static let creatureSprites: [Float: String] = [14: "crab", 15: "turtle", 16: "snail", 17: "starfish", 19: "whale", 5: "jellyfish"]
+    func dressFauna(_ sprites: [Sprite]) -> [Sprite] {
+        let looks = Themes.current.looks
+        guard FishKinds.dressByTheme, !looks.isEmpty else { return sprites }
+        let lantern = Float(FishKinds.index(of: "lanternfish"))
+        let lit = 0.45 + 0.55 * light
+        return sprites.map { s in
+            var s = s
+            // the lanternfish (a fish kind): another fish's drawing
+            if s.kind == 0, s.extra.z == lantern, let look = looks["lanternfish"], FishKinds.all.contains(where: { $0.id == look }) {
+                s.extra.z = Float(FishKinds.index(of: look))
+                return s
+            }
+            guard let id = Self.creatureSprites[s.kind], let look = looks[id] else { return s }
+            if let i = FaunaKinds.all.firstIndex(where: { $0.id == look }) {
+                let k = FaunaKinds.all[i]
+                var pos = s.pos
+                // on the sand: its feet (c.y = -0.9) on the sand, as the pack's own creatures
+                if id == "crab" || id == "starfish" { pos.y = size.y * sand(pos.x / max(1, size.x)) + s.size * k.extent.y * 0.9 }
+                let face: Float = s.extra.x < 0 || s.dir.x < 0 ? -1 : 1
+                return Sprite(pos: pos, dir: [face, 0], size: s.size, kind: 36, glow: 0, phase: s.phase,
+                              color: SIMD4(k.color * lit, s.color.w), extra: [face, 0.5, Float(i), 1], aux: [k.extent.x, k.extent.y, 0, 0])
+            }
+            if let p = Scene.kinds[look], let i = p.pack, i < PackPresences.all.count {
+                return Sprite(pos: s.pos, dir: [1, 0], size: p.size, kind: 37, glow: s.glow, phase: s.phase,
+                              color: SIMD4(p.color * lit, s.color.w), extra: [1, 1, Float(i), 3], aux: [p.extent.x, p.extent.y, 0, 0])
+            }
+            return s
+        }
+    }
+
+    /// The decorative schools (no sound, no label), so the tank is alive even with few sessions; the theme picks them.
+    /// The phase says the school (phase / 100) and the place in it (phase % 100 == 0: the leader). The first swims in
+    /// the middle, the second up high, the third low in the back.
+    func setSchools(_ schools: [School]) {
+        let old = fish.filter(\.decor)
+        fish.removeAll { $0.decor }
         for (s, sc) in schools.enumerated() {
-            for i in 0..<sc.n {
+            for i in 0..<sc.count {
+                // a new school starts where the old fish were (no jump when the theme changes)
+                let from = old.isEmpty ? SIMD2<Float>(Float.random(in: 200...700), Float.random(in: 250...450)) : old.randomElement()!.pos
                 let f = Fish(id: "decor:\(s * 100 + i)", source: "decor", label: "",
-                             pos: [Float.random(in: 200...700), Float.random(in: 250...450)], size: Float.random(in: sc.size),
+                             pos: from, size: Float.random(in: sc.size),
                              color: sc.color, stripes: true, motif: 0, timbre: .pluck, phase: s * 100 + i, decor: true, now: time)
                 f.state = .idle
                 f.pattern = sc.pattern
@@ -1923,10 +1959,12 @@ final class Tank {
         out.reserveCapacity(fish.count + particles.count + 1)
 
         // the whale in the distance, behind everything
-        out += fauna.background(self)
-        // jellyfish (pad)
-        out.append(Sprite(pos: jellyPos, dir: [1, 0], size: 30, kind: 5, glow: 0.25 + jellyGlow + (isNight ? 0.35 : 0),
-                          phase: jellyPhase, color: [0.85, 0.55, 1.0, 0.75], extra: [1, 0, 0, 0]))
+        out += dressFauna(fauna.background(self))
+        // jellyfish (pad): the theme may leave it out or draw it its own way
+        if Themes.current.jellyfish {
+            out += dressFauna([Sprite(pos: jellyPos, dir: [1, 0], size: 30, kind: 5, glow: 0.25 + jellyGlow + (isNight ? 0.35 : 0),
+                                      phase: jellyPhase, color: [0.85, 0.55, 1.0, 0.75], extra: [1, 0, 0, 0])])
+        }
 
         if let b = battery {
             let a = batteryAngle
@@ -1992,7 +2030,7 @@ final class Tank {
             }
         }
         // starfish, crabs, turtle and lanternfish
-        out += fauna.middle(self)
+        out += dressFauna(fauna.middle(self))
         // what plugins put in the tank (the ones waiting for you come after the fish)
         out += scene.sprites(self, front: false)
         // ink and murky water (behind the fish)
@@ -2115,7 +2153,7 @@ final class Tank {
         // marine snow up close, in front of the fish
         out += moteSprites(front: true)
         // the snail on the glass
-        out += fauna.front(self)
+        out += dressFauna(fauna.front(self))
         // mail seahorses (facing the way they're going)
         for c in mails {
             let looks: Float = c.stage == 2 ? c.side : -c.side
