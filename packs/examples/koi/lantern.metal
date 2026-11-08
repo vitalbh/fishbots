@@ -39,3 +39,35 @@ float4 draw_lantern(float2 c, float t, float glow, float4 col, float4 extra) {
     c3 = mix(c3, stone * 0.5, bars);
     return float4(c3 * a, a);
 }
+
+// A river stone on the sand: smooth, rounded, wet (a soft highlight), in browns and grays (extra.y varies it).
+float4 draw_koi_stone(float2 c, float t, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.0, 0.6);
+    float2 q = (p - float2(0.0, -0.22)) / float2(0.85, 0.36 + 0.08 * extra.y);
+    float d = (length(q) - 1.0) * 0.36;
+    d = max(d, -(p.y + 0.55));
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 n = normalize(float3(q, sqrt(max(0.02, 1.0 - dot(q, q)))));
+    float3 base = mix(float3(0.42, 0.38, 0.33), float3(0.55, 0.52, 0.48), extra.y) * mix(float3(1.0), col.rgb * 1.6, 0.3);
+    float3 c3 = base * (0.45 + 0.7 * max(0.0, dot(n, normalize(float3(-0.3, 0.8, 0.5)))));
+    c3 += float3(1.0) * pow(max(0.0, dot(reflect(-normalize(float3(-0.3, 0.8, 0.5)), n), float3(0, 0, 1))), 24.0) * 0.45;
+    c3 *= 0.9 + 0.15 * vnoise(p * 14.0 + extra.y * 9.0);
+    return float4(c3 * a, a);
+}
+
+// A small pond snail's shell lying on the sand: a brown spiral, glossy.
+float4 draw_koi_snail_shell(float2 c, float t, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.0, 0.75);
+    float2 q = p - float2(-0.05, -0.15);
+    float r = length(q / float2(1.0, 0.85));
+    float d = max((r - 0.55) * 0.5, -(p.y + 0.62));
+    d = min(d, sd_tri(p, float2(0.3, -0.05), float2(0.75, -0.5), float2(0.2, -0.55)) - 0.04);   // the opening's lip
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float spiral = fract(log(max(r, 0.02)) * 2.5 - atan2(q.y, q.x) / 6.2832);
+    float3 c3 = mix(float3(0.45, 0.3, 0.18), float3(0.7, 0.55, 0.35), smoothstep(0.2, 0.8, spiral));
+    c3 *= 0.7 + 0.4 * smoothstep(-0.6, 0.3, p.y);
+    c3 += float3(1.0) * exp(-dot((p - float2(-0.2, 0.15)) / float2(0.18, 0.08), (p - float2(-0.2, 0.15)) / float2(0.18, 0.08))) * 0.35;
+    return float4(c3 * a, a);
+}

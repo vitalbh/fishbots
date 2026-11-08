@@ -264,6 +264,26 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
                 float vein = (1.0 - smoothstep(0.0, 0.18, abs(ln.y))) * step(abs(ln.x), 0.8);
                 green = mix(green, (green * 1.25 + 0.03) * shade + green * vein * 0.25, leaf * 0.85);
                 green *= 1.0 - stem * (1.0 - leaf) * 0.25;
+            } else if (kind == 3) {
+                // a reed: a straight, stiff stem that barely sways, a few with a cattail's brown head near the top
+                float dxr = (uv.x + u.gaze.x * 0.012 - x0 - sway * 0.25) * aspect;
+                float w = 0.0032 * (1.0 - 0.5 * k01);
+                blade = 1.0 - smoothstep(w * 0.5, w, abs(dxr));
+                green = mix(green, float3(0.45, 0.5, 0.25) * (0.45 + 0.55 * L), 0.35);
+                green *= 0.85 + 0.25 * smoothstep(-w, w, dxr);
+                if (fmod(fk, 2.0) < 0.5) {
+                    float hy = (k01 - 0.86) / 0.07;
+                    float head = (1.0 - smoothstep(0.8, 1.0, length(float2(dxr / 0.0075, hy)))) * step(abs(hy), 1.0);
+                    blade = max(blade, head);
+                    green = mix(green, float3(0.38, 0.24, 0.13) * (0.45 + 0.6 * L) * (0.85 + 0.3 * smoothstep(-0.007, 0.007, dxr)), head);
+                }
+            } else if (kind == 4) {
+                // a ribbon: thin, dark and long, waving a lot, a little see-through
+                float dxw = dx - sin(yy * 30.0 - t * 1.6 + fk) * 0.004 * k01 * aspect;
+                float w = 0.006 * (1.0 - 0.6 * k01);
+                blade = (1.0 - smoothstep(w * 0.4, w, abs(dxw))) * 0.8;
+                green = mix(green, float3(0.12, 0.18, 0.16) * (0.45 + 0.55 * L), 0.5);
+                green *= 0.8 + 0.3 * smoothstep(-w, w, dxw);
             } else {
                 // a flat blade that turns as it rises: narrow and darker where it's seen edge-on
                 float tw = sin(yy * 16.0 + fk * 2.3 + t * 0.5);

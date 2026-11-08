@@ -1922,6 +1922,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         tank.rayStrength = t.uniforms.params.z
         visual.themeVisualizer = t.visualizer
         tank.fauna.select(t.fauna)
+        tank.weedShapes = t.weedShapes
         tank.sceneryLooks = t.looks
         tank.sceneryKinds = t.scenery
         // the theme's looks for presences and fish kinds (Preferences: "Vestir presenças e peixes com o tema")

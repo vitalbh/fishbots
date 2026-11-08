@@ -145,7 +145,9 @@ A pack theme can draw its own far background and give the built-in pieces anothe
     in the fish menu stays as picked. `"betta"` is the music fish (it keeps dancing and letting out notes);
     `"lanternfish"` the night lanternfish;
   - a **built-in creature** (`crab`, `turtle`, `snail`, `starfish`, `whale`, `jellyfish`): drawn as one of the pack's
-    creatures (or, for the jellyfish, a presence), moving as always.
+    creatures (or, for the jellyfish, a presence), moving as always;
+  - the **little things on the sand** (`pebble`, `seashell`, `pearl`): drawn as one of the pack's scenery pieces (sized
+    by the app; a pearl's drawing gets the project's color as `col` and glows while it's new).
 
   People can turn this off in Preferências → Aparência ("Vestir presenças e peixes com o tema").
 
@@ -162,6 +164,8 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   far), each `{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}`; `kind` may be a pack's fish.
   Without it, the usual neons, tetras and silversides.
 - `jellyfish`: `false` leaves out the jellyfish that drifts around.
+- `weeds.shapes`: the seaweed's shapes, mixed along the tank: `blade`, `kelp`, `leafy`, `reed` (straight, some with a
+  cattail's head), `ribbon` (thin, dark, waving). Without it, blades, kelp and leafy stems.
 - `description` / `descriptions`: one sentence about the theme for the themes window (the pack's, if it has none).
 
 Anything a theme doesn't define comes from the app: no `background`, the usual one; no `looks`, the usual pieces;

@@ -90,3 +90,28 @@ float4 draw_arctic_frozen_chest(float2 c, float t, float glow, float4 col, float
     c3 *= 0.78 + 0.22 * smoothstep(-0.9, 0.6, p.y);                                  // lit from above, darker low
     return float4(c3 * a * 0.85, a * 0.92);
 }
+
+// Gravel: a dark angular stone (extra.y varies its shape and shade).
+float4 draw_arctic_gravel(float2 c, float t, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.0, 0.6);
+    float s = extra.y;
+    float d = sd_tri(p, float2(-0.8, -0.55), float2(0.75, -0.55), float2(-0.1 + 0.4 * s, -0.05 + 0.15 * s)) - 0.05;
+    d = min(d, sd_box(p - float2(0.0, -0.45), float2(0.6, 0.12), 0.06));
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 c3 = mix(float3(0.28, 0.3, 0.33), float3(0.45, 0.47, 0.5), s) * (0.7 + 0.45 * smoothstep(-0.55, 0.0, p.y + 0.2 * p.x));
+    c3 *= 0.9 + 0.2 * vnoise(p * 16.0 + s * 7.0);
+    return float4(c3 * a, a);
+}
+
+// A chip of ice lying on the gravel: clear, faceted, catching the light.
+float4 draw_arctic_ice_chip(float2 c, float t, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.0, 0.7);
+    float d = sd_tri(p, float2(-0.6, -0.6), float2(0.6, -0.6), float2(0.1, 0.3)) - 0.06;
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float face = step(0.1 + (p.y + 0.6) * 0.1, p.x);
+    float3 c3 = mix(float3(0.6, 0.8, 0.92), float3(0.9, 0.97, 1.0), face * 0.6 + 0.4 * smoothstep(-0.6, 0.3, p.y));
+    c3 += float3(1.0) * (1.0 - smoothstep(0.0, 0.03, -d)) * 0.3;
+    return float4(c3 * a * 0.85, a * 0.8);
+}

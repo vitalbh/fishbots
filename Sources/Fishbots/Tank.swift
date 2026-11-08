@@ -840,11 +840,17 @@ final class Tank {
     private var weedBendVel = [Float](repeating: 0, count: 16)
 
     func weedUniforms() -> [SIMD4<Float>] {
-        (0..<16).map { k in k < weeds.count ? SIMD4(weeds[k].x, weeds[k].h, weedBend[k], Float(Self.weedKind(k))) : .zero }
+        (0..<16).map { k in k < weeds.count ? SIMD4(weeds[k].x, weeds[k].h, weedBend[k], Float(weedKind(k))) : .zero }
     }
 
     /// Each blade's kind: 0 thin blade, 1 kelp, 2 leafy stem (mixed, so neighbors differ).
     static func weedKind(_ k: Int) -> Int { [0, 1, 2, 0, 2, 1, 0, 2, 1, 0, 1, 2, 0, 2, 0, 1][k % 16] }
+    /// The theme's seaweed shapes (0 blade, 1 kelp, 2 leafy, 3 reed, 4 ribbon), mixed along the tank (nil: the usual mix).
+    var weedShapes: [Int]?
+    func weedKind(_ k: Int) -> Int {
+        guard let s = weedShapes, !s.isEmpty else { return Self.weedKind(k) }
+        return s[(k * 7 + k / 3) % s.count]                                   // mixed, so neighbors differ
+    }
 
     private var oxygenAt: Double = 0
     private var pearlGlintAt: Double = 0
@@ -2002,17 +2008,35 @@ final class Tank {
                               phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed, color: SIMD4(color, 1),
                               extra: [1, s.id == "chest" ? min(1, chestLid) : s.id == "shell" ? 1 : 0, 0, 0]))
         }
-        // pebbles and little shells on the sand
+        // pebbles and little shells on the sand (the theme may draw them its own way: "pebble", "seashell")
+        let looks = FishKinds.dressByTheme ? Themes.current.looks : [:]
         for p in pebbles {
             let x = clearOfScenery(size.x * p.u)
+            if let look = looks[p.shell ? "seashell" : "pebble"], let i = SceneryKinds.index(of: look) {
+                let k = SceneryKinds.all[i]
+                let sz = p.size * 1.3
+                out.append(Sprite(pos: [x, size.y * sand(x / max(1, size.x)) + sz * k.extent.y * 0.9], dir: [1, 0], size: sz, kind: 35,
+                                  glow: 0, phase: Float(time), color: SIMD4(mix(k.color * lit, water, t: 0.2), 1),
+                                  extra: [1, p.tone, Float(i), 0], aux: [k.extent.x, k.extent.y, 0, 0]))
+                continue
+            }
             let y = size.y * sand(x / max(1, size.x)) + p.size * 0.25
             let base: SIMD3<Float> = p.shell ? [0.95, 0.82, 0.74] : mix([0.36, 0.33, 0.3], [0.58, 0.52, 0.44], t: p.tone)
             out.append(Sprite(pos: [x, y], dir: [1, 0], size: p.size * (p.shell ? 1.1 : 1), kind: p.shell ? 22 : 21, glow: 0,
                               phase: p.seed, color: SIMD4(mix(base * lit, water, t: 0.2), 1), extra: [1, 0, 0, 0]))
         }
         // pearls of the day, on the sand
+        let pearlLook = looks["pearl"].flatMap { SceneryKinds.index(of: $0) }
         for (i, p) in pearls.enumerated() {
             let new = i < bornAt.count && bornAt[i] > 0 ? max(0, 1 - Float(time - bornAt[i]) / 3) : 0
+            if let li = pearlLook {
+                // the theme's pearl: col is the project's color, glow while it's new
+                let k = SceneryKinds.all[li]
+                out.append(Sprite(pos: pearlPos(p), dir: [1, 0], size: 7, kind: 35, glow: new, phase: Float(time),
+                                  color: [p.color[0], p.color[1], p.color[2], 1], extra: [1, (Float(i) * 0.618).truncatingRemainder(dividingBy: 1), Float(li), 0],
+                                  aux: [k.extent.x, k.extent.y, 0, 0]))
+                continue
+            }
             out.append(Sprite(pos: pearlPos(p), dir: [1, 0], size: 6, kind: 12, glow: new, phase: Float(i),
                               color: [p.color[0], p.color[1], p.color[2], 1], extra: [1, 0, 0, 0]))
         }

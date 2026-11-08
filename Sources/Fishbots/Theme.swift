@@ -50,6 +50,8 @@ struct Theme {
     var schools: [School]?
     /// The jellyfish that drifts around (false: none here).
     var jellyfish = true
+    /// The seaweed's shapes ("weeds": {"shapes": ["reed", "blade"]}): blade, kelp, leafy, reed, ribbon (nil: the usual mix).
+    var weedShapes: [Int]?
     var weedCount: Int { Int(uniforms.params.x) }
 
     /// A color from JSON: "#rrggbb" or [r, g, b] (0…1).
@@ -101,6 +103,11 @@ struct Theme {
         if let s = json["sky"] as? [String: Any] { sky = Sky(json: s) }
         if let list = json["schools"] as? [[String: Any]] { schools = list.prefix(3).map(School.init(json:)) }
         jellyfish = json["jellyfish"] as? Bool ?? true
+        let shapeNames = ["blade": 0, "kelp": 1, "leafy": 2, "reed": 3, "ribbon": 4]
+        if let s = (json["weeds"] as? [String: Any])?["shapes"] as? [String] {
+            let ids = s.compactMap { shapeNames[$0] }
+            weedShapes = ids.isEmpty ? nil : ids
+        }
     }
 
     /// The original look.
