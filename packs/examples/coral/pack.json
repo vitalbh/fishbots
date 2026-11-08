@@ -4,7 +4,7 @@
   "names": {
     "en": "Coral reef"
   },
-  "version": "2.4",
+  "version": "2.5",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -28,7 +28,8 @@
         "whale",
         "chromis",
         "tang",
-        "clowns"
+        "clowns",
+        "butterflyfish"
       ],
       "water": {
         "deep": "#04263a",
@@ -329,6 +330,25 @@
       ],
       "speed": 30,
       "color": "#ff8a30"
+    },
+    {
+      "id": "butterflyfish",
+      "name": "peixe-borboleta-mascarado",
+      "names": {
+        "en": "masked butterflyfish"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_coral_butterfly",
+      "behavior": "home",
+      "on": "coral",
+      "size": 24,
+      "extent": [
+        1.1,
+        1.0
+      ],
+      "count": 2,
+      "speed": 22,
+      "color": "#ffffff"
     }
   ],
   "presences": [

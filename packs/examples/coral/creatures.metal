@@ -45,3 +45,51 @@ float4 draw_coral_tang(float2 c, float phase, float glow, float4 col, float4 ext
     return float4(c3 * a * col.a, a * col.a);
 }
 
+
+// A masked butterflyfish: a tall, round, flat body with a small pointed snout, golden yellow with thin orange-red
+// stripes running up and down, a blue-gray patch around the eye, the fins running along the back and belly edged
+// in dark, a yellow tail. They go in pairs around the corals.
+float4 draw_coral_butterfly(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.1, 1.0);
+    p.y -= sin(phase - p.x * 2.0) * 0.03 * smoothstep(0.2, -0.7, p.x);
+    float body = (length((p - float2(0.05, 0.0)) / float2(0.55, 0.62)) - 1.0) * 0.55;
+    float snout = sd_tri(p, float2(0.45, 0.12), float2(0.45, -0.12), float2(0.78, -0.02)) - 0.03;
+    body = smin_k(body, snout, 0.08);
+    // the soft dorsal and anal fins: a rounded plate behind, squaring the silhouette off toward the tail
+    float plate = sd_box(p - float2(-0.22, 0.0), float2(0.3, 0.6 - 0.1 * smoothstep(-0.1, -0.5, p.x)), 0.22);
+    plate = max(plate, p.x - 0.1);
+    float fins = plate;
+    float2 tq = p - float2(-0.48, sin(phase - 1.0) * 0.04);
+    float tail = max(sd_tri(tq, float2(0.08, 0.0), float2(-0.28, 0.3), float2(-0.28, -0.3)), -tq.x - 0.26) - 0.01;
+    float pect = (length((p - float2(0.15, -0.18 + 0.03 * sin(phase * 2.0))) / float2(0.13, 0.06)) - 1.0) * 0.06;
+    float d = min(min(body, fins), min(tail, pect));
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 yellow = float3(1.0, 0.78, 0.1), orange = float3(0.95, 0.4, 0.12), mask = float3(0.35, 0.45, 0.6);
+    float3 c3;
+    if (body <= min(fins, tail)) {
+        float2 b = (p - float2(0.05, 0.0)) / float2(0.55, 0.62);
+        float3 n = normalize(float3(b, sqrt(max(0.02, 1.0 - dot(b, b)))));
+        c3 = yellow * (0.65 + 0.45 * max(0.0, dot(n, normalize(float3(-0.3, 0.8, 0.5)))));
+        // thin stripes, a little wavy, fading out toward the head
+        float st = abs(fract(p.x * 7.0 + 0.12 * sin(p.y * 5.0)) - 0.5);
+        c3 = mix(c3, orange, (1.0 - smoothstep(0.07, 0.14, st)) * smoothstep(0.3, 0.1, p.x) * 0.85);
+        // the mask around the eye
+        float2 eye = float2(0.4, 0.06);
+        float m = length((p - eye - float2(-0.02, 0.0)) / float2(0.12, 0.22));
+        c3 = mix(c3, mask, 1.0 - smoothstep(0.85, 1.05, m));
+        float re = length(p - eye);
+        c3 = mix(c3, float3(0.03), 1.0 - smoothstep(0.035, 0.045, re));
+        c3 = mix(c3, float3(1.0), 1.0 - smoothstep(0.006, 0.012, length(p - eye - float2(0.01, 0.012))));
+        c3 += float3(1.0) * pow(max(0.0, dot(reflect(-normalize(float3(-0.3, 0.8, 0.5)), n), float3(0, 0, 1))), 16.0) * 0.25;
+    } else {
+        c3 = yellow * 0.9;
+        float st = abs(fract(p.x * 7.0 + 0.12 * sin(p.y * 5.0)) - 0.5);
+        c3 = mix(c3, orange, (1.0 - smoothstep(0.07, 0.14, st)) * 0.7 * step(tail, 0.0) * 0.0 + (1.0 - smoothstep(0.07, 0.14, st)) * 0.6 * (1.0 - step(tail, min(fins, pect))));
+        c3 = mix(c3, float3(0.25, 0.2, 0.1), smoothstep(-0.03, -0.008, d) * 0.8 * step(-0.45, p.x));   // dark rim
+        if (pect < min(body, min(fins, tail))) { c3 = yellow * 1.1; a *= 0.6; }
+        a *= 0.95;
+    }
+    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.02, -d)) * 0.2;
+    return float4(c3 * a * col.a, a * col.a);
+}
