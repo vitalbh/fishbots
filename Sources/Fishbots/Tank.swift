@@ -2236,6 +2236,14 @@ final class Tank {
                               phase: Float(time) + 3, color: SIMD4(fg * 1.1 * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
         }
 
+        // frost on the glass, over everything (a theme's "frost")
+        let frost = Themes.current.frost
+        if frost > 0.01 {
+            let aspect = size.x / max(1, size.y)
+            out.append(Sprite(pos: size * 0.5, dir: [1, 0], size: size.y * 0.5, kind: 38, glow: frost, phase: 0,
+                              color: [1, 1, 1, 1], extra: [1, aspect, 0, 0], aux: [aspect, 1, 0, 0]))
+        }
+
         // quake: everything shakes together
         if scene.shakeOffset != .zero { for i in out.indices { out[i].pos += scene.shakeOffset } }
         // widget mode: a small window, so everything is drawn a little smaller

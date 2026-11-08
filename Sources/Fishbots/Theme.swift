@@ -52,6 +52,8 @@ struct Theme {
     var jellyfish = true
     /// The blurred seaweed tufts up front, in the corners: their color (nil: none here, "foreground": false).
     var foreground: SIMD3<Float>? = [0.02, 0.065, 0.065]
+    /// Frost on the glass, growing in from the sides and corners (0: none … 1: a lot).
+    var frost: Float = 0
     /// The scene's voices, renamed: another built-in voice or a pack's sound, by the voice's name ("chime": "koto").
     var voices: [String: String] = [:]
     /// The seaweed's shapes ("weeds": {"shapes": ["reed", "blade"]}): blade, kelp, leafy, reed, ribbon (nil: the usual mix).
@@ -108,6 +110,7 @@ struct Theme {
         if let list = json["schools"] as? [[String: Any]] { schools = list.prefix(3).map(School.init(json:)) }
         jellyfish = json["jellyfish"] as? Bool ?? true
         voices = json["voices"] as? [String: String] ?? [:]
+        frost = max(0, min(1, (json["frost"] as? NSNumber)?.floatValue ?? 0))
         if (json["foreground"] as? Bool) == false { foreground = nil }
         else if let c = Theme.color(json["foreground"]) { foreground = [c.x, c.y, c.z] }
         let shapeNames = ["blade": 0, "kelp": 1, "leafy": 2, "reed": 3, "ribbon": 4]

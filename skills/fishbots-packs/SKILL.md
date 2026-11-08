@@ -139,6 +139,7 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
   removes the blurred tufts up front; `"voices": {"chime": "koto"}` gives the scene's sounds another voice or a pack sound.
 - **Schools and jellyfish:** `"schools": [{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}]`
   (up to 3: middle, high, low and far) replaces the tropical neons; `"jellyfish": false` removes the drifting one.
+- **Frost:** `"frost": 0.6` (0…1) grows ice on the glass from the sides and corners.
 - **Presences** (`"presences"`): kinds plugins can send (`"kind": "<id>"`), with `motion` (swim drift hover walk sit
   float), `size`, `extent`, `band`, `meter`, `sound`. Function like a creature's; `extra.y` is the value (0…1) and
   `extra.w` the state (0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born): show it (color, light,

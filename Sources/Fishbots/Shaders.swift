@@ -1644,6 +1644,34 @@ float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, fl
     }
 }
 
+// Frost on the glass (a theme's "frost"): over the whole window, ice growing in from the sides and the corners in
+// feathery crystals, thicker at the very edge, breathing a little. c: -1…1 over the window, amount 0…1, aspect w/h.
+float4 draw_frost(float2 c, float t, float amount, float aspect) {
+    float2 px = float2(c.x * aspect, c.y);
+    // patches growing in from the left and right sides, longer at the corners, absent in some stretches
+    float side = (1.0 - abs(c.x)) * aspect;
+    float corner = smoothstep(0.35, 1.0, abs(c.y));
+    float patchy = smoothstep(0.3, 0.75, vnoise(float2(c.y * 3.0 + sign(c.x) * 5.0, 1.7)));
+    float reach = amount * (0.04 + 0.16 * patchy + 0.14 * corner) * (1.0 + 0.05 * sin(t * 0.25));
+    // the frost's edge is ragged: noise pushes it in and out
+    float edgeD = side - reach * (0.75 + 0.5 * vnoise(px * 10.0));
+    float grow = 1.0 - smoothstep(-0.01, 0.03, edgeD);
+    // and a little along the top and bottom near the corners
+    float tb = (1.0 - abs(c.y)) - amount * 0.06 * corner * smoothstep(0.6, 1.0, abs(c.x)) * (0.6 + 0.8 * vnoise(px * 9.0));
+    grow = max(grow, 1.0 - smoothstep(-0.01, 0.03, tb));
+    if (grow <= 0.001) return float4(0.0);
+    // inside it: a milky haze, fine crystal grains, and feathery needles pointing inward
+    float haze = 0.45 + 0.4 * vnoise(px * 22.0);
+    float grains = smoothstep(0.75, 0.95, vnoise(px * 60.0));
+    float2 dir = normalize(float2(-sign(c.x), 0.3 * (vnoise(px * 4.0) - 0.5)));
+    float needle = abs(sin(dot(px, float2(dir.y, -dir.x)) * 160.0 + vnoise(px * 8.0) * 5.0));
+    float feathers = (1.0 - smoothstep(0.0, 0.18, needle)) * smoothstep(0.02, -0.03, edgeD) * 0.5;
+    float rim = (1.0 - smoothstep(0.0, 0.025, abs(edgeD))) * 0.35;               // the growing edge is brighter
+    float a = grow * (haze * 0.35 + grains * 0.3 + feathers + rim);
+    float3 col = mix(float3(0.78, 0.9, 1.0), float3(1.0), grains + feathers + rim);
+    return float4(col * a, a * 0.8);
+}
+
 // a background that didn't compile is replaced by this one (nothing): the theme keeps the usual background
 float4 fishbots_no_background(float2 uv, float t, float light, float2 gaze, float3 water, float4 extra) { return float4(0.0); }
 
@@ -1731,6 +1759,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float border = 1.0 - smoothstep(0.5, 1.0, max(abs(c.x), abs(c.y)));
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
+    } else if (k > 37.5) {             // frost on the glass (glow: how much; extra.y: the window's aspect)
+        outc = draw_frost(c, u.time, in.glow, in.extra.y);
     } else if (k > 36.5) {             // a pack's presence (extra.z: its index, extra.w: its state)
         outc = draw_presence_pack(int(in.extra.z + 0.5), c, in.phase, in.glow, in.color, in.extra);
     } else if (k > 35.5) {             // a pack's creature (extra.z: its index)

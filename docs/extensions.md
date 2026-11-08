@@ -166,6 +166,7 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   far), each `{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}`; `kind` may be a pack's fish.
   Without it, the usual neons, tetras and silversides.
 - `jellyfish`: `false` leaves out the jellyfish that drifts around.
+- `frost`: 0…1, ice creeping in on the glass from the sides and corners, as if the tank were freezing (the arctic uses 0.6).
 - `voices`: the scene's voices (what presences and effects sound like, docs/scene.md) given another voice or one of the
   packs' recorded sounds: `{"chime": "koto", "kalimba": "marimba"}`. The crossing school effect uses the theme's first
   school.
