@@ -697,7 +697,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             let hour = DateFormatter.localizedString(from: at, dateStyle: .none, timeStyle: .short)
             summary(since: at.addingTimeInterval(-1800), until: at.addingTimeInterval(1800), title: tr("Por volta das %@", hour))
         } else if tank.chest(at: q) {
-            recentSummary()         // the treasure chest keeps the last hours
+            // the treasure chest keeps the last hours; clicking it again closes them
+            if let c = card { c.close?() } else { recentSummary() }
         } else if !tank.scare(q) {
             tank.feed(at: q)        // away from everyone: food; near fish: they get startled
         }

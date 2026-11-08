@@ -601,17 +601,27 @@ final class Tank {
         let t0 = min(pearls.map(\.hour).min() ?? eight, eight)
         let t1 = max(now, t0 + 4 * 3600)
         var out = [SIMD2<Float>](repeating: .zero, count: pearls.count)
-        var lastX: Float = -100, pile = 0
+        // pearls close in time gather in a little heap (the first ones at the bottom), clear of the rocks and the chest
+        var heaps: [(x: Float, members: [Int])] = []
+        var lastX: Float = -100
         for i in pearls.indices.sorted(by: { pearls[$0].hour < pearls[$1].hour }) {
-            var x = size.x * (0.06 + 0.88 * Float((pearls[i].hour - t0) / (t1 - t0)))
-            // close in time: on top of the previous one (a little pile of up to three), then just beside it
-            if x - lastX < 9 {
-                pile += 1
-                if pile < 3 { x = lastX } else { pile = 0; x = lastX + 9 }
-            } else { pile = 0 }
+            let x = size.x * (0.06 + 0.88 * Float((pearls[i].hour - t0) / (t1 - t0)))
+            if x - lastX < 9, !heaps.isEmpty { heaps[heaps.count - 1].members.append(i) } else { heaps.append((x, [i])) }
             lastX = x
-            let y = size.y * sand(x / max(1, size.x)) + 4 + Float(pile) * 7
-            out[i] = [x + (pile % 2 == 1 ? 3.5 : 0), y]
+        }
+        let gap: Float = 8
+        for h in heaps {
+            var b = 1
+            while b * (b + 1) / 2 < h.members.count { b += 1 }      // the bottom row of a heap that holds them all
+            let x0 = clearOfScenery(h.x + Float(b - 1) * gap / 2) - Float(b - 1) * gap / 2
+            var k = 0
+            for row in 0..<b {
+                for col in 0..<(b - row) where k < h.members.count {
+                    let x = x0 + (Float(col) + Float(row) * 0.5) * gap
+                    out[h.members[k]] = [x, size.y * sand(x / max(1, size.x)) + 4 + Float(row) * gap * 0.8]
+                    k += 1
+                }
+            }
         }
         timeline = out
     }
@@ -709,7 +719,7 @@ final class Tank {
         SceneryItem(id: "rock", kind: 21, u: 0.17, scale: 0.075, color: [0.42, 0.4, 0.36], seed: 0.3),
         SceneryItem(id: "rock", kind: 21, u: 0.235, scale: 0.042, color: [0.36, 0.38, 0.41], seed: 1.7),
         SceneryItem(id: "chest", kind: 23, u: 0.335, scale: 0.06, color: [0.5, 0.31, 0.16], seed: 0),
-        SceneryItem(id: "shell", kind: 22, u: 0.66, scale: 0.05, color: [0.98, 0.8, 0.74], seed: 0),
+        SceneryItem(id: "shell", kind: 22, u: 0.66, scale: 0.04, color: [0.66, 0.6, 0.56], seed: 0),   // the oyster
         SceneryItem(id: "rock", kind: 21, u: 0.8, scale: 0.058, color: [0.4, 0.37, 0.35], seed: 2.9),
         // corals (seed: 0 branching, 1 sea fan, 2 brain), muted by the water
         SceneryItem(id: "coral", kind: 34, u: 0.47, scale: 0.085, color: [0.95, 0.45, 0.55], seed: 0.2),
@@ -1885,8 +1895,8 @@ final class Tank {
             let (c, sz) = place(s)
             let color = mix(s.color * lit, water, t: 0.15)
             out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 + chestLid * 0.6 : 0,
-                              phase: s.id == "chest" ? Float(time) : s.seed, color: SIMD4(color, 1),
-                              extra: [1, s.id == "chest" ? min(1, chestLid) : 0, 0, 0]))
+                              phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed, color: SIMD4(color, 1),
+                              extra: [1, s.id == "chest" ? min(1, chestLid) : s.id == "shell" ? 1 : 0, 0, 0]))
         }
         // pebbles and little shells on the sand
         for p in pebbles {
