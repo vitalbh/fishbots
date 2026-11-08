@@ -453,6 +453,11 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra, fl
     rx *= 1.0 + fatness * 0.1;
 
     if (cutKind == 1) { L *= 1.7; flare *= 1.35; }   // veil tail
+    // aging (aux.w = age 0…1 + 2 × veteran level): a long session grows a longer, fuller tail and more marked scales
+    float vet = floor(aux.w / 2.0 + 0.001);
+    float age = clamp(aux.w - vet * 2.0, 0.0, 1.0);
+    L *= 1.0 + age * 0.4;
+    flare *= 1.0 + age * 0.25;
 
     // the body undulates: a wave runs from head to tail, small at the head and wide at the tail
     p.y -= sin(phase - p.x * 2.5) * (0.014 + 0.07 * (1.0 - smoothstep(-0.9, 0.4, p.x)));
@@ -553,6 +558,23 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra, fl
         float sheen = sin(p.x * 7.0 + phase * 0.15) * 0.5 + 0.5;
         float3 iri = 0.5 + 0.5 * cos(6.2831 * (sheen * 0.35 + float3(0.0, 0.33, 0.67)));
         c3 += (iri - 0.5) * 0.06 * (1.0 - belly);
+    }
+    if (body < 0.0 && age > 0.05) {
+        // the scales show more as the session goes on
+        float2 sq = p * float2(11.0, 13.0); sq.x += fmod(floor(sq.y), 2.0) * 0.5;
+        float sr = length(fract(sq) - float2(0.5, 0.0));
+        c3 = mix(c3, c3 * 0.7, smoothstep(0.4, 0.48, sr) * (1.0 - smoothstep(0.5, 0.58, sr)) * age * 0.55);
+    }
+    if (vet >= 1.0 && body < 0.0) {
+        // an old project's fish: a little pale scar across the flank
+        float2 sa = float2(cx - rx * 0.12, ry * 0.32), sb = float2(cx - rx * 0.42, -ry * 0.05);
+        float2 pa = p - sa, ba = sb - sa;
+        float scar = length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)) - 0.007;
+        c3 = mix(c3, base * 0.45 + 0.42, (1.0 - smoothstep(0.0, 0.006, scar)) * 0.75);
+    }
+    if (vet >= 2.0 && body >= 0.0) {
+        // a very old one: gold along the edges of its fins and tail
+        c3 = mix(c3, float3(1.0, 0.82, 0.38), smoothstep(-0.035, -0.008, d) * 0.7);
     }
     // gills: an arc behind the eye that opens and closes (breathing)
     if (body < 0.0 && sp != 2) {

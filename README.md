@@ -17,6 +17,7 @@ open --env FISHBOTS_GPUSTATS=1 build/Fishbots.app  # prints the GPU time per fra
 
 Keys and shortcuts:
 - **Click a fish:** go to it. **Right-click:** fish menu. **Click empty water:** feed.
+- **Drag a fish:** it's pulled along a little and swims back when you let go. **Drag through the water:** a short current (snow, seaweed and fish go with it). **Double-click the water:** a knock on the glass, and the idle fish and the schools come to look. **Scroll over the water:** sprinkles food.
 - **D** demo · **M** sound · **S** focus mode · **T** float above windows · **F** food.
 - **L** cycles the labels: **minimal** (default: the short title, or the name, plus a second line only when it matters: whenever it needs you, and for a few seconds when something happens), **full** or **none**. Everything else is in the hover card.
 - Closing the window doesn't quit: the aquarium stays in the **menu bar** (🐠, with whoever is waiting for you).

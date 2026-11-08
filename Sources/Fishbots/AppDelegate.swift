@@ -26,8 +26,34 @@ final class TankView: MTKView {
     override func keyDown(with event: NSEvent) {
         if let c = event.charactersIgnoringModifiers?.lowercased() { onKey?(c) } else { super.keyDown(with: event) }
     }
+    // a click counts on release, so it can be told from a drag; a double click knocks on the glass
+    var onDrag: ((_ from: CGPoint, _ to: CGPoint) -> Void)?
+    var onDragEnd: (() -> Void)?
+    var onKnock: ((CGPoint) -> Void)?
+    var onScroll: ((CGPoint, CGFloat) -> Void)?
+    private var downAt: CGPoint?
+    private var dragging = false
+
     override func mouseDown(with event: NSEvent) {
-        onClick?(convert(event.locationInWindow, from: nil))
+        let p = convert(event.locationInWindow, from: nil)
+        downAt = p
+        dragging = false
+        if event.clickCount == 2 { onKnock?(p) }
+    }
+    override func mouseDragged(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        guard let d = downAt else { return }
+        if !dragging && hypot(p.x - d.x, p.y - d.y) > 6 { dragging = true }
+        if dragging { onDrag?(d, p) }
+    }
+    override func mouseUp(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        if dragging { onDragEnd?() } else if event.clickCount < 2 { onClick?(p) }
+        downAt = nil
+        dragging = false
+    }
+    override func scrollWheel(with event: NSEvent) {
+        onScroll?(convert(event.locationInWindow, from: nil), event.scrollingDeltaY)
     }
 }
 
@@ -136,6 +162,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         applyTheme()
         view.onKey = { [unowned self] k in self.key(k) }
         view.onClick = { [unowned self] p in self.click(p) }
+        // drag a fish to nudge it, or the water to make a current; double click knocks; scrolling sprinkles food
+        view.onDrag = { [unowned self] from, to in
+            self.tank.drag(from: [Float(from.x), Float(from.y)], to: [Float(to.x), Float(to.y)])
+        }
+        view.onDragEnd = { [unowned self] in self.tank.endDrag() }
+        view.onKnock = { [unowned self] p in
+            let q: SIMD2<Float> = [Float(p.x), Float(p.y)]
+            guard self.tank.fish(at: q) == nil else { return }
+            self.tank.knock(at: q)
+            if !Attention.focus { self.music.sceneSound("glass", cue: .effect, x: q.x / max(1, self.tank.size.x)) }
+        }
+        view.onScroll = { [unowned self] p, dy in self.tank.sprinkle(at: [Float(p.x), Float(p.y)], amount: Float(abs(dy))) }
         view.onRightClick = { [unowned self] p, e in self.fishMenu(p, e) }
         view.hits = { [unowned self] p in
             let q: SIMD2<Float> = [Float(p.x), Float(p.y)]

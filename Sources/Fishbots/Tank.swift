@@ -222,8 +222,15 @@ final class Fish {
          stripes: Bool, motif: Int, timbre: Timbre, phase: Int, decor: Bool, now: Double) {
         self.id = id; self.source = source; self.label = label; self.pos = pos; self.baseSize = size
         self.color = color; self.stripes = stripes; self.motif = motif; self.timbre = timbre
-        self.phase = phase; self.decor = decor; self.since = now; self.seen = now
+        self.phase = phase; self.decor = decor; self.since = now; self.seen = now; self.bornAt = now
     }
+
+    /// When it arrived in the tank (a long session ages: longer fins, more marked scales).
+    var bornAt: Double
+    /// Being pulled by the mouse: where it's pulled to.
+    var grabbedTo: SIMD2<Float>?
+    /// How old its project is in the tank: 0 new, 1 over two weeks (a little scar), 2 over two months (gold-edged fins).
+    var veteran = 0
 
     var size: Float { baseSize * scale }
 }
@@ -466,6 +473,7 @@ final class Tank {
         f.vel = [0, -120]
         f.variant = variant
         profile.apply(to: f)
+        if f.isAgent { f.veteran = Self.veteranLevel(f.projectKey) }
         if state == .busy { f.workingSince = time }      // born already working
         // sessions stay near (readable); PRs and other sources, a bit further back
         f.depth = f.isAgent ? Float.random(in: 0...0.15) : Float.random(in: 0.15...0.4)
@@ -737,6 +745,13 @@ final class Tank {
         if Float.random(in: 0...1) < 0.3 { bubble(at: p, size: Float.random(in: 1.5...2.6)) }
     }
 
+    /// A session's age (0…1 over six hours) plus 2 × its project's veteran level, for the shader (aux.w).
+    private func aging(_ f: Fish) -> Float {
+        guard f.isAgent && !f.decor else { return 0 }
+        let age = min(0.999, Float((time - f.bornAt) / (6 * 3600 * Self.scale)))
+        return age + Float(f.veteran) * 2
+    }
+
     /// Fish swim in bursts and glides: a few strong strokes, then coasting. Averages 1, so the pace stays the same.
     private func burst(_ f: Fish) -> Float {
         let s = 0.5 + 0.5 * sinf(Float(time) * (0.8 + Float(f.phase % 5) * 0.07) + Float(f.phase) * 1.7)
@@ -786,6 +801,11 @@ final class Tank {
                 guard abs(dx) < r * 2.5 else { continue }
                 // away from it, more the closer it is; the push is in widths (the shader's unit)
                 target += (dx >= 0 ? 1 : -1) * expf(-(dx * dx) / (r * r)) * r0 * 0.9 / max(1, size.x)
+            }
+            // a current made by dragging through the water: the seaweed nearby leans with it
+            if let fp = flowPush, time - fp.when < 0.6 {
+                let dx = x - fp.at.x, r: Float = 140
+                target += fp.flow.x / max(1, size.x) * 1.5 * expf(-(dx * dx) / (r * r)) * Float(1 - (time - fp.when) / 0.6)
             }
             // the whale passing in the distance: a slow pressure wave sways the seaweed it goes by
             if let wp = fauna.whalePosition {
@@ -1046,6 +1066,94 @@ final class Tank {
 
     private func expireGauges() {
         for (k, at) in gaugeAt where time - at > Self.gaugeLifetime { gauges[k] = nil; gaugeAt[k] = nil }
+    }
+
+    /// When each project first showed up (kept in the settings), and how veteran that makes it.
+    static func veteranLevel(_ key: String) -> Int {
+        let d = UserDefaults.standard
+        var since = d.dictionary(forKey: "projectsSince") as? [String: Double] ?? [:]
+        let now = Date().timeIntervalSince1970
+        guard let first = since[key] else {
+            since[key] = now
+            d.set(since, forKey: "projectsSince")
+            return 0
+        }
+        let days = (now - first) / 86400
+        return days > 60 ? 2 : days > 14 ? 1 : 0
+    }
+
+    // MARK: - interaction
+
+    private var grabbed: Fish?
+    private var grabFrom: SIMD2<Float> = .zero
+    private var lastDrag: SIMD2<Float>?
+    private var sprinkled: Float = 0
+
+    /// A drag: on a fish, it's pulled along (a little); on the water, a short current that pushes the snow, the seaweed
+    /// and the fish nearby.
+    func drag(from a: SIMD2<Float>, to b: SIMD2<Float>) {
+        if grabbed == nil && lastDrag == nil {
+            if let f = fish(at: a) { grabbed = f; grabFrom = f.pos } else { lastDrag = a }
+        }
+        if let f = grabbed {
+            // it follows the mouse, but only so far: pulled, not carried
+            let d = b - grabFrom, l = simd_length(d)
+            f.grabbedTo = grabFrom + (l > 90 ? d / l * 90 : d)
+            f.glow = max(f.glow, 0.4)
+            return
+        }
+        guard let last = lastDrag else { return }
+        let flow = b - last
+        guard simd_length(flow) > 2 else { return }
+        lastDrag = b
+        current += flow.x * 0.25                         // a nudge to the current (it fades by itself)
+        for i in motes.indices {
+            let d = simd_distance(motes[i].pos, b)
+            if d < 140 { motes[i].vel += flow * 2.2 * (1 - d / 140) }
+        }
+        for f in fish where !f.leaving && simd_distance(f.pos, b) < 120 { f.vel += flow * 1.6 }
+        flowPush = (b, flow, time)
+        if Float.random(in: 0...1) < 0.35 { bubble(at: b, size: Float.random(in: 1.2...2.4)) }
+    }
+
+    func endDrag() {
+        if let f = grabbed {
+            f.grabbedTo = nil
+            f.vel += (grabFrom - f.pos) * 0.8             // let go: it heads back where it was
+        }
+        grabbed = nil
+        lastDrag = nil
+    }
+
+    /// The last bit of current made by dragging through the water (the seaweed sways with it).
+    private var flowPush: (at: SIMD2<Float>, flow: SIMD2<Float>, when: Double)?
+
+    /// A knock on the glass: a ring where it knocked; idle fish and the schools come to look.
+    func knock(at p: SIMD2<Float>) {
+        ring(at: p, color: [0.9, 0.97, 1], size: 8, grow: 110, life: 0.7)
+        after(0.18) { [weak self] in self?.ring(at: p, color: [0.9, 0.97, 1], size: 6, grow: 90, life: 0.6) }
+        for f in fish where !f.leaving && simd_distance(f.pos, p) < 500 {
+            if f.decor && f.parent == nil && f.phase % 100 == 0 {
+                f.wander = p + [Float.random(in: -60...60), Float.random(in: -40...40)]
+                f.wanderAt = time + 4
+            } else if !f.decor && (f.state == .idle || f.state == .ok || f.state == .done) {
+                f.wander = p + [Float.random(in: -90...90), Float.random(in: -50...50)]
+                f.wanderAt = time + 5
+                if sleeping(f) { f.since = time - 60; f.awakeUntil = time + 1.8 }
+            }
+        }
+    }
+
+    /// Scrolling over the water sprinkles food from the surface above the mouse.
+    func sprinkle(at p: SIMD2<Float>, amount: Float) {
+        sprinkled += amount
+        guard sprinkled > 8 else { return }
+        sprinkled = 0
+        for _ in 0..<2 {
+            particles.append(Particle(pos: [p.x + Float.random(in: -14...14), surfaceY(p.x) - 6], vel: [0, -26], life: 0, maxLife: 12,
+                                      size: 3, grow: 0, kind: 3, color: [0.75, 0.5, 0.28, 1]))
+        }
+        if Float.random(in: 0...1) < 0.3 { pendingArp += 1 }
     }
 
     func feed(at p: SIMD2<Float>) {
@@ -1388,6 +1496,13 @@ final class Tank {
     }
 
     private func steer(_ f: Fish, dt: Float, food: [Int], waiting: [Fish]) {
+        if let to = f.grabbedTo {
+            // pulled by the mouse: follows it with a little lag, tail beating fast
+            f.vel += ((to - f.pos) * 7 - f.vel) * min(1, dt * 8)
+            f.pos += f.vel * dt
+            f.tail += dt * 14
+            return
+        }
         let w = size.x, h = size.y
         var target: SIMD2<Float>
         var speed: Float
@@ -1848,7 +1963,7 @@ final class Tank {
                               glow: glow, phase: f.tail, color: SIMD4(c, alpha),
                               extra: [(f.facingX >= 0 ? max(abs(f.facingX), 0.12) : -max(abs(f.facingX), 0.12)) * squeeze,
                                       Float(f.pattern + f.cut * 8), Float(f.species), min(0.99, f.fat) + (asleep ? 2 : 0)],
-                              aux: [lookLocal.x, lookLocal.y, blur, 0]))
+                              aux: [lookLocal.x, lookLocal.y, blur, aging(f)]))
         }
 
         out += scene.sprites(self, front: true)
