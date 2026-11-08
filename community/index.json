@@ -76,7 +76,7 @@
     {
       "id": "arctic",
       "name": "Ártico",
-      "version": "1.0",
+      "version": "1.1",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
@@ -88,17 +88,21 @@
       },
       "path": "packs/examples/arctic",
       "files": [
+        "char.metal",
         "cover.png",
         "creatures.metal",
         "ice.metal",
-        "pack.json"
+        "pack.json",
+        "presences.metal"
       ],
       "cover": "cover.png",
       "contents": {
         "themes": 1,
         "styles": 1,
+        "fish": 1,
         "scenery": 2,
-        "fauna": 3
+        "fauna": 3,
+        "presences": 4
       }
     }
   ]

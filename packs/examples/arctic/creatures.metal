@@ -30,7 +30,12 @@ float4 draw_arctic_seal(float2 c, float phase, float glow, float4 col, float4 ex
     float a = 1.0 - smoothstep(-aa, aa, d);
     float yn = p.y / 0.3;
     float3 c3 = mix(col.rgb * 1.25 + 0.05, col.rgb * 0.7, smoothstep(-0.5, 0.4, yn));
-    c3 = mix(c3, col.rgb * 0.45, smoothstep(0.66, 0.74, vnoise(p * float2(14.0, 22.0))) * 0.6 * step(-0.2, yn));
+    // dark rings and spots, scattered (a harbor seal's coat)
+    float2 sg = p * float2(5.0, 8.0);
+    float2 sid = floor(sg);
+    float2 so = fract(sg) - 0.5 - (float2(hash21(sid), hash21(sid + 5.0)) - 0.5) * 0.4;
+    float spot = (1.0 - smoothstep(0.12, 0.2, length(so / float2(1.0, 1.3)))) * step(0.5, hash21(sid + 2.0));
+    c3 = mix(c3, col.rgb * 0.45, spot * 0.6 * step(-0.3, yn));
     c3 += float3(0.8, 0.9, 1.0) * (1.0 - smoothstep(0.0, 0.03, -body)) * smoothstep(0.0, 0.9, yn) * 0.25;
     // a dark round eye, nostrils, whiskers
     c3 = mix(c3, float3(0.02), 1.0 - smoothstep(0.035, 0.05, length(p - float2(1.12, 0.12))));
