@@ -658,6 +658,83 @@ final class Tank {
 
     /// How many seaweeds the theme draws (the shader uses the same formula for their positions).
     var weedCount = 9 { didSet { weeds = Self.weeds(weedCount) } }
+
+    /// Seaweed bending away from whoever swims through it (springs), for the shader with the blades' positions.
+    private var weedBend = [Float](repeating: 0, count: 16)
+    private var weedBendVel = [Float](repeating: 0, count: 16)
+
+    func weedUniforms() -> [SIMD4<Float>] {
+        (0..<16).map { k in k < weeds.count ? SIMD4(weeds[k].x, weeds[k].h, weedBend[k], 0) : .zero }
+    }
+
+    private func updateWeeds(dt: Float) {
+        // what pushes: the fish and the presences that swim (position, size)
+        var pushers: [(SIMD2<Float>, Float)] = fish.filter { !$0.leaving }.map { ($0.pos, $0.size * (1 - 0.35 * $0.depth)) }
+        for p in scene.presences where !p.leaving && [.swim, .drift, .hover].contains(p.kind.motion) { pushers.append((p.pos, p.kind.size * 0.8)) }
+        for k in weeds.indices where k < 16 {
+            let x = weeds[k].x * size.x
+            let base = size.y * sand(weeds[k].x)
+            let top = base + weeds[k].h * size.y
+            var target: Float = 0
+            for (pos, r0) in pushers where pos.y > base - 10 && pos.y < top + r0 {
+                let dx = x - pos.x, r = r0 * 1.3 + 10
+                guard abs(dx) < r * 2.5 else { continue }
+                // away from it, more the closer it is; the push is in widths (the shader's unit)
+                target += (dx >= 0 ? 1 : -1) * expf(-(dx * dx) / (r * r)) * r0 * 0.9 / max(1, size.x)
+            }
+            target = max(-0.05, min(0.05, target))
+            weedBendVel[k] += ((target - weedBend[k]) * 30 - weedBendVel[k] * 5) * dt
+            weedBend[k] += weedBendVel[k] * dt
+        }
+    }
+
+    /// Marine snow: specks drifting down at different depths (far ones behind the fish, near ones in front).
+    private struct Mote { var pos: SIMD2<Float>; var depth: Float; var size: Float; var phase: Float; var speed: Float }
+    private var motes: [Mote] = []
+    private var motesFor: SIMD2<Float> = .zero
+
+    private func updateMotes(dt: Float) {
+        if motes.isEmpty || abs(motesFor.x - size.x) > 200 || abs(motesFor.y - size.y) > 200 {
+            motesFor = size
+            let n = max(40, min(170, Int(size.x * size.y / 8000)))
+            motes = (0..<n).map { _ in
+                let depth = Float.random(in: 0...1)
+                return Mote(pos: [Float.random(in: 0...size.x), Float.random(in: 0...size.y)], depth: depth,
+                            size: depth < 0.3 ? Float.random(in: 2.8...4.2) : Float.random(in: 1.3...2.4),
+                            phase: Float.random(in: 0...20), speed: Float.random(in: 2...7) * (1.2 - depth * 0.6))
+            }
+        }
+        for i in motes.indices {
+            var m = motes[i]
+            m.phase += dt
+            m.pos.y -= m.speed * dt
+            m.pos.x += (sinf(m.phase * 0.35) * 5 + current * 0.5 * (1.1 - m.depth)) * dt
+            if m.pos.y < size.y * sand(m.pos.x / max(1, size.x)) { m.pos.y = size.y * 0.97; m.pos.x = Float.random(in: 0...size.x) }
+            if m.pos.x < -10 { m.pos.x += size.x + 20 } else if m.pos.x > size.x + 10 { m.pos.x -= size.x + 20 }
+            motes[i] = m
+        }
+    }
+
+    /// `front`: the near ones (in front of the fish). They move more with the parallax.
+    private func moteSprites(front: Bool) -> [Sprite] {
+        let tint: SIMD3<Float> = SIMD3<Float>(0.78, 0.9, 0.95) * (0.55 + 0.45 * light)
+        return motes.filter { ($0.depth < 0.3) == front }.map { m in
+            let shift = gaze * (-12 * (1 - m.depth))
+            let twinkle = 0.75 + 0.25 * sinf(m.phase * 1.7)
+            return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size, kind: 33, glow: (front ? 0.62 : 0.38) * twinkle,
+                          phase: 0, color: SIMD4(tint, 1), extra: [1, 0, 0, 0])
+        }
+    }
+
+    /// A soft shadow on the sand under something swimming: darker and smaller the closer it is to the bottom.
+    private func shadow(under p: SIMD2<Float>, size s: Float, strength: Float) -> Sprite? {
+        let sy = size.y * sand(p.x / max(1, size.x)) + 2
+        let t = max(0, min(1, (p.y - sy) / (size.y * 0.55)))
+        let a = (1 - t) * (1 - t) * 0.5 * strength * (0.45 + 0.55 * light)
+        guard a > 0.01 else { return nil }
+        return Sprite(pos: [p.x, sy], dir: [1, 0], size: s * (1.0 + t * 1.6), kind: 32, glow: a, phase: 0,
+                      color: [0, 0, 0, 1], extra: [1, 0, 0, 0])
+    }
     private lazy var weeds = Self.weeds(weedCount)
 
     /// The shader's seaweed (same formula): x position (0…1) and height (fraction of the screen), rising from y = 0.055.
@@ -821,6 +898,8 @@ final class Tank {
         }
 
         scene.update(self, dt: dt)
+        updateWeeds(dt: dt)
+        updateMotes(dt: dt)
 
         // current: high CPU gently pushes everything to one side
         let cpu = gauges["mac:cpu"] ?? 0
@@ -1326,6 +1405,15 @@ final class Tank {
                               phase: jellyPhase, color: [1, 1, 1, 1], extra: [1, pluggedIn ? 1 : 0, 0, 0]))
         }
 
+        // marine snow far away, and the shadows on the sand (under the fish and whatever swims)
+        out += moteSprites(front: false)
+        for f in fish {
+            if let s = shadow(under: f.pos, size: f.size * (1 - 0.35 * f.depth), strength: (f.leaving ? 0.4 : 1) * (1 - f.depth * 0.6)) { out.append(s) }
+        }
+        for p in scene.presences where [.swim, .drift, .hover].contains(p.kind.motion) {
+            if let s = shadow(under: p.pos, size: p.kind.size, strength: p.alpha) { out.append(s) }
+        }
+
         // the scenery: behind the pearls, the creatures and the fish, softened a little by the water
         let lit = 0.45 + 0.55 * light
         let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
@@ -1440,6 +1528,8 @@ final class Tank {
         }
 
         out += scene.sprites(self, front: true)
+        // marine snow up close, in front of the fish
+        out += moteSprites(front: true)
         // the snail on the glass
         out += fauna.front(self)
         // mail seahorses (facing the way they're going)

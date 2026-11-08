@@ -70,7 +70,9 @@ float caustic(float2 p, float t) {
     return pow(abs(c), 8.0);
 }
 
-fragment float4 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(0)]], constant Theme& th [[buffer(1)]]) {
+// weeds[k]: x (0…1), height (0…1), bend (how far the tip is pushed, in widths), unused. From Tank.weedUniforms.
+fragment float4 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(0)]], constant Theme& th [[buffer(1)]],
+                            constant float4* weeds [[buffer(2)]]) {
     float2 uv = float2(in.position.x / u.pix.x, 1.0 - in.position.y / u.pix.y);
     float aspect = u.res.x / u.res.y;
     float t = u.time;
@@ -125,12 +127,13 @@ fragment float4 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer
     int weedCount = int(th.params.x + 0.5);
     for (int k = 0; k < weedCount; k++) {
         float fk = float(k);
-        float x0 = fract(sin(fk * 91.7) * 437.1) * 0.9 + 0.05;
-        float hgt = 0.16 + fract(sin(fk * 13.1) * 91.3) * 0.28;
+        float x0 = weeds[k].x;
+        float hgt = weeds[k].y;
         float yy = uv.y - (0.075 + 0.018 * sin(x0 * 7.0 + 1.3) + 0.008 * sin(x0 * 23.0) - 0.015);
         if (yy > 0.0 && yy < hgt) {
             float k01 = yy / hgt;
-            float sway = sin(yy * 11.0 - t * 1.1 + fk * 1.7) * 0.014 * k01 + sin(t * 0.4 + fk) * 0.01 * k01 * k01;
+            float sway = sin(yy * 11.0 - t * 1.1 + fk * 1.7) * 0.014 * k01 + sin(t * 0.4 + fk) * 0.01 * k01 * k01
+                       + weeds[k].z * pow(k01, 1.5);                       // pushed aside by a fish going through
             float dx = (uv.x + u.gaze.x * 0.012 - x0 - sway) * aspect;
             float w = 0.009 * (1.0 - 0.75 * k01);
             float blade = 1.0 - smoothstep(w * 0.5, w, abs(dx));
@@ -198,6 +201,8 @@ vertex SpOut sprite_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float2 c = corners[vid];
     float2 ext;
     if (s.kind < 0.5) ext = float2(1.25, 0.8) * s.size;
+    else if (s.kind > 32.5) ext = float2(s.size);                     // mote (marine snow)
+    else if (s.kind > 31.5) ext = float2(1.0, 0.28) * s.size;         // shadow on the sand
     else if (s.kind > 24.5) ext = presence_extent(int(s.kind + 0.5)) * s.size;   // presences (Scene.swift)
     else if (s.kind > 22.5) ext = float2(1.15, 1.0) * s.size;         // chest (room for the glow above)
     else if (s.kind > 21.5) ext = float2(1.1, 0.95) * s.size;         // shell
@@ -331,8 +336,8 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
 
     if (cutKind == 1) { L *= 1.7; flare *= 1.35; }   // veil tail
 
-    // the tail sways
-    p.y -= sin(phase - p.x * 2.5) * 0.07 * (1.0 - smoothstep(-0.9, 0.4, p.x));
+    // the body undulates: a wave runs from head to tail, small at the head and wide at the tail
+    p.y -= sin(phase - p.x * 2.5) * (0.014 + 0.07 * (1.0 - smoothstep(-0.9, 0.4, p.x)));
 
     float2 b = (p - float2(cx, 0.0)) / float2(rx, ry);
     if (sp == 3) b.x *= 1.0 + 0.25 * abs(b.y);                // angelfish: diamond-shaped body
@@ -365,7 +370,14 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
         float2 pa = p - a0, ba = a1 - a0;
         fins = min(fins, length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)) - 0.03);
     }
-    float d = min(min(body, tail), fins);
+    // pectoral fin: a little paddle behind the gills that keeps fluttering (how a still fish keeps its balance)
+    float pang = -0.45 + sin(phase * 1.9) * 0.42;
+    float2 pq = p - float2(cx + rx * 0.2, -ry * 0.3);
+    pq = float2(pq.x * cos(pang) - pq.y * sin(pang), pq.x * sin(pang) + pq.y * cos(pang));
+    float pect = (length((pq - float2(-0.11, 0.0)) / float2(0.13, 0.045)) - 1.0) * 0.045;
+    if (sp == 3) pect = 1e3;                                       // the angelfish has its tall fins instead
+
+    float d = min(min(min(body, tail), fins), pect);
     float aa = fwidth(d) + 1e-4;
     float inside = 1.0 - smoothstep(-aa, aa, d);
 
@@ -412,6 +424,16 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
         c3 = mix(c3, float3(1.0), 1.0 - smoothstep(0.012, 0.022, length(p - eyeP - float2(0.012, 0.015))));
     }
     c3 *= 0.78 + 0.35 * (p.y / (ry / 0.36) + 0.4);
+    if (body < 0.0) {
+        // the light from the surface on the upper flank, and a faint sheen of color that shifts as it swims
+        float2 hs = (p - float2(cx + rx * 0.15, ry * 0.45)) / float2(rx * 0.75, ry * 0.32);
+        c3 += float3(1.0) * pow(max(0.0, 1.0 - dot(hs, hs)), 2.0) * 0.2;
+        float sheen = sin(p.x * 7.0 + phase * 0.15) * 0.5 + 0.5;
+        float3 iri = 0.5 + 0.5 * cos(6.2831 * (sheen * 0.35 + float3(0.0, 0.33, 0.67)));
+        c3 += (iri - 0.5) * 0.06 * (1.0 - belly);
+    }
+    if (pect < 0.0 && body >= -0.01) c3 = base * 0.85 + 0.12;     // the fin outside the body
+    else if (pect < 0.0) c3 = mix(c3, base * 0.8 + 0.2, 0.45);      // over the body: lighter, see-through
     c3 += base * glow * 0.45;
 
     float a = inside * col.a;
@@ -877,6 +899,12 @@ fragment float4 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[bu
         float border = 1.0 - smoothstep(0.5, 1.0, max(abs(c.x), abs(c.y)));
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
+    } else if (k > 32.5) {             // mote of marine snow: a tiny soft speck
+        float a = exp(-r * r * 4.5) * in.glow;
+        outc = float4(in.color.rgb * a, a);
+    } else if (k > 31.5) {             // soft shadow on the sand (glow: how dark)
+        float a = (1.0 - smoothstep(0.15, 1.0, r)) * in.glow;
+        outc = float4(0.0, 0.0, 0.0, a);
     } else if (k > 24.5) {             // presences (Scene.swift)
         outc = draw_presence(int(k + 0.5), c, in.phase, in.glow, in.color, in.extra);
     } else if (k > 23.5) {             // a music note rising from the music fish

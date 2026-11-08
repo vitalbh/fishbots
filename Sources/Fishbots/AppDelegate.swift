@@ -1044,6 +1044,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let hasError = tank.fish.contains { !$0.decor && $0.state == .error && !$0.leaving && Attention.level($0.source, .error) >= .attention }
         let alert: Float = hasError ? 0.25 + 0.1 * sinf(Float(tank.time) * 3) : 0
         updateLabels()
+        renderer.weeds = tank.weedUniforms()
         // the quake also moves the background (the sprites move in Tank.sprites)
         let u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
                          gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash)

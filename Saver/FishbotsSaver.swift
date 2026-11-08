@@ -160,6 +160,7 @@ final class FishbotsSaverView: ScreenSaverView {
         tank.light = 0.62 + 0.38 * smoothstep(5.5, 8, h) * (1 - smoothstep(18, 20.5, h))
         visual.light = tank.light
         if !isPreview { updateLabels() }
+        renderer?.weeds = tank.weedUniforms()
         return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero), visual.sprites() + tank.sprites())
     }
 

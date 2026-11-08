@@ -42,6 +42,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     /// The scene's colors (see Theme.swift).
     var theme = Theme.classicUniforms
+    /// The seaweed: x, height and bend of each blade (Tank.weedUniforms), 16 of them.
+    var weeds = [SIMD4<Float>](repeating: .zero, count: 16)
 
     /// Called every frame with dt; returns uniforms (without size) and sprites.
     var frame: ((Float) -> (Uniforms, [Sprite]))?
@@ -125,6 +127,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         enc.setFragmentBytes(&u, length: MemoryLayout<Uniforms>.stride, index: 0)
         var th = theme
         enc.setFragmentBytes(&th, length: MemoryLayout<ThemeUniforms>.stride, index: 1)
+        var wd = weeds.count == 16 ? weeds : Array((weeds + [SIMD4<Float>](repeating: .zero, count: 16)).prefix(16))
+        enc.setFragmentBytes(&wd, length: MemoryLayout<SIMD4<Float>>.stride * 16, index: 2)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
 
         if count > 0 {
