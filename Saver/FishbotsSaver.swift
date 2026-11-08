@@ -218,6 +218,38 @@ final class FishbotsSaverView: ScreenSaverView {
             l.position = CGPoint(x: CGFloat(f.pos.x), y: CGFloat(f.pos.y - f.size * 0.75) - l.bounds.height / 2)
             l.opacity = f.leaving ? 0.3 : 1
         }
+        // the presences: their label, and the detail in the state's color while they need you
+        for p in tank.scene.presences {
+            let key = "presence:" + p.id
+            alive.insert(key)
+            let l = layers[key] ?? {
+                let t = CATextLayer()
+                t.contentsScale = scale
+                t.alignmentMode = .center
+                t.shadowOpacity = 0.9
+                t.shadowRadius = 2
+                t.shadowOffset = .zero
+                labels.addSublayer(t)
+                layers[key] = t
+                return t
+            }()
+            let name = p.label.count > 24 ? String(p.label.prefix(23)) + "…" : p.label
+            let s = NSMutableAttributedString(string: name, attributes: [
+                .font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor(white: 1, alpha: 0.65)])
+            if p.needsYou {
+                let color: NSColor = p.state == .waiting ? NSColor(red: 1, green: 0.85, blue: 0.4, alpha: 1)
+                    : p.state == .alert ? NSColor(red: 1, green: 0.75, blue: 0.3, alpha: 1) : NSColor(red: 1, green: 0.45, blue: 0.4, alpha: 1)
+                let icon = p.state == .waiting ? "✋ " : p.state == .alert ? "⚠︎ " : "✗ "
+                let text = p.detail.map { icon + String($0.prefix(40)) } ?? p.state.label
+                s.append(NSAttributedString(string: "\n" + text, attributes: [.font: NSFont.systemFont(ofSize: 10.5), .foregroundColor: color]))
+            }
+            l.string = s
+            let sz = s.size()
+            l.bounds = CGRect(x: 0, y: 0, width: ceil(sz.width) + 6, height: ceil(sz.height) + 2)
+            let (at, above) = tank.scene.labelAnchor(p)
+            l.position = CGPoint(x: CGFloat(at.x), y: CGFloat(at.y) + (above ? 1 : -1) * l.bounds.height / 2)
+            l.opacity = p.alpha
+        }
         for (id, l) in layers where !alive.contains(id) {
             l.removeFromSuperlayer()
             layers[id] = nil
