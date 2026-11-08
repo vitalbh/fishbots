@@ -104,7 +104,9 @@ A theme is data, passed to the shader as uniforms (no recompiling):
   "music": "ambient", "visualizer": "constellation" }
 ```
 
-Ideas for packs: coral reef, deep sea (dark, bioluminescent), Japanese pond (koi), night aquarium.
+Ideas for packs: coral reef, deep sea (dark, bioluminescent), Japanese pond (koi), night aquarium. Two are in
+`packs/examples/`: `coral` (a theme, a music style, the clownfish) and `koi` (a theme, a music style, the koi, a stone
+lantern and lily pads as scenery, and a frog, tadpoles and shrimp as creatures).
 
 #### Scenery from packs
 A pack can bring its own scenery: the drawing is a Metal function in the pack, the app places it, lights it, keeps
