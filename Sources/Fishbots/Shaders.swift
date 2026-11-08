@@ -373,6 +373,7 @@ vertex SpOut sprite_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float2 c = corners[vid];
     float2 ext;
     if (s.kind < 0.5) ext = float2(1.25, 0.8) * s.size * (int(s.extra.z + 0.5) == LANTERN_KIND ? LANTERN_ROOM : 1.0); // the lanternfish: room for its light
+    else if (s.kind > 34.5) ext = s.aux.xy * s.size;                  // a pack's scenery: its own extent
     else if (s.kind > 33.5) ext = float2(s.size);                     // coral
     else if (s.kind > 32.5) ext = float2(s.size);                     // mote (marine snow)
     else if (s.kind > 31.5) ext = float2(1.0, 0.28) * s.size;         // shadow on the sand
@@ -452,7 +453,6 @@ float4 draw_ray(float2 c, float phase, float glow, float4 col) {
     float2 an = abs(qs) / float2(ax, by);
     float se = pow(pow(an.x, n) + pow(an.y, n), 1.0 / n);
     float disc = (se - 1.0) * 0.3;
-    float R = r / max(se, 1e-3);
     // pelvic lobes behind the disc, and the tail with a spine partway down
     float pelv = (length((float2(q.x + 0.38, abs(q.y) - 0.06)) / float2(0.09, 0.05)) - 1.0) * 0.05;
     float tw = sin(phase * 0.6 - p.x * 3.0) * 0.05;
@@ -1698,6 +1698,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float border = 1.0 - smoothstep(0.5, 1.0, max(abs(c.x), abs(c.y)));
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
+    } else if (k > 34.5) {             // a pack's scenery (extra.z: its index)
+        outc = draw_scenery_pack(int(in.extra.z + 0.5), c, in.phase, in.glow, in.color, in.extra);
     } else if (k > 33.5) {             // scenery: coral (phase: 0 branching, 1 sea fan, 2 brain)
         outc = draw_coral(c, in.phase, u.time, in.color);
     } else if (k > 32.5) {             // mote of marine snow: a tiny soft speck
@@ -1886,7 +1888,10 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
     outc.rgb = scene_tint(outc.rgb, outc.a, u) * u.grade.rgb;      // water temperature, fog and the hour's color
     Frag2 o;
     o.color = outc;
-    o.glow = float4(outc.rgb * emissive(k, in.glow), outc.a);       // opaque things also cover the glow behind them
+    // opaque things also cover the glow behind them; a pack's scenery glows only where it's bright (a lantern's window)
+    float em = k > 34.5 ? clamp(in.glow, 0.0, 1.0) * smoothstep(0.35, 0.9, max(outc.r, max(outc.g, outc.b)) / max(outc.a, 0.01)) * 0.8
+                        : emissive(k, in.glow);
+    o.glow = float4(outc.rgb * em, outc.a);
     return o;
 }
 

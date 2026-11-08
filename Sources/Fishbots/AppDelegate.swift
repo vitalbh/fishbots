@@ -138,6 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         tank.profile = Providers.profile
         Packs.load()   // before the renderer compiles the shader (fish kinds) and the theme is applied
         Renderer.packFishFailed = Packs.fishFailed
+        Renderer.packSceneryFailed = Packs.sceneryFailed
         TankProtocol.stateExtras = { ["packs": Packs.loaded.map { ["id": $0.id, "name": $0.name, "contents": $0.contents] },
                                       "packProblems": Packs.problems, "fishKinds": FishKinds.all.map(\.id),
                                       "notifications": self.notifier.permission, "onScreen": self.onScreen] }

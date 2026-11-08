@@ -66,6 +66,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     /// Told when the packs' fish didn't compile (the app reports it; see Packs).
     static var packFishFailed: ((FishKind, String) -> Void)?
+    static var packSceneryFailed: ((SceneryKind, String) -> Void)?
 
     /// The scene's colors (see Theme.swift).
     var theme = Theme.classicUniforms
@@ -86,11 +87,15 @@ final class Renderer: NSObject, MTKViewDelegate {
             let lib: MTLLibrary
             do {
                 lib = try device.makeLibrary(source: FishKinds.shaderSource(), options: nil)
-            } catch where FishKinds.all.contains(where: { $0.pack != nil }) {
-                // a pack's fish broke the shader: try each one alone and drop the ones that don't compile
+            } catch where FishKinds.all.contains(where: { $0.pack != nil }) || !SceneryKinds.all.isEmpty {
+                // a pack's fish or scenery broke the shader: try each one alone and drop the ones that don't compile
                 for k in FishKinds.all where k.pack != nil {
                     do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
                     catch { Renderer.packFishFailed?(k, "\(error)"); FishKinds.drop(k.id) }
+                }
+                for k in SceneryKinds.all {
+                    do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
+                    catch { Renderer.packSceneryFailed?(k, "\(error)"); SceneryKinds.drop(k.id) }
                 }
                 lib = try device.makeLibrary(source: FishKinds.shaderSource(), options: nil)
             }

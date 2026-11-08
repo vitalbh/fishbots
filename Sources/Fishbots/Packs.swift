@@ -10,7 +10,9 @@ import Foundation
 ///    "styles": [ {"id", "name", "bpm": [lo, hi], "progressions": ["Dreamy"], "scale": "major" | "penta" | [0, 2, …],
 ///                 "lead": ["flute"], "accomp": "arpeggio" | "lofi" | "bossa", "accompTimbre": ["soft"], …} ],
 ///    "chords": {"Dm9": [2, 5, 9, 0, 4]}, "progressions": {"Lagoon": ["Cmaj7", "Dm9"]},
-///    "fish": [ {"id": "clownfish", "name": "palhaço", "metal": "clownfish.metal", "function": "draw_clownfish"} ]}
+///    "fish": [ {"id": "clownfish", "name": "palhaço", "metal": "clownfish.metal", "function": "draw_clownfish"} ],
+///    "scenery": [ {"id": "lantern", "metal": "lantern.metal", "function": "draw_lantern", "anchor": "sand" | "surface" | "float",
+///                  "size": 0.08, "extent": [0.6, 1], "at": [0.3] or "count": 3, "glowAtNight": true, …} ]}
 enum Packs {
     struct Loaded {
         let id: String
@@ -75,7 +77,42 @@ enum Packs {
                                         pack: pack.id))
             pack.contents.append(tr("peixe %@", f["name"] as? String ?? id))
         }
+        for sc in json["scenery"] as? [[String: Any]] ?? [] {
+            guard let id = sc["id"] as? String, let file = sc["metal"] as? String, let fn = sc["function"] as? String,
+                  fn.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil,
+                  !file.contains("/"), let src = try? String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8) else {
+                problems.append(tr("%@: cenário incompleto (%@)", name, sc["id"] as? String ?? "?"))
+                continue
+            }
+            func num(_ k: String, _ def: Float) -> Float { (sc[k] as? NSNumber)?.floatValue ?? def }
+            func vec(_ k: String) -> [Float]? { (sc[k] as? [NSNumber])?.map(\.floatValue) }
+            let anchor = SceneryKind.Anchor(rawValue: sc["anchor"] as? String ?? "sand") ?? .sand
+            // where the copies go: "at" (one place or a list), or "count" spread out from the id
+            var at = vec("at") ?? (sc["at"] as? NSNumber).map { [$0.floatValue] } ?? []
+            if at.isEmpty {
+                let n = max(1, min(12, Int(num("count", 1))))
+                var h = UInt64(5381)
+                for b in id.utf8 { h = h &* 33 &+ UInt64(b) }
+                at = (0..<n).map { i in 0.08 + 0.84 * ((Float(i) + Float((h >> (UInt64(i) % 40)) % 100) / 100) / Float(n)) }
+            }
+            let ext = vec("extent")
+            let col = Theme.color(sc["color"]).map { SIMD3($0.x, $0.y, $0.z) } ?? [0.6, 0.6, 0.6]
+            SceneryKinds.register(SceneryKind(
+                id: id, name: sc["name"] as? String ?? id, source: src, function: fn, pack: pack.id, anchor: anchor,
+                extent: ext.flatMap { $0.count == 2 ? SIMD2($0[0], $0[1]) : nil } ?? [1, 1],
+                size: max(0.005, min(0.5, num("size", 0.06))), color: col, at: at.map { max(0, min(1, $0)) },
+                height: max(0, min(1, num("height", 0.5))), glowAtNight: sc["glowAtNight"] as? Bool ?? false,
+                drift: sc["drift"] as? Bool ?? (anchor == .surface), solid: sc["solid"] as? Bool ?? (anchor != .surface)))
+            pack.contents.append(tr("cenário %@", sc["name"] as? String ?? id))
+        }
         loaded.append(pack)
+    }
+
+    /// The renderer couldn't compile a pack's scenery: it's dropped and reported.
+    static func sceneryFailed(_ kind: SceneryKind, _ error: String) {
+        let line = error.split(separator: "\n").first { $0.contains("error") } ?? Substring(error)
+        problems.append(tr("%@: o cenário %@ não compilou (%@)", kind.pack, kind.name, String(line.prefix(140))))
+        if let i = loaded.firstIndex(where: { $0.id == kind.pack }) { loaded[i].contents.removeAll { $0 == tr("cenário %@", kind.name) } }
     }
 
     /// The renderer couldn't compile a pack's fish: it's dropped and reported.

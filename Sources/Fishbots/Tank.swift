@@ -650,7 +650,7 @@ final class Tank {
 
     /// A spot on the sand moved out of the scenery's way (pearls and pebbles would float in front of a rock or the chest).
     func clearOfScenery(_ x: Float) -> Float {
-        for s in scenery {
+        for s in sandScenery {
             let (c, sz) = place(s)
             let half = sz * 1.35 + 8
             if abs(x - c.x) < half { return c.x + (x < c.x ? -half : half) }
@@ -719,6 +719,14 @@ final class Tank {
         let scale: Float         // size, as a fraction of the height
         let color: SIMD3<Float>
         let seed: Float
+        /// From a pack: its index in SceneryKinds (the sprite is kind 35).
+        var pack: Int? = nil
+        var anchor: SceneryKind.Anchor = .sand
+        var extent: SIMD2<Float> = [1, 1]
+        var height: Float = 0.5
+        var drift = false
+        var solid = true
+        var glowAtNight = false
     }
     static let allScenery: [SceneryItem] = [
         SceneryItem(id: "rock", kind: 21, u: 0.17, scale: 0.075, color: [0.42, 0.4, 0.36], seed: 0.3),
@@ -732,19 +740,43 @@ final class Tank {
         SceneryItem(id: "coral", kind: 34, u: 0.735, scale: 0.06, color: [0.35, 0.78, 0.75], seed: 0.8),
         SceneryItem(id: "coral", kind: 34, u: 0.905, scale: 0.1, color: [0.98, 0.58, 0.3], seed: 1.4),
     ]
-    /// The scenery the theme wants (nil: all of it).
-    var sceneryKinds: [String]? = nil
-    var scenery: [SceneryItem] { Self.allScenery.filter { sceneryKinds?.contains($0.id) ?? true } }
+    /// The theme's list (nil: all the built-in scenery; a pack's scenery only shows up where a theme lists it).
+    var sceneryKinds: [String]? = nil { didSet { scenery = Self.scenery(for: sceneryKinds) } }
+    private(set) var scenery: [SceneryItem] = Tank.scenery(for: nil)
+
+    private static func scenery(for ids: [String]?) -> [SceneryItem] {
+        var out = allScenery.filter { ids?.contains($0.id) ?? true }
+        for (i, k) in SceneryKinds.all.enumerated() where ids?.contains(k.id) == true {
+            for (j, u) in k.at.enumerated() {
+                out.append(SceneryItem(id: k.id, kind: 35, u: u, scale: k.size, color: k.color,
+                                       seed: Float(j) * 0.618 - floor(Float(j) * 0.618) + 0.05, pack: i, anchor: k.anchor,
+                                       extent: k.extent, height: k.height, drift: k.drift, solid: k.solid, glowAtNight: k.glowAtNight))
+            }
+        }
+        return out
+    }
+    /// Scenery on the sand (what crabs, pearls and pebbles keep clear of).
+    private var sandScenery: [SceneryItem] { scenery.filter { $0.anchor == .sand } }
     private var chestBubblesAt: Double = 0
 
     /// Where an item sits and how much room the fish give it.
     func place(_ s: SceneryItem) -> (center: SIMD2<Float>, size: Float) {
         let sz = s.scale * size.y
-        return ([s.u * size.x, size.y * sand(s.u) + sz * 0.3], sz)
+        switch s.anchor {
+        case .sand:
+            // a pack's piece stands on the sand with the bottom of its drawing (c.y = -1) a little buried
+            return ([s.u * size.x, size.y * sand(s.u) + (s.pack != nil ? sz * s.extent.y * 0.9 : sz * 0.3)], sz)
+        case .surface:
+            // floating: drifting slowly back and forth, riding the waves
+            let x = s.u * size.x + (s.drift ? sinf(Float(time) * 0.035 + s.seed * 6.3) * size.x * 0.03 : 0)
+            return ([x, surfaceY(x) - sz * 0.12], sz)
+        case .float:
+            return ([s.u * size.x, size.y * s.height + sinf(Float(time) * 0.5 + s.seed * 6.3) * 3], sz)
+        }
     }
     /// The stretch of sand an item takes (for the crabs, who turn around instead of walking over it).
     func sceneryBlocks(_ x: Float) -> Bool {
-        scenery.contains { s in let (c, sz) = place(s); return abs(x - c.x) < sz * 1.25 }
+        sandScenery.contains { s in let (c, sz) = place(s); return abs(x - c.x) < sz * 1.25 }
     }
 
     /// How many seaweeds the theme draws (the shader uses the same formula for their positions).
@@ -1818,7 +1850,7 @@ final class Tank {
 
         // the scenery: they go around it instead of through it
         if !f.leaving && f.jumpPhase == 0 {
-            for s in scenery {
+            for s in scenery where s.solid {
                 let (c, sz) = place(s)
                 let r = sz * 1.15 + f.size * 0.5
                 let away = f.pos - c, la = simd_length(away)
@@ -1896,9 +1928,16 @@ final class Tank {
         // the scenery: behind the pearls, the creatures and the fish, softened a little by the water
         let lit = 0.45 + 0.55 * light
         let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
+        let night = max(0, min(1, (0.8 - light) / 0.6))
         for s in scenery {
             let (c, sz) = place(s)
             let color = mix(s.color * lit, water, t: 0.15)
+            if let i = s.pack {
+                // a pack's piece: its own drawing (kind 35, its index in extra.z), the quad from its extent
+                out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: 35, glow: s.glowAtNight ? night : 0, phase: Float(time),
+                                  color: SIMD4(color, 1), extra: [1, s.seed, Float(i), night], aux: [s.extent.x, s.extent.y, 0, 0]))
+                continue
+            }
             out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 + chestLid * 0.6 : 0,
                               phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed, color: SIMD4(color, 1),
                               extra: [1, s.id == "chest" ? min(1, chestLid) : s.id == "shell" ? 1 : 0, 0, 0]))

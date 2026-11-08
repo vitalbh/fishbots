@@ -39,11 +39,21 @@ enum FishKinds {
     /// Drops a kind that came from a pack (its Metal didn't compile).
     static func drop(_ id: String) { all.removeAll { $0.id == id && $0.pack != nil } }
 
-    /// The shader with only the built-in kinds and this one (to find which pack fish breaks it).
+    /// The shader with only the built-in kinds and this one, and no pack scenery (to find which pack fish breaks it).
     static func shaderSource(testing k: FishKind) -> String {
-        let keep = all
+        let keep = all, keepScenery = SceneryKinds.all
         all = all.filter { $0.pack == nil } + [k]
-        defer { all = keep }
+        SceneryKinds.all = []
+        defer { all = keep; SceneryKinds.all = keepScenery }
+        return shaderSource()
+    }
+
+    /// The shader with the built-in fish and only this pack scenery (to find which one breaks it).
+    static func shaderSource(testing k: SceneryKind) -> String {
+        let keep = all, keepScenery = SceneryKinds.all
+        all = all.filter { $0.pack == nil }
+        SceneryKinds.all = [k]
+        defer { all = keep; SceneryKinds.all = keepScenery }
         return shaderSource()
     }
 
@@ -64,12 +74,61 @@ enum FishKinds {
 
     /// The full shader: the base source with the kinds' functions and the `draw_kind` dispatch in place of the marker.
     static func shaderSource() -> String {
-        var gen = all.compactMap(\.source).joined(separator: "\n\n")
+        var once = Set<String>()
+        var gen = all.compactMap(\.source).filter { once.insert($0).inserted }.joined(separator: "\n\n")
         gen += "\n\nfloat4 draw_kind(int k, float2 c, float phase, float glow, float4 col, float4 extra, float4 aux) {\n    switch (k) {\n"
         for (i, k) in all.enumerated() { gen += "    case \(i): return \(k.call);\n" }
         gen += "    default: return \(all[0].call);\n    }\n}\n"
+        // the packs' scenery: their functions and a dispatch on their index (extra.z)
+        // (a file shared by several pieces, or by a fish, goes in once)
+        var seen = Set(all.compactMap(\.source))
+        gen += SceneryKinds.all.map(\.source).filter { seen.insert($0).inserted }.joined(separator: "\n\n")
+        gen += "\n\nfloat4 draw_scenery_pack(int k, float2 c, float t, float glow, float4 col, float4 extra) {\n    switch (k) {\n"
+        for (i, k) in SceneryKinds.all.enumerated() { gen += "    case \(i): return \(k.function)(c, t, glow, col, extra);\n" }
+        gen += "    default: return float4(0.0);\n    }\n}\n"
         // the lanternfish's quad is bigger, so its light fades out before the edge instead of ending in a straight line
         return "#define LANTERN_KIND \(index(of: "lanternfish"))\n#define LANTERN_ROOM 1.6\n"
             + shaderBase.replacingOccurrences(of: "// @fish-kinds", with: gen)
     }
+}
+
+/// A piece of scenery that comes from a pack: drawn by its own Metal function
+/// `float4 draw_<id>(float2 c, float t, float glow, float4 col, float4 extra)`, placed by the app. In the function:
+/// c is -1…1 over the quad (y up), t the time in seconds, glow how much it glows (at night, if it asks to), col its
+/// color already lit by the hour, extra.y a seed (0…1, different for each copy), extra.w how dark the night is (0…1).
+/// It returns premultiplied color and alpha. See docs/extensions.md.
+struct SceneryKind {
+    enum Anchor: String { case sand, surface, float }
+    let id: String
+    let name: String
+    let source: String
+    let function: String
+    let pack: String
+    let anchor: Anchor
+    /// The quad, relative to the size (width, height).
+    let extent: SIMD2<Float>
+    /// Its size, as a fraction of the tank's height.
+    let size: Float
+    let color: SIMD3<Float>
+    /// Where the copies sit (0…1 from the left).
+    let at: [Float]
+    /// Height in the water (0…1 from the bottom), for `float`.
+    let height: Float
+    /// Glows at night (a lantern, a lamp): `glow` goes up as the light goes down, and it feeds the bloom.
+    let glowAtNight: Bool
+    /// Drifts slowly sideways (things floating at the surface).
+    let drift: Bool
+    /// The fish swim around it (default: on the sand and in the water yes, at the surface no).
+    let solid: Bool
+}
+
+/// The registry of pack scenery. A sprite of kind 35 carries its index in extra.z.
+enum SceneryKinds {
+    static var all: [SceneryKind] = []
+
+    static func register(_ k: SceneryKind) {
+        if let i = all.firstIndex(where: { $0.id == k.id }) { all[i] = k } else { all.append(k) }
+    }
+    static func drop(_ id: String) { all.removeAll { $0.id == id } }
+    static func index(of id: String) -> Int? { all.firstIndex { $0.id == id } }
 }

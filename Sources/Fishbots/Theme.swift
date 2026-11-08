@@ -37,6 +37,15 @@ struct Theme {
     var scenery: [String]?
     var weedCount: Int { Int(uniforms.params.x) }
 
+    /// A color from JSON: "#rrggbb" or [r, g, b] (0…1).
+    static func color(_ v: Any?) -> SIMD4<Float>? {
+        if let a = v as? [NSNumber], a.count >= 3 { return [a[0].floatValue, a[1].floatValue, a[2].floatValue, 1] }
+        if let s = v as? String, s.hasPrefix("#"), s.count == 7, let n = UInt32(s.dropFirst(), radix: 16) {
+            return [Float((n >> 16) & 255) / 255, Float((n >> 8) & 255) / 255, Float(n & 255) / 255, 1]
+        }
+        return nil
+    }
+
     /// Reads a theme from JSON. Colors are "#rrggbb" or [r, g, b] (0…1). Missing values come from `base`.
     init?(json: [String: Any], base: Theme? = nil) {
         guard let id = json["id"] as? String, !id.isEmpty else { return nil }
@@ -44,13 +53,7 @@ struct Theme {
         name = json["name"] as? String ?? id
         names = json["names"] as? [String: String] ?? [:]
         var u = base?.uniforms ?? Theme.classicUniforms
-        func color(_ v: Any?) -> SIMD4<Float>? {
-            if let a = v as? [NSNumber], a.count >= 3 { return [a[0].floatValue, a[1].floatValue, a[2].floatValue, 1] }
-            if let s = v as? String, s.hasPrefix("#"), s.count == 7, let n = UInt32(s.dropFirst(), radix: 16) {
-                return [Float((n >> 16) & 255) / 255, Float((n >> 8) & 255) / 255, Float(n & 255) / 255, 1]
-            }
-            return nil
-        }
+        func color(_ v: Any?) -> SIMD4<Float>? { Theme.color(v) }
         func number(_ v: Any?, _ range: ClosedRange<Float>) -> Float? {
             (v as? NSNumber).map { min(range.upperBound, max(range.lowerBound, $0.floatValue)) }
         }

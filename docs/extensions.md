@@ -106,6 +106,43 @@ A theme is data, passed to the shader as uniforms (no recompiling):
 
 Ideas for packs: coral reef, deep sea (dark, bioluminescent), Japanese pond (koi), night aquarium.
 
+#### Scenery from packs
+A pack can bring its own scenery: the drawing is a Metal function in the pack, the app places it, lights it, keeps
+the fish, crabs and pearls clear of it and draws it with the rest of the scenery.
+
+```json
+"scenery": [
+  { "id": "lantern", "name": "lanterna de pedra", "metal": "lantern.metal", "function": "draw_lantern",
+    "anchor": "sand", "size": 0.08, "extent": [0.6, 1.0], "at": [0.3], "glowAtNight": true, "color": "#8a8a90" },
+  { "id": "lilypad", "name": "vitória-régia", "metal": "lily.metal", "function": "draw_lily",
+    "anchor": "surface", "size": 0.05, "extent": [1.0, 0.35], "count": 5 }
+]
+```
+
+| Field | |
+|---|---|
+| `metal`, `function` | the file in the pack and the function in it (below) |
+| `anchor` | `sand` (standing on the sand: the bottom of the drawing, c.y = -1, a little buried), `surface` (floating, riding the waves), `float` (in the water, at `height`) |
+| `size` | its height, as a fraction of the tank's height (default 0.06) |
+| `extent` | the quad's width and height, relative to `size` (default `[1, 1]`) |
+| `at` | where the copies go, 0…1 from the left (one number or a list); or `count`, spread out from the id |
+| `height` | 0…1 from the bottom, for `float` |
+| `color` | `"#rrggbb"` or `[r, g, b]`: what the function gets as `col`, already lit by the hour |
+| `glowAtNight` | `glow` rises as the light goes down, and its bright parts feed the bloom (a lantern's window) |
+| `drift` | drifts slowly sideways (default: yes at the surface) |
+| `solid` | the fish swim around it (default: yes, except at the surface) |
+
+```metal
+// c: -1…1 over the quad, y up. t: seconds. glow: 0…1. col: its color, lit.
+// extra.y: a seed (different for each copy), extra.w: how dark the night is (0…1). Returns premultiplied rgba.
+float4 draw_lantern(float2 c, float t, float glow, float4 col, float4 extra) { … }
+```
+
+The shader's helpers (`sd_box`, `sd_seg`, `sd_tri`, `smin_k`, `vnoise`, `hash21`, `vor_edge`) can be used. A theme
+lists the pieces it wants in `"scenery"`, mixed with the built-in ones (`rock`, `shell`, `chest`, `coral`); a pack's
+pieces only show up in a theme that lists them. A function that doesn't compile is dropped and reported in the menu,
+like a fish.
+
 ### 5. Tool behaviors
 Today a hard-coded `switch` maps tool names to an action (nibble, bubbles, forage, peek, mail), a label icon and a
 timbre. It becomes a table that providers extend (`"Bash": .bubbles`, `"mcp__*": .mail`, and e.g. "the agent runs the
