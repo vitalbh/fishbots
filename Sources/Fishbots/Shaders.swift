@@ -36,6 +36,9 @@ struct Sprite {
 
 struct BgOut { float4 position [[position]]; };
 
+// Two targets: the image, and what glows (blurred into the bloom afterwards; see Renderer).
+struct Frag2 { float4 color [[color(0)]]; float4 glow [[color(1)]]; };
+
 vertex BgOut bg_vertex(uint vid [[vertex_id]]) {
     float2 p[3] = { float2(-1, -1), float2(3, -1), float2(-1, 3) };
     BgOut o;
@@ -71,7 +74,7 @@ float caustic(float2 p, float t) {
 }
 
 // weeds[k]: x (0…1), height (0…1), bend (how far the tip is pushed, in widths), unused. From Tank.weedUniforms.
-fragment float4 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(0)]], constant Theme& th [[buffer(1)]],
+fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(0)]], constant Theme& th [[buffer(1)]],
                             constant float4* weeds [[buffer(2)]]) {
     float2 uv = float2(in.position.x / u.pix.x, 1.0 - in.position.y / u.pix.y);
     float aspect = u.res.x / u.res.y;
@@ -99,7 +102,10 @@ fragment float4 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer
     if (uv.y > surf) {
         col = mix(col, th.surface.rgb * (0.4 + 0.6 * L), 0.55);
     }
-    col += float3(0.6, 0.85, 0.9) * (1.0 - smoothstep(0.0, 0.004, abs(uv.y - surf))) * 0.35 * L;
+    float surfLine = (1.0 - smoothstep(0.0, 0.004, abs(uv.y - surf))) * 0.35 * L;
+    col += float3(0.6, 0.85, 0.9) * surfLine;
+    // what glows in the background: the sun rays (a little) and the bright line of the surface
+    float3 glowBg = th.rays.rgb * rays * th.params.z * L * 0.5 + float3(0.6, 0.85, 0.9) * surfLine * 0.6;
 
     // in the distance: rocks and seaweed faded by the water (barely move with parallax)
     float3 fog = mix(deep, shallow, 0.35) * (0.55 + 0.45 * L);
@@ -165,7 +171,10 @@ fragment float4 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer
     // lightning: a cold flash, stronger near the surface
     col += float3(0.55, 0.65, 0.85) * u.flash * (0.45 + 0.55 * uv.y);
 
-    return float4(col, 1.0);
+    Frag2 o;
+    o.color = float4(col, 1.0);
+    o.glow = float4(glowBg * (1.0 - u.turbidity * 0.7), 1.0);
+    return o;
 }
 
 // ---------- sprites (fish, bubbles, rings…) ----------
@@ -841,7 +850,29 @@ float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, fl
 
 // @fish-kinds
 
-fragment float4 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buffer(0)]]) {
+// How much of each sprite kind glows (goes to the bloom). The rest only hides the glow behind it.
+float emissive(float k, float glow) {
+    if (k < 0.5) return clamp(glow, 0.0, 1.0) * 0.55;            // fish: when they light up (notes, waiting, a click)
+    if (k < 1.5) return 0.12;                                      // bubble
+    if (k < 2.5) return 0.5;                                       // ring
+    if (k < 3.5) return 0.2;                                       // food
+    if (k < 4.5) return 1.0;                                       // sparkle, fireworks
+    if (k < 5.5) return 0.45;                                      // jellyfish
+    if (k < 6.5) return 0.35;                                      // battery window
+    if (k < 7.5) return 0.6;                                       // lines (constellation, shooting star)
+    if (k < 8.5) return 0.3;                                       // ripple on the surface
+    if (k < 9.5) return 0.35;                                      // aurora
+    if (k < 11.5) return 0.0;                                      // ink, fogged glass
+    if (k < 12.5) return clamp(glow, 0.0, 1.0) * 0.7;              // pearl: when it's new
+    if (k < 22.5) return 0.0;                                      // creatures, whale, seaweed, rocks, shell
+    if (k < 23.5) return 0.45;                                     // chest: the gold in the gap
+    if (k < 24.5) return 0.7;                                      // music note
+    if (k < 31.5) return 0.12 + clamp(glow, 0.0, 1.0) * 0.6;       // presences: their state's halo
+    if (k < 32.5) return 0.0;                                      // shadow
+    return 0.25;                                                   // marine snow
+}
+
+fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buffer(0)]]) {
     float2 c = in.local;
     float r = length(c);
     float k = in.kind;
@@ -1097,6 +1128,45 @@ fragment float4 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[bu
     }
     // murky water fades what is far away
     outc *= 1.0 - u.turbidity * 0.35;
-    return outc;
+    Frag2 o;
+    o.color = outc;
+    o.glow = float4(outc.rgb * emissive(k, in.glow), outc.a);       // opaque things also cover the glow behind them
+    return o;
+}
+
+// ---------- bloom (Renderer): what glows, reduced, blurred and added back ----------
+
+struct PostOut { float4 position [[position]]; float2 uv; };
+
+vertex PostOut post_vertex(uint vid [[vertex_id]]) {
+    float2 p[3] = { float2(-1, -1), float2(3, -1), float2(-1, 3) };
+    PostOut o;
+    o.position = float4(p[vid], 0, 1);
+    o.uv = float2((p[vid].x + 1.0) * 0.5, 1.0 - (p[vid].y + 1.0) * 0.5);
+    return o;
+}
+
+// to a quarter of the size: 4 bilinear taps (16 texels)
+fragment float4 bloom_down(PostOut in [[stage_in]], texture2d<float> src [[texture(0)]], sampler s [[sampler(0)]]) {
+    float2 px = 1.0 / float2(src.get_width(), src.get_height());
+    float4 c = src.sample(s, in.uv + px * float2(-1, -1)) + src.sample(s, in.uv + px * float2(1, -1))
+             + src.sample(s, in.uv + px * float2(-1, 1)) + src.sample(s, in.uv + px * float2(1, 1));
+    return float4(c.rgb * 0.25, 1.0);
+}
+
+// 9-tap gaussian in 5 bilinear samples, along `dir` (in texels)
+fragment float4 bloom_blur(PostOut in [[stage_in]], texture2d<float> src [[texture(0)]], sampler s [[sampler(0)]],
+                           constant float2& dir [[buffer(0)]]) {
+    float2 px = dir / float2(src.get_width(), src.get_height());
+    float3 c = src.sample(s, in.uv).rgb * 0.2270270270;
+    c += (src.sample(s, in.uv + px * 1.3846153846).rgb + src.sample(s, in.uv - px * 1.3846153846).rgb) * 0.3162162162;
+    c += (src.sample(s, in.uv + px * 3.2307692308).rgb + src.sample(s, in.uv - px * 3.2307692308).rgb) * 0.0702702703;
+    return float4(c, 1.0);
+}
+
+// added on top of the image (the pipeline blends one + one)
+fragment float4 bloom_add(PostOut in [[stage_in]], texture2d<float> bloom [[texture(0)]], sampler s [[sampler(0)]],
+                          constant float& strength [[buffer(0)]]) {
+    return float4(bloom.sample(s, in.uv).rgb * strength, 0.0);
 }
 """#

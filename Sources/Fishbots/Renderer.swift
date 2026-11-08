@@ -30,6 +30,17 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let queue: MTLCommandQueue
     private let bgPipeline: MTLRenderPipelineState
     private let spritePipeline: MTLRenderPipelineState
+    // bloom: the glow target, reduced to a quarter, blurred and added back on top
+    private let downPipeline: MTLRenderPipelineState
+    private let blurPipeline: MTLRenderPipelineState
+    private let addPipeline: MTLRenderPipelineState
+    private let sampler: MTLSamplerState
+    private var glowTex: MTLTexture?
+    private var quarterA: MTLTexture?
+    private var quarterB: MTLTexture?
+    private static let glowFormat = MTLPixelFormat.rgba16Float
+    /// How strong the bloom is (0: off).
+    var bloom: Float = 1.1
     private let maxSprites = 4096
     private var buffers: [MTLBuffer] = []
     private var bufIdx = 0
@@ -71,6 +82,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             bg.vertexFunction = lib.makeFunction(name: "bg_vertex")
             bg.fragmentFunction = lib.makeFunction(name: "bg_fragment")
             bg.colorAttachments[0].pixelFormat = view.colorPixelFormat
+            bg.colorAttachments[1].pixelFormat = Self.glowFormat
             bgPipeline = try device.makeRenderPipelineState(descriptor: bg)
 
             let sp = MTLRenderPipelineDescriptor()
@@ -85,7 +97,45 @@ final class Renderer: NSObject, MTKViewDelegate {
             ca.sourceAlphaBlendFactor = .one
             ca.destinationRGBBlendFactor = .oneMinusSourceAlpha
             ca.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            // the glow target blends the same way (what's in front covers the glow behind it)
+            let cg = sp.colorAttachments[1]!
+            cg.pixelFormat = Self.glowFormat
+            cg.isBlendingEnabled = true
+            cg.rgbBlendOperation = .add
+            cg.alphaBlendOperation = .add
+            cg.sourceRGBBlendFactor = .one
+            cg.sourceAlphaBlendFactor = .one
+            cg.destinationRGBBlendFactor = .oneMinusSourceAlpha
+            cg.destinationAlphaBlendFactor = .oneMinusSourceAlpha
             spritePipeline = try device.makeRenderPipelineState(descriptor: sp)
+
+            func post(_ fragment: String, _ format: MTLPixelFormat, additive: Bool = false) throws -> MTLRenderPipelineState {
+                let d = MTLRenderPipelineDescriptor()
+                d.vertexFunction = lib.makeFunction(name: "post_vertex")
+                d.fragmentFunction = lib.makeFunction(name: fragment)
+                d.colorAttachments[0].pixelFormat = format
+                if additive {
+                    let a = d.colorAttachments[0]!
+                    a.isBlendingEnabled = true
+                    a.rgbBlendOperation = .add
+                    a.alphaBlendOperation = .add
+                    a.sourceRGBBlendFactor = .one
+                    a.destinationRGBBlendFactor = .one
+                    a.sourceAlphaBlendFactor = .zero
+                    a.destinationAlphaBlendFactor = .one
+                }
+                return try device.makeRenderPipelineState(descriptor: d)
+            }
+            downPipeline = try post("bloom_down", Self.glowFormat)
+            blurPipeline = try post("bloom_blur", Self.glowFormat)
+            addPipeline = try post("bloom_add", view.colorPixelFormat, additive: true)
+            let sd = MTLSamplerDescriptor()
+            sd.minFilter = .linear
+            sd.magFilter = .linear
+            sd.sAddressMode = .clampToEdge
+            sd.tAddressMode = .clampToEdge
+            guard let smp = device.makeSamplerState(descriptor: sd) else { return nil }
+            sampler = smp
         } catch {
             FileHandle.standardError.write("fishbots: shader failed: \(error)\n".data(using: .utf8)!)
             return nil
@@ -97,7 +147,36 @@ final class Renderer: NSObject, MTKViewDelegate {
         super.init()
     }
 
-    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) { glowTex = nil }
+
+    /// The bloom's textures, (re)made for the drawable's size.
+    private func bloomTextures(_ w: Int, _ h: Int) -> (MTLTexture, MTLTexture, MTLTexture)? {
+        if let g = glowTex, g.width == w, g.height == h, let a = quarterA, let b = quarterB { return (g, a, b) }
+        func make(_ w: Int, _ h: Int) -> MTLTexture? {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.glowFormat, width: max(1, w), height: max(1, h), mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]
+            d.storageMode = .private
+            return device.makeTexture(descriptor: d)
+        }
+        guard let g = make(w, h), let a = make(w / 4, h / 4), let b = make(w / 4, h / 4) else { return nil }
+        glowTex = g; quarterA = a; quarterB = b
+        return (g, a, b)
+    }
+
+    private func postPass(_ cmd: MTLCommandBuffer, _ pipeline: MTLRenderPipelineState, from src: MTLTexture, to dst: MTLTexture,
+                          load: Bool = false, _ setup: (MTLRenderCommandEncoder) -> Void = { _ in }) {
+        let d = MTLRenderPassDescriptor()
+        d.colorAttachments[0].texture = dst
+        d.colorAttachments[0].loadAction = load ? .load : .dontCare
+        d.colorAttachments[0].storeAction = .store
+        guard let enc = cmd.makeRenderCommandEncoder(descriptor: d) else { return }
+        enc.setRenderPipelineState(pipeline)
+        enc.setFragmentTexture(src, index: 0)
+        enc.setFragmentSamplerState(sampler, index: 0)
+        setup(enc)
+        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        enc.endEncoding()
+    }
 
     func draw(in view: MTKView) {
         let nowT = CACurrentMediaTime()
@@ -119,6 +198,12 @@ final class Renderer: NSObject, MTKViewDelegate {
             }
         }
 
+        let dw = Int(view.drawableSize.width), dh = Int(view.drawableSize.height)
+        guard let (glow, qa, qb) = bloomTextures(dw, dh) else { inflight.signal(); return }
+        pass.colorAttachments[1].texture = glow
+        pass.colorAttachments[1].loadAction = .clear
+        pass.colorAttachments[1].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+        pass.colorAttachments[1].storeAction = .store
         guard let cmd = queue.makeCommandBuffer(), let enc = cmd.makeRenderCommandEncoder(descriptor: pass) else {
             inflight.signal()
             return
@@ -139,6 +224,20 @@ final class Renderer: NSObject, MTKViewDelegate {
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: count)
         }
         enc.endEncoding()
+
+        // bloom: a quarter of the glow, blurred twice each way, added onto the image
+        if bloom > 0.001 {
+            postPass(cmd, downPipeline, from: glow, to: qa)
+            for spread: Float in [1.0, 2.0] {
+                var h = SIMD2<Float>(spread, 0), v = SIMD2<Float>(0, spread)
+                postPass(cmd, blurPipeline, from: qa, to: qb) { $0.setFragmentBytes(&h, length: MemoryLayout<SIMD2<Float>>.stride, index: 0) }
+                postPass(cmd, blurPipeline, from: qb, to: qa) { $0.setFragmentBytes(&v, length: MemoryLayout<SIMD2<Float>>.stride, index: 0) }
+            }
+            var strength = bloom
+            postPass(cmd, addPipeline, from: qa, to: drawable.texture, load: true) {
+                $0.setFragmentBytes(&strength, length: MemoryLayout<Float>.stride, index: 0)
+            }
+        }
         cmd.present(drawable)
         let without = inflight
         cmd.addCompletedHandler { _ in without.signal() }
