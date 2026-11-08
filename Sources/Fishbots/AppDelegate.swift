@@ -339,8 +339,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         read(f)
     }
 
-    /// Reads a fish's question (or its last reply) aloud; again stops it.
+    /// Reads a fish's question (or its last reply) aloud; again stops it. With the microphone on, it stops the
+    /// transcription instead (and doesn't read: the voice would be transcribed into the reply).
     private func read(_ f: Fish) {
+        if Dictation.shared.listening { Dictation.shared.stop(); return }
         if Speaker.shared.speaking { Speaker.shared.stop(); return }
         let name = f.nickname ?? f.displayTitle ?? f.label
         if let q = f.asked { Speaker.shared.speak(tr("%@ pergunta: %@", name, q)) }

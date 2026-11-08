@@ -431,6 +431,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             Dictation.shared.stop()        // the end handler (below) restores the button and puts the cursor at the end
             return
         }
+        if Speaker.shared.speaking { Speaker.shared.stop() }     // the Mac's voice would end up transcribed
         microphone?.title = "■"
         field?.placeholderString = tr("ouvindo…")
         // what you say now goes after what is already written
