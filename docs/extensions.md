@@ -116,8 +116,9 @@ A theme is data, passed to the shader as uniforms (no recompiling):
 ```
 
 Ideas for packs: coral reef, deep sea (dark, bioluminescent), Japanese pond (koi), night aquarium. Two are in
-`packs/examples/`: `coral` (a theme, a music style, the clownfish) and `koi` (a theme, a music style, the koi, a stone
-lantern and lily pads as scenery, and a frog, tadpoles and shrimp as creatures).
+`packs/examples/`: `coral` (a reef: clownfish, anemones, chromis, a blue tang, the reef wall, marimba), `koi` (a Japanese
+pond: koi, a stone lantern, lily pads, a shrine for the chest, frogs, koinobori, a water wheel, the namazu, koto) and
+`arctic` (under the ice: an ice ceiling, polar cod, a seal, a narwhal, the frozen chest, its own cold sky).
 
 #### A theme's own background and looks
 A pack theme can draw its own far background and give the built-in pieces another look:

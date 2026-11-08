@@ -1,0 +1,291 @@
+{
+  "id": "arctic",
+  "name": "Ártico",
+  "names": {
+    "en": "Arctic"
+  },
+  "version": "1.0",
+  "author": "Fishbots",
+  "license": "MIT",
+  "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
+  "descriptions": {
+    "en": "Under the ice: a cracked ice ceiling letting the light through, ice cliffs far away, schools of polar cod, a seal passing by, a rare narwhal, the frozen chest and a cold music of bells, with the aurora."
+  },
+  "themes": [
+    {
+      "id": "arctic",
+      "name": "Ártico",
+      "names": {
+        "en": "Arctic"
+      },
+      "visualizer": "aurora",
+      "music": "polar",
+      "fauna": [
+        "starfish",
+        "cod",
+        "seal",
+        "narwhal"
+      ],
+      "scenery": [
+        "rock",
+        "chest"
+      ],
+      "looks": {
+        "chest": "frozen-chest"
+      },
+      "background": {
+        "metal": "ice.metal",
+        "function": "draw_arctic_background",
+        "replaceReef": true
+      },
+      "sky": {
+        "night": [
+          0.55,
+          0.68,
+          1.15
+        ],
+        "dawn": [
+          0.92,
+          0.9,
+          1.05
+        ],
+        "day": [
+          0.9,
+          0.97,
+          1.1
+        ],
+        "golden": [
+          1.02,
+          0.9,
+          0.98
+        ],
+        "dusk": [
+          0.75,
+          0.75,
+          1.1
+        ],
+        "light": [
+          0.42,
+          0.82
+        ],
+        "sun": 0.5,
+        "moon": 1.5
+      },
+      "water": {
+        "deep": "#020c1a",
+        "shallow": "#2b5f80",
+        "rays": "#cfe9ff",
+        "raysStrength": 0.12,
+        "caustics": "#e8f6ff",
+        "causticsStrength": 0.04,
+        "surface": "#9cc8e0",
+        "murk": "#1c2630"
+      },
+      "weeds": {
+        "count": 3,
+        "farCount": 4,
+        "far": "#18303a",
+        "low": "#22333a",
+        "high": "#4a6a6a"
+      },
+      "sand": {
+        "dark": "#2a3036",
+        "light": "#6a7178"
+      }
+    }
+  ],
+  "chords": {
+    "Am(add9)": [
+      9,
+      0,
+      4,
+      11
+    ],
+    "Fmaj7#11": [
+      5,
+      9,
+      0,
+      4,
+      11
+    ],
+    "Em7": [
+      4,
+      7,
+      11,
+      2
+    ]
+  },
+  "progressions": {
+    "Polar": [
+      "Am(add9)",
+      "Fmaj7#11",
+      "Em7",
+      "Am(add9)"
+    ]
+  },
+  "styles": [
+    {
+      "id": "polar",
+      "name": "polar",
+      "names": {
+        "en": "polar"
+      },
+      "bpm": [
+        46,
+        56
+      ],
+      "progressions": [
+        "Polar",
+        "Melancholic"
+      ],
+      "scale": [
+        0,
+        2,
+        3,
+        5,
+        7,
+        8,
+        10
+      ],
+      "lead": [
+        "bell",
+        "glass",
+        "bell"
+      ],
+      "accomp": "arpeggio",
+      "accompTimbre": [
+        "pad",
+        "soft"
+      ],
+      "notesPerBar": [
+        1,
+        2
+      ],
+      "swing": [
+        0,
+        0
+      ],
+      "keys": [
+        9,
+        4,
+        2
+      ],
+      "energy": 0.15,
+      "rest": 0.55,
+      "visualizer": "aurora"
+    }
+  ],
+  "scenery": [
+    {
+      "id": "floe",
+      "name": "placa de gelo",
+      "names": {
+        "en": "ice floe"
+      },
+      "metal": "ice.metal",
+      "function": "draw_arctic_floe",
+      "anchor": "surface",
+      "size": 0.06,
+      "extent": [
+        1.0,
+        0.5
+      ],
+      "at": [
+        0.18,
+        0.46,
+        0.79
+      ],
+      "color": "#ffffff"
+    },
+    {
+      "id": "frozen-chest",
+      "name": "baú congelado",
+      "names": {
+        "en": "frozen chest"
+      },
+      "metal": "ice.metal",
+      "function": "draw_arctic_frozen_chest",
+      "anchor": "sand",
+      "size": 0.06,
+      "extent": [
+        1.0,
+        0.9
+      ],
+      "color": "#ffffff"
+    }
+  ],
+  "fauna": [
+    {
+      "id": "cod",
+      "name": "bacalhau-polar",
+      "names": {
+        "en": "polar cod"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_arctic_cod",
+      "behavior": "school",
+      "size": 7,
+      "extent": [
+        1.8,
+        1.0
+      ],
+      "count": [
+        10,
+        14
+      ],
+      "speed": 20,
+      "height": [
+        0.3,
+        0.7
+      ],
+      "color": "#a8b8c8",
+      "shy": true
+    },
+    {
+      "id": "seal",
+      "name": "foca",
+      "names": {
+        "en": "seal"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_arctic_seal",
+      "behavior": "cross",
+      "size": 34,
+      "extent": [
+        1.6,
+        0.8
+      ],
+      "count": 1,
+      "speed": 55,
+      "height": [
+        0.4,
+        0.75
+      ],
+      "every": [
+        60,
+        180
+      ],
+      "color": "#7a8088"
+    },
+    {
+      "id": "narwhal",
+      "name": "narval",
+      "names": {
+        "en": "narwhal"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_arctic_narwhal",
+      "behavior": "pass",
+      "size": 70,
+      "extent": [
+        2.0,
+        0.7
+      ],
+      "every": [
+        600,
+        1800
+      ],
+      "color": "#8a9096"
+    }
+  ]
+}

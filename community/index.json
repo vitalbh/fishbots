@@ -72,6 +72,34 @@
         "presences": 1,
         "sounds": 1
       }
+    },
+    {
+      "id": "arctic",
+      "name": "Ártico",
+      "version": "1.0",
+      "author": "Fishbots",
+      "license": "MIT",
+      "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
+      "descriptions": {
+        "en": "Under the ice: a cracked ice ceiling letting the light through, ice cliffs far away, schools of polar cod, a seal passing by, a rare narwhal, the frozen chest and a cold music of bells, with the aurora."
+      },
+      "names": {
+        "en": "Arctic"
+      },
+      "path": "packs/examples/arctic",
+      "files": [
+        "cover.png",
+        "creatures.metal",
+        "ice.metal",
+        "pack.json"
+      ],
+      "cover": "cover.png",
+      "contents": {
+        "themes": 1,
+        "styles": 1,
+        "scenery": 2,
+        "fauna": 3
+      }
     }
   ]
 }
