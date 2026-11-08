@@ -181,6 +181,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         renderer.frame = { [unowned self] dt in self.frame(dt) }
         applyTheme()
         view.onKey = { [unowned self] k in self.key(k) }
+        // while a card is open from the keyboard (Tab), these keys work even with its reply field focused
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [unowned self] e in
+            guard self.keyboardPick != nil, self.hoverCard != nil else { return e }
+            let cmd = e.modifierFlags.contains(.command)
+            let k: String?
+            switch Int(e.keyCode) {
+            case 48: k = e.modifierFlags.contains(.shift) ? "⇤" : "⇥"
+            case 53: k = "⎋"
+            case 36, 76: k = cmd ? "⌘↩" : nil                 // plain Enter: sends the reply (the field's own)
+            default: k = cmd ? (e.charactersIgnoringModifiers?.lowercased()).map { "⌘" + $0 } : nil
+            }
+            guard let key = k, ["⇥", "⇤", "⎋", "⌘↩", "⌘r", "⌘d"].contains(key) else { return e }
+            return self.nav(key) ? nil : e
+        }
         view.onClick = { [unowned self] p in self.click(p) }
         view.dragMovesWindow = { [unowned self] in self.tank.compact }
         // drag a fish to nudge it, or the water to make a current; double click knocks; scrolling sprinkles food
@@ -1411,11 +1425,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         keyboardPick = f.id
         hoverId = nil
         showCard(f, keyboard: true)
+        // a session that takes replies: the field is ready to type (Enter sends)
+        if canReply(f) { (hoverCard?.contentViewController as? FishCard)?.focusReply() }
         f.glow = max(f.glow, 0.6)
         tank.ring(at: f.pos, color: [1, 0.9, 0.5], size: f.size * 0.5, grow: 110, life: 0.6)
     }
 
-    /// Tab / ⇧Tab, Return, Esc and the card's letters (R ouvir, M falar, E escrever, A permitir, N negar).
+    /// Tab / ⇧Tab, Return, Esc, ⌘R (hear), ⌘D (speak), ⌘↩ (go), and A/N on a permission request (no text field there).
     /// Returns false when the key isn't about the keyboard pick (then it does what it always did).
     private func nav(_ k: String) -> Bool {
         let list = needingYou
@@ -1436,16 +1452,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }
         guard let f = current else { return false }
         switch k {
-        case "↩":
+        case "↩", "⌘↩":
             closeCard(); keyboardPick = nil
             if !Whereabouts.go(f) { tank.notice = (tr("%@: não sei onde fica", f.label), tank.time) }
-        case "r": read(f)
-        case "m":
+        case "⌘r": read(f)
+        case "⌘d":
             guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return true }
             (hoverCard?.contentViewController as? FishCard)?.startDictation()
-        case "e":
-            guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return true }
-            (hoverCard?.contentViewController as? FishCard)?.focusReply()
         case "a", "n":
             guard let p = permissions.request(ofFish: f.id) else { return false }
             closeCard(); keyboardPick = nil

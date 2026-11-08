@@ -17,7 +17,8 @@ open --env FISHBOTS_GPUSTATS=1 build/Fishbots.app  # prints the GPU time per fra
 
 Keys and shortcuts:
 - **Click a fish:** go to it. **Right-click:** fish menu. **Click empty water:** feed.
-- **⌃⌥F, from any app:** brings up the terminal of the session that has been waiting for you the longest (or the aquarium, if nobody is waiting).
+- **Tab / ⇧Tab** (aquarium in front): goes through the sessions, the ones waiting for you first, opening each card with its reply field ready (type, Enter sends). On the chosen card: **⌘↩** go there, **⌘R** hear the question, **⌘D** speak the reply, **A / N** allow or deny a permission request, **Esc** close. The card's footer lists only the keys that fish takes.
+- **Global shortcuts** (any app, set in Preferências → Geral): **⌃⌥F** go to whoever has waited longest, **⌃⌥R** hear their question, **⌃⌥M** reply by voice.
 - **Click a pearl:** what was done around that time. The day's pearls are a timeline on the sand, from the morning (left) to now (right).
 - **Drag a fish:** it's pulled along a little and swims back when you let go. **Drag through the water:** a short current (snow, seaweed and fish go with it). **Double-click the water:** a knock on the glass, and the idle fish and the schools come to look. **Scroll over the water:** sprinkles food.
 - **D** demo · **M** sound · **S** focus mode · **T** float above windows · **F** food · **W** widget mode: a little frameless window in the corner of the screen, always on top and on every Space, showing only who needs you (drag the water to move it; W again to come back).

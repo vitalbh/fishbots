@@ -323,9 +323,9 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         if (request == nil && reply == nil) || keyboardHint {
             // the keys this fish really takes: speaking and writing only where the session can be replied to
             // (its provider's .reply), hearing only with something to read, allow/deny only with a request
-            var keys = [tr("Tab: próximo"), f.link != nil ? tr("↩ abrir") : tr("↩ ir")]
-            if f.asked != nil || !(f.lastReply ?? "").isEmpty { keys.append(tr("R ouvir")) }
-            if reply != nil { keys += [tr("M falar"), tr("E escrever")] }
+            var keys = [tr("Tab: próximo"), f.link != nil ? tr("⌘↩ abrir") : tr("⌘↩ ir")]
+            if f.asked != nil || !(f.lastReply ?? "").isEmpty { keys.append(tr("⌘R ouvir")) }
+            if reply != nil { keys += [tr("⌘D falar"), tr("↩ envia")] }
             if request != nil { keys += [tr("A permitir"), tr("N negar")] }
             keys.append(tr("Esc fechar"))
             let hint = keyboardHint
