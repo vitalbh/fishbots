@@ -7,7 +7,7 @@
   "id": "koi",
   "name": "Lago japonês",
   "names": {"en": "Japanese pond"},
-  "version": "1.1",
+  "version": "1.2",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -21,7 +21,7 @@
       "music": "zen",
       "fauna": ["snail", "turtle", "frog", "tadpoles", "shrimp"],
       "scenery": ["rock", "lantern", "lilypad", "chest"],
-      "looks": { "chest": "shrine" },
+      "looks": { "chest": "shrine", "bottle": "floating-lantern", "oval": "koi", "slender": "koi" },
       "background": { "metal": "background.metal", "function": "draw_koi_background", "replaceReef": true },
       "water": {
         "deep": "#0b2420", "shallow": "#3f7d62", "rays": "#cfe8b0", "raysStrength": 0.18,
@@ -89,9 +89,17 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   (y up), t seconds, light the daylight (0…1), gaze the parallax (-1…1: move far things a little with it), water the
   water's color there (mix toward it for haze), extra.x the aspect, extra.y moonlight, extra.z the sand line's height at
   this x. `replaceReef` (default true) leaves out the distant reef the aquarium draws.
-- `looks`: a built-in piece (`rock`, `shell`, `chest`, `coral`) drawn by one of the pack's scenery pieces, in the same
-  place and with the same behavior (the chest still opens the summary). A chest's drawing gets how open it is in
-  `extra.y` (instead of the seed) and glows while it's open. The piece doesn't need to be in the theme's `scenery`.
+- `looks`: how the theme dresses built-in things, by id. The meaning stays, only the drawing changes:
+  - a **piece of scenery** (`rock`, `shell`, `chest`, `coral`) drawn by one of the pack's scenery pieces, in the same
+    place and with the same behavior (the chest still opens the summary). A chest's drawing gets how open it is in
+    `extra.y` (instead of the seed) and glows while it's open. The piece doesn't need to be in the theme's `scenery`;
+  - a **presence kind** plugins send (`"bottle": "floating-lantern"`): drawn as one of the pack's presences that moves
+    the same way (checked on load), keeping its label, state, link and sound. A plugin that wants its own drawing
+    sends `"override_theme": true`;
+  - a **fish kind** (`"oval": "koi"`): the fish of that kind are drawn as the pack's fish. A kind someone picked by hand
+    in the fish menu stays as picked.
+
+  People can turn this off in Preferências → Aparência ("Vestir presenças e peixes com o tema").
 
 Anything a theme doesn't define comes from the app: no `background`, the usual one; no `looks`, the usual pieces.
 

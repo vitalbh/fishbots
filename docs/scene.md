@@ -84,6 +84,10 @@ Packs can add kinds of their own (a drawing in Metal plus how it moves): see `pr
 `"fallback"` with a built-in kind for people who don't have the pack: it stands in, and turns into the pack's kind when
 the pack is installed (`{"kind": "floating-lantern", "fallback": "bottle", …}`). If a pack is removed or paused, its
 presences are drawn by a built-in kind that moves the same way until it comes back.
+
+A theme can dress the built-in kinds its own way (in the Japanese pond a `bottle` floats as a paper lantern): the
+meaning stays, only the drawing changes. Send `"override_theme": true` when your drawing matters (the shark for
+production down): it's shown as sent in every theme.
 | `flag` | stands on the sand, waving; its cloth takes the state's color | a status (green/yellow/red) |
 | `helm` | a ship's wheel hanging on the side glass (on the sand once the sides are full); its hub takes the state's color and it turns while `busy` | a cluster, something you steer |
 | `chest` | stays on the sand; glows when `done` or `waiting` | a goal, a reward |

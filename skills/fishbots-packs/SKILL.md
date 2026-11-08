@@ -126,8 +126,10 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
   `float4 f(float2 uv, float t, float light, float2 gaze, float3 water, float4 extra)` (uv 0…1 over the window, y up;
   mix toward `water` for distance haze; `extra.x` aspect, `extra.z` the sand line's height). It covers the whole
   window: keep it cheap (skip pixels early, e.g. `if (uv.y > 0.6) return float4(0.0);`).
-- **Looks:** `"looks": {"chest": "shrine"}` on a theme draws a built-in piece (`rock shell chest coral`) with one of
-  the pack's scenery ids. A chest gets how open it is in `extra.y` and glows while open.
+- **Looks:** `"looks"` on a theme dresses built-in things by id, keeping what they mean: a piece (`rock shell chest
+  coral`) → one of the pack's scenery ids (a chest gets how open it is in `extra.y` and glows while open); a presence
+  kind (`"bottle": "floating-lantern"`) → one of the pack's presences that moves the same way (checked); a fish kind
+  (`"oval": "koi"`) → one of the pack's fish (a kind picked by hand stays). Users can turn dressing off.
 - **Presences** (`"presences"`): kinds plugins can send (`"kind": "<id>"`), with `motion` (swim drift hover walk sit
   float), `size`, `extent`, `band`, `meter`, `sound`. Function like a creature's; `extra.y` is the value (0…1) and
   `extra.w` the state (0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born): show it (color, light,

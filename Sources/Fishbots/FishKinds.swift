@@ -88,6 +88,14 @@ enum FishKinds {
 
     static func index(of id: String) -> Int { all.firstIndex { $0.id == id } ?? 0 }
 
+    /// Dressing by the theme (Preferences): its "looks" may draw a kind as another ("oval": "koi"). A kind picked by
+    /// hand in the fish menu stays as picked.
+    static var dressByTheme: Bool { UserDefaults.standard.object(forKey: "dressByTheme") as? Bool ?? true }
+    static func dressed(_ id: String, picked: Bool) -> String {
+        guard !picked, dressByTheme, let look = Themes.current.looks[id], all.contains(where: { $0.id == look }) else { return id }
+        return look
+    }
+
     static func id(at i: Int) -> String { all.indices.contains(i) ? all[i].id : all[0].id }
 
     /// The kind chosen for a project in the fish menu (overrides the session provider's).

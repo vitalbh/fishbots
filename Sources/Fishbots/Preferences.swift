@@ -169,6 +169,8 @@ private struct LookTab: View {
                     ForEach(Themes.all, id: \.id) { Text($0.displayName).tag($0.id) }
                 }
                 Toggle(tr("Aurora de fundo"), isOn: prefs.flag("auroraBackground", default: true))
+                Toggle(tr("Vestir presenças e peixes com o tema"), isOn: prefs.flag("dressByTheme", default: true))
+                    .help(tr("O tema pode desenhar as presenças dos plugins e os peixes do jeito dele (a garrafa vira lanterna no lago japonês). O peixe que você escolheu à mão fica como está."))
                 Picker(tr("Brilho (bloom)"), selection: prefs.bind({ UserDefaults.standard.object(forKey: "bloom") as? Double ?? 1.1 },
                                                                { UserDefaults.standard.set($0, forKey: "bloom") })) {
                     Text(tr("Desligado")).tag(0.0)

@@ -66,6 +66,8 @@ final class Presence {
     var leaving = false
     /// The pack kind it asked for, while it's drawn by a built-in stand-in (the pack isn't loaded, or left).
     var wantedKind: String?
+    /// The plugin wants its own drawing even where the theme dresses this kind differently ("override_theme": true).
+    var overrideTheme = false
     var party = false
     var alpha: Float = 0
     var shake: Float = 0
@@ -230,7 +232,8 @@ final class Scene {
 
     /// Creates or updates. Returns an error for the protocol's response.
     func upsert(_ t: Tank, source: String, id: String, kind kindName: String?, state: State?, label: String?, detail: String?,
-                link: String?, value: Float?, color: SIMD3<Float>?, x: Float?, sound: String? = nil, fallback: String? = nil) -> String? {
+                link: String?, value: Float?, color: SIMD3<Float>?, x: Float?, sound: String? = nil, fallback: String? = nil,
+                overrideTheme: Bool? = nil) -> String? {
         if let e = Self.checkSound(sound) { return e }
         var kind: PresenceKind?
         var wanted: String?
@@ -249,6 +252,7 @@ final class Scene {
         if let p = presence(source: source, id: id) {
             p.leaving = false
             if kindName != nil { p.wantedKind = wanted }
+            if let overrideTheme { p.overrideTheme = overrideTheme }
             if let kind, kind.id != p.kind.id { p.kind = kind; place(p, t, fresh: false) }
             var changed = false
             if let label, !label.isEmpty, label != p.label { p.label = label; changed = true }
@@ -267,6 +271,7 @@ final class Scene {
         let p = Presence(id: "\(source):\(id)", source: source, kind: kind, state: state ?? .ok, label: label ?? id,
                          u: u, pos: [t.size.x * u, t.size.y * 0.5], now: t.time)
         p.wantedKind = wanted
+        p.overrideTheme = overrideTheme ?? false
         p.detail = detail?.isEmpty == false ? detail : nil
         p.link = link
         p.value = value
@@ -619,12 +624,24 @@ final class Scene {
     // MARK: - sprites
 
     /// `front`: the ones waiting for you are drawn in front of the fish.
+    /// The theme's looks for built-in kinds ("bottle": "floating-lantern"), and whether they're on (Preferences).
+    var themeLooks: [String: String] = [:]
+    var dressByTheme = true
+
+    /// The kind whose drawing this presence wears: a pack kind the theme dresses it in (same motion), or its own.
+    func dressed(_ p: Presence) -> PresenceKind? {
+        guard dressByTheme, !p.overrideTheme, p.kind.pack == nil, let id = themeLooks[p.kind.id],
+              let k = Self.kinds[id], k.pack != nil, k.motion == p.kind.motion else { return nil }
+        return k
+    }
+
     func sprites(_ t: Tank, front: Bool) -> [Sprite] {
         var out: [Sprite] = []
         let lit = 0.55 + 0.45 * t.light
         let pulse = 0.5 + 0.5 * sinf(Float(t.time) * 4)
         for p in presences where (p.state == .waiting && !p.leaving) == front && (!t.compact || p.needsYou) {
-            var c = p.baseColor
+            let dress = dressed(p)
+            var c = p.color ?? dress?.color ?? p.kind.color
             var glow: Float = 0
             switch p.state {
             case .idle: c *= 0.7
@@ -653,6 +670,19 @@ final class Scene {
             }
             let pos = p.pos + shake
             let value = p.value ?? 1
+            // dressed by the theme: the pack kind's drawing, moving as the plugin's kind does
+            if let dk = dress, let i = dk.pack, i < PackPresences.all.count {
+                let mirrored = p.kind.motion == .swim || p.kind.motion == .hover
+                let tilt: Float = p.kind.motion == .swim ? max(-0.25, min(0.25, p.vel.y / 120))
+                    : p.kind.motion == .float ? sinf(p.phase * 1.1) * 0.22 : 0
+                let theta = !mirrored || p.dir >= 0 ? tilt : .pi - tilt
+                let up: Float = p.kind.motion.grounded && !p.onWall ? dk.extent.y * 0.9 : 0
+                out.append(Sprite(pos: pos + [0, dk.size * up], dir: [cosf(theta), sinf(theta)], size: dk.size, kind: 37,
+                                  glow: glow, phase: p.phase * (p.state == .busy ? 1.8 : 1), color: SIMD4(c, a),
+                                  extra: [mirrored ? p.dir : 1, value, Float(i), PackPresences.stateCode(p.state)],
+                                  aux: [dk.extent.x, dk.extent.y, 0, 0]))
+                continue
+            }
             switch p.kind.sprite {
             case 5:      // jellyfish
                 out.append(Sprite(pos: pos, dir: [1, 0], size: p.kind.size, kind: 5, glow: 0.25 + glow, phase: p.phase * 1.3,

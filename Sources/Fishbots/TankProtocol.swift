@@ -85,7 +85,8 @@ enum TankProtocol {
             let detail = m["detail"] is String ? (text(m["detail"], max: 160) ?? "") : nil
             return tank.scene.upsert(tank, source: source, id: id, kind: text(m["kind"], max: 40), state: state, label: label,
                                      detail: detail, link: link, value: fraction(m["value"]), color: color(m["color"]), x: fraction(m["x"]),
-                                     sound: text(m["sound"], max: 40), fallback: text(m["fallback"], max: 40))
+                                     sound: text(m["sound"], max: 40), fallback: text(m["fallback"], max: 40),
+                                     overrideTheme: (m["override_theme"] ?? m["overrideTheme"]) as? Bool)
         }
         if let effect = text(m["effect"], max: 40) {
             return tank.scene.effect(effect, tank, source: source, label: label, x: fraction(m["x"]), y: fraction(m["y"]), color: color(m["color"]),

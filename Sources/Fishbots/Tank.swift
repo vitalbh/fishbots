@@ -68,11 +68,17 @@ struct SourceProfile {
         f.isAgent = isAgent
         f.sings = sings
         f.prefersLogTitle = prefersLogTitle
-        f.species = FishKinds.index(of: FishKinds.override(for: f.projectKey) ?? fishKind(f))
+        let picked = FishKinds.override(for: f.projectKey)
+        f.baseKind = picked ?? fishKind(f)
+        f.pickedKind = picked != nil
+        f.species = FishKinds.index(of: FishKinds.dressed(f.baseKind, picked: f.pickedKind))
     }
 }
 
 final class Fish {
+    /// Its kind before the theme dresses it (the provider's, or the one picked by hand in the fish menu).
+    var baseKind = "oval"
+    var pickedKind = false
     let id: String
     let source: String
     var label: String

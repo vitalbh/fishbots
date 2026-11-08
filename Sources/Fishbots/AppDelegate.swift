@@ -1317,6 +1317,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         visual.size = tank.size
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))
+        // dressing by the theme turned on or off in the Preferences
+        if dressedWith.on != FishKinds.dressByTheme { applyTheme() }
         let sprites = packGuard.filter(visual.sprites() + tank.sprites())
         // the theme's background from a pack: counted by the guard, and left out while it's being tested
         let theme = Themes.current
@@ -1800,6 +1802,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }
     }
 
+    /// The theme and the dressing setting last applied (to notice when the setting changes).
+    private var dressedWith: (theme: String, on: Bool) = ("", true)
+
     /// Pauses a pack whose drawings make the aquarium heavy (see PackGuard).
     private let packGuard = PackGuard()
 
@@ -1849,6 +1854,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         tank.fauna.select(t.fauna)
         tank.sceneryLooks = t.looks
         tank.sceneryKinds = t.scenery
+        // the theme's looks for presences and fish kinds (Preferences: "Vestir presenças e peixes com o tema")
+        tank.scene.themeLooks = t.looks
+        tank.scene.dressByTheme = FishKinds.dressByTheme
+        dressedWith = (t.id, FishKinds.dressByTheme)
+        for f in tank.fish where !f.decor && !f.sings { Providers.refresh(f) }
         Generator.preferredStyle = t.music
     }
     @objc func chooseVisual(_ i: NSMenuItem) {

@@ -2,7 +2,7 @@
   "id": "koi",
   "name": "Lago japonês",
   "names": {"en": "Japanese pond"},
-  "version": "1.1",
+  "version": "1.2",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -16,7 +16,7 @@
       "music": "zen",
       "fauna": ["snail", "turtle", "frog", "tadpoles", "shrimp"],
       "scenery": ["rock", "lantern", "lilypad", "chest"],
-      "looks": { "chest": "shrine" },
+      "looks": { "chest": "shrine", "bottle": "floating-lantern", "oval": "koi", "slender": "koi" },
       "background": { "metal": "background.metal", "function": "draw_koi_background", "replaceReef": true },
       "water": {
         "deep": "#0b2420", "shallow": "#3f7d62", "rays": "#cfe8b0", "raysStrength": 0.18,

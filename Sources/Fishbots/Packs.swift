@@ -369,6 +369,16 @@ enum Packs {
             Scene.register(k)
             pack.contents.append(tr("presença %@", localName(pr, id)))
         }
+        // the themes' looks for presences: the drawing must be a pack's presence that moves the same way
+        for t in json["themes"] as? [[String: Any]] ?? [] {
+            for (from, to) in t["looks"] as? [String: String] ?? [:] {
+                // (a look for a piece of scenery or a fish kind isn't a presence's: "chest" is both a piece and a presence)
+                guard let k = Scene.kinds[from], k.pack == nil, SceneryKinds.index(of: to) == nil,
+                      !FishKinds.all.contains(where: { $0.id == to }) else { continue }
+                if let d = Scene.kinds[to], d.pack != nil, d.motion == k.motion { continue }
+                problems.append(tr("%@: no tema, %@ não pode virar %@ (precisa ser uma presença de pacote que se move igual)", name, from, to))
+            }
+        }
         loaded.append(pack)
     }
 

@@ -119,7 +119,7 @@ bin/fishbots pack install <file|url>          # or install one someone shared
 bin/fishbots skill install                    # teach your coding agent to make packs
 ```
 
-**Tema → Explorar pacotes…** is the community catalog: install with a click, and the app tells you when a pack you have gets a new version. Sending one is a pull request ([community/README.md](community/README.md)); the catalog's address can be changed with `"catalog": "https://…/index.json"` in `config.json`. A pack whose drawings slow the aquarium down is paused by itself (**Tema → Reativar**).
+A theme can also **dress** what plugins send and the fish its own way (in the Japanese pond a bottle floats as a paper lantern and the plain fish are koi); turn it off in Preferências → Aparência, and a plugin can keep its own drawing with `"override_theme": true`. **Tema → Explorar pacotes…** is the community catalog: install with a click, and the app tells you when a pack you have gets a new version. Sending one is a pull request ([community/README.md](community/README.md)); the catalog's address can be changed with `"catalog": "https://…/index.json"` in `config.json`. A pack whose drawings slow the aquarium down is paused by itself (**Tema → Reativar**).
 
 How to make one, step by step: [docs/packs.md](docs/packs.md). The format is in `Sources/Fishbots/Packs.swift` and the design of all the extension points in [docs/extensions.md](docs/extensions.md).
 
