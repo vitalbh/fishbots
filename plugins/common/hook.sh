@@ -1,6 +1,6 @@
 #!/bin/sh
 # Shared agent hook: forwards the hook JSON (stdin) to Fishbots at POST /<route>, along with where the session is
-# (Rex, iTerm, Terminal, tmux, WezTerm, kitty…), so clicking the fish takes you to it.
+# (Rex, Herdr, iTerm, Terminal, tmux, WezTerm, kitty…), so clicking the fish takes you to it.
 # Never blocks or fails the session.
 #   hook.sh <route> [process patterns…]
 #     route              the provider's route, without the slash ("claude-code", "codex"…)
@@ -18,7 +18,7 @@ if [ -n "$FISHBOTS_HOOK_LOG" ]; then
 fi
 
 tty=""; app=""; pid=""
-if [ -z "$REX_BLOCK$ITERM_SESSION_ID$WEZTERM_PANE$KITTY_WINDOW_ID$TMUX_PANE" ]; then
+if [ -z "$REX_BLOCK$HC_TERMINAL_ID$ITERM_SESSION_ID$WEZTERM_PANE$KITTY_WINDOW_ID$TMUX_PANE" ]; then
   # walks up the parent processes: the tty (Terminal.app and others), the agent's pid and the .app that opened it all
   p=$PPID; i=0
   while [ $i -lt 10 ] && [ -n "$p" ] && [ "$p" -gt 1 ]; do
@@ -41,6 +41,7 @@ printf '%s' "$input" | curl -s -m 1 -H 'Expect:' -H 'Content-Type: application/j
   -H "X-Where-Rex-Session: ${REX_SESSION:-}" \
   -H "X-Where-Rex-Block: ${REX_BLOCK:-}" \
   -H "X-Where-Rex-Bin: $(command -v rex 2>/dev/null)" \
+  -H "X-Where-Herdr: ${HC_TERMINAL_ID:-}" \
   -H "X-Where-Iterm: ${ITERM_SESSION_ID:-}" \
   -H "X-Where-Tmux: ${TMUX_PANE:-}" \
   -H "X-Where-Wezterm: ${WEZTERM_PANE:-}" \

@@ -2,7 +2,8 @@ import AppKit
 
 /// "Where is it?": the 2nd line of the label and the click that takes you to the session.
 ///
-/// With Rex, the app talks straight to `rex` (session › tab and focus on the right pane).
+/// With Rex, the app talks straight to `rex` (session › tab and focus on the right pane); with Herdr, to `herdr-app`
+/// (shows the agent) and `herdr-core` (where it is, typing into it).
 /// Without Rex, it runs a generic script (iTerm, Terminal, WezTerm, kitty, tmux, VS Code…),
 /// which can be replaced by your own in ~/Library/Application Support/Fishbots/goto.sh.
 enum Whereabouts {
@@ -10,7 +11,7 @@ enum Whereabouts {
         guard !o.isEmpty else { return }
         // if the event says where it came from (terminal, app, Rex…), that replaces what was there (the session may have moved);
         // otherwise, it only adds (e.g. the cwd)
-        let provenance = ["term", "app", "rex_session", "rex_block", "tty", "pid", "iterm", "tmux", "entrypoint"]
+        let provenance = ["term", "app", "rex_session", "rex_block", "herdr", "tty", "pid", "iterm", "tmux", "entrypoint"]
         var new = o.keys.contains(where: provenance.contains) ? o : f.whereabouts
         if new == o, let cwd = f.whereabouts["cwd"], o["cwd"] == nil { new["cwd"] = cwd }
         if new != o { for (k, v) in o { new[k] = v } }
@@ -31,6 +32,7 @@ enum Whereabouts {
         case "vscode": return "VS Code"
         case "ghostty": return "Ghostty"
         case "rex": return "Rex"
+        case "herdr": return "Herdr"
         default: return t
         }
     }
@@ -38,6 +40,20 @@ enum Whereabouts {
     /// Recomputes the 2nd line of the label. For Rex, asks for the session and tab names.
     static func detail(_ f: Fish) {
         let o = f.whereabouts
+        if let t = o["herdr"], let core = herdrCore {
+            // "space / tab" from herdr-core, and the terminal's title (the conversation's)
+            DispatchQueue.global(qos: .utility).async {
+                let info = json(run(core, ["get", t, "--json"]))
+                let place = ((info?["labels"] as? [String: Any])?["where"] as? String)?
+                    .replacingOccurrences(of: " / ", with: " › ")
+                let title = (info?["title"] as? String).map(cleanTitle).flatMap { $0.isEmpty ? nil : $0 }
+                DispatchQueue.main.async {
+                    f.sub = place.map { "Herdr · " + $0 } ?? "Herdr"
+                    if let title { f.title = title }
+                }
+            }
+            return
+        }
         if let s = o["rex_session"], let b = o["rex_block"], let bin = rexBin(o) {
             DispatchQueue.global(qos: .utility).async {
                 let sess = json(run(bin, ["--timeout", "3s", "session", "inspect", s, "--json"]))
@@ -60,7 +76,7 @@ enum Whereabouts {
             return
         }
         // without the Rex variables, but maybe in a Rex pane: look it up by process (once)
-        if o["rex_lookup"] == nil, o["entrypoint"] != "claude-desktop", o["tty"] != nil || o["pid"] != nil, let bin = rexBin(o) {
+        if o["rex_lookup"] == nil, o["entrypoint"] != "claude-desktop", o["herdr"] == nil, o["tty"] != nil || o["pid"] != nil, let bin = rexBin(o) {
             f.whereabouts["rex_lookup"] = "done"
             DispatchQueue.global(qos: .utility).async {
                 if let (s, b) = findInRex(bin: bin, tty: o["tty"], pid: o["pid"]) {
@@ -167,6 +183,10 @@ enum Whereabouts {
             DispatchQueue.global(qos: .userInitiated).async { goRex(bin: bin, session: s, block: b, whereabouts: o) }
             return true
         }
+        if let t = o["herdr"], let app = herdrApp {
+            DispatchQueue.global(qos: .userInitiated).async { goHerdr(app: app, terminal: t) }
+            return true
+        }
         if o["entrypoint"] == "claude-desktop" {
             let app = o["app"].flatMap { $0.hasSuffix(".app") ? $0 : nil } ?? "/Applications/Claude.app"
             NSWorkspace.shared.open(URL(fileURLWithPath: app))
@@ -179,12 +199,13 @@ enum Whereabouts {
 
     // MARK: - typing into the session (reply, stop)
 
-    enum Target { case rex(bin: String, block: String), iterm(String), tmux(String) }
+    enum Target { case rex(bin: String, block: String), herdr(core: String, terminal: String), iterm(String), tmux(String) }
 
-    /// Where it's safe to type into the session's exact terminal (Rex, iTerm or tmux). Otherwise, nil.
+    /// Where it's safe to type into the session's exact terminal (Rex, Herdr, iTerm or tmux). Otherwise, nil.
     static func target(_ f: Fish) -> Target? {
         let o = f.whereabouts
         if let b = o["rex_block"], let bin = rexBin(o) { return .rex(bin: bin, block: b) }
+        if let t = o["herdr"], let core = herdrCore { return .herdr(core: core, terminal: t) }
         if o["term"] == "iTerm.app", let i = o["iterm"] { return .iterm(String(i.split(separator: ":").last ?? "")) }
         if let t = o["tmux"], !t.isEmpty { return .tmux(t) }
         return nil
@@ -206,6 +227,12 @@ enum Whereabouts {
                     // pause before Enter: text that arrives fast is treated as a paste, and a pasted Enter becomes a line break
                     Thread.sleep(forTimeInterval: 0.5)
                     _ = run(bin, ["--timeout", "3s", "send-key", "-b", block, "enter"])
+                }
+            case .herdr(let core, let t):
+                if !agentInHerdr(core: core, terminal: t, source: f.source, names: names) { failure = tr("o terminal não está com o agente na frente") }
+                else {
+                    // pastes and submits; --force: a session waiting for you counts as "blocked", and that's when the card replies
+                    _ = run(core, ["send", "--force", t, line])
                 }
             case .iterm(let id):
                 failure = osa(itermScript(id: id, action: "write text item 2 of argv newline NO"), [id, line])
@@ -229,6 +256,8 @@ enum Whereabouts {
             switch d {
             case .rex(let bin, let block):
                 if agentInRex(bin: bin, block: block, names: names) { _ = run(bin, ["--timeout", "3s", "send-key", "-b", block, "escape"]) }
+            case .herdr(let core, let t):
+                if agentInHerdr(core: core, terminal: t, source: f.source, names: names) { _ = run(core, ["keys", t, "esc"]) }
             case .iterm(let id):
                 _ = osa(itermScript(id: id, action: "write text (character id 27) newline NO"), [id])
             case .tmux(let pane):
@@ -244,6 +273,40 @@ enum Whereabouts {
               let fg = pr["foreground"] as? [String: Any] else { return false }
         let all = ((fg["path"] as? String) ?? "") + " " + ((fg["argv0"] as? String) ?? "") + " " + ((fg["name"] as? String) ?? "")
         return Providers.isAgentProcess(all, names: names)
+    }
+
+    // MARK: - Herdr
+
+    private static func local(_ name: String) -> String? {
+        // the real home (not CFFIXED_USER_HOME's): that's where Herdr installs itself
+        let home = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
+        return [home + "/.local/bin/" + name, "/opt/homebrew/bin/" + name, "/usr/local/bin/" + name]
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+    private static var herdrCore: String? { local("herdr-core") ?? local("hc") }
+    private static var herdrApp: String? { local("herdr-app") }
+    private static let herdrBundle = "dev.herdr.app"
+
+    /// Shows the agent's terminal in the Herdr window (opening it if needed) and brings Herdr forward.
+    private static func goHerdr(app: String, terminal t: String) {
+        if NSRunningApplication.runningApplications(withBundleIdentifier: herdrBundle).isEmpty {
+            _ = run("/usr/bin/open", ["-b", herdrBundle])
+            Thread.sleep(forTimeInterval: 1.5)
+        }
+        _ = run(app, ["do", "agent.focus", "--terminal", t])
+        DispatchQueue.main.async {
+            NSRunningApplication.runningApplications(withBundleIdentifier: herdrBundle).first?.activate()
+        }
+    }
+
+    /// Is the terminal's foreground program still the session's agent (it may have exited back to the shell)?
+    private static func agentInHerdr(core: String, terminal t: String, source: String, names: [String]) -> Bool {
+        guard let info = json(run(core, ["get", t, "--json"])), info["state"] as? String == "live" else { return false }
+        if let fg = info["foreground"] as? [String: Any] {
+            let argv = (fg["argv"] as? [String])?.first ?? ""
+            if Providers.isAgentProcess(argv + " " + ((fg["name"] as? String) ?? ""), names: names) { return true }
+        }
+        return ((info["status"] as? [String: Any])?["app"] as? String) == source
     }
 
     private static func itermScript(id: String, action: String) -> String {

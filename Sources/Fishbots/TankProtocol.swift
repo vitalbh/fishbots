@@ -6,7 +6,7 @@ import Foundation
 ///   {"source":"x","entity":"id","state":"end"}                        entity leaves the tank ("party":true: leaves celebrating)
 ///   {"source":"x","entity":"id","tool":"Bash"}                        activity pulse
 ///   optional on an entity: "detail" (2nd line of the label), "link" (opened on click),
-///   "where" ({"term","tty","rex_session","rex_block","rex_bin","iterm","tmux","wezterm","kitty","cwd"})
+///   "where" ({"term","tty","rex_session","rex_block","rex_bin","herdr","iterm","tmux","wezterm","kitty","cwd"})
 ///   {"source":"x","event":"deploy","label":"meu-site"}                event (food)
 ///   {"source":"x","gauge":"disk","value":0.87}                        gauge (0…1; null removes it; silent for 1 h: gone)
 ///   {"source":"x","effect":"fireworks","label":"deploy"}              effect (docs/scene.md)
