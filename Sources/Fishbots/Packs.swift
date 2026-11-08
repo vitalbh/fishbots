@@ -24,6 +24,9 @@ enum Packs {
 
     private(set) static var loaded: [Loaded] = []
     private(set) static var problems: [String] = []
+    /// What the packs registered (to undo it on a reload).
+    private(set) static var themeIds: [String] = []
+    private static var styleIds: [String] = []
 
     static var folder: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -31,9 +34,107 @@ enum Packs {
     }
 
     /// Reads every pack. Call before the renderer compiles the shader (fish kinds go into it) and before applying the theme.
+    /// Undoes everything the packs registered and reads them again. The app then recompiles the shader and applies the theme.
+    static func reload() {
+        Themes.unregister(themeIds)
+        Generator.unregister(styleIds)
+        FishKinds.dropPacks()
+        SceneryKinds.all = []
+        for k in FaunaKinds.all { FaunaKinds.drop(k.id) }
+        load()
+    }
+
+    /// A fingerprint of the packs on disk (names, sizes and dates of their files): it changes when one is edited.
+    static func signature() -> String {
+        let fm = FileManager.default
+        var parts: [String] = []
+        for dir in ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []).sorted(by: { $0.path < $1.path }) {
+            for file in ((try? fm.contentsOfDirectory(at: dir.resolvingSymlinksInPath(), includingPropertiesForKeys: nil)) ?? []) {
+                guard let a = try? fm.attributesOfItem(atPath: file.path) else { continue }
+                parts.append("\(dir.lastPathComponent)/\(file.lastPathComponent):\((a[.size] as? Int) ?? 0):\((a[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)")
+            }
+        }
+        return parts.sorted().joined(separator: "|")
+    }
+
+    /// Installs a pack from a .fishbotspack (a zip of the pack's folder): unzipped apart, checked (a pack.json with an
+    /// id, only data and Metal files), then put in the packs folder under its id, replacing an older copy.
+    /// Returns the pack's id.
+    static func install(_ archive: URL) throws -> String {
+        struct Failure: LocalizedError { let errorDescription: String? }
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory.appendingPathComponent("fishbots-pack-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: tmp) }
+        try fm.createDirectory(at: tmp, withIntermediateDirectories: true)
+        // before extracting anything: no links, no paths that climb out (../ or absolute), nothing huge
+        func zipinfo(_ args: [String]) -> String? {
+            let z = Process(), out = Pipe()
+            z.executableURL = URL(fileURLWithPath: "/usr/bin/zipinfo")
+            z.arguments = args + [archive.path]
+            z.standardOutput = out
+            z.standardError = Pipe()
+            guard (try? z.run()) != nil else { return nil }
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            z.waitUntilExit()
+            return z.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
+        }
+        guard let names = zipinfo(["-1"]), let long = zipinfo(["-l"]), let total = zipinfo(["-t"]) else {
+            throw Failure(errorDescription: tr("não consegui abrir o arquivo do pacote"))
+        }
+        for n in names.split(separator: "\n") where n.hasPrefix("/") || n.contains("..") {
+            throw Failure(errorDescription: tr("o pacote tem um caminho inválido: %@", String(n)))
+        }
+        if long.split(separator: "\n").contains(where: { $0.hasPrefix("l") }) {
+            throw Failure(errorDescription: tr("o pacote tem links para fora dele"))
+        }
+        // "N files, X bytes uncompressed, …"
+        let bytes = total.components(separatedBy: " bytes uncompressed").first?.split(separator: " ").last.flatMap { Int($0) } ?? 0
+        if bytes > 20_000_000 { throw Failure(errorDescription: tr("o pacote é grande demais (%@ MB)", "\(bytes / 1_000_000)")) }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        p.arguments = ["-x", "-k", archive.path, tmp.path]
+        try p.run(); p.waitUntilExit()
+        guard p.terminationStatus == 0 else { throw Failure(errorDescription: tr("não consegui abrir o arquivo do pacote")) }
+        // the pack.json at the top, or inside a single folder
+        var root = tmp
+        if !fm.fileExists(atPath: tmp.appendingPathComponent("pack.json").path),
+           let inner = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil).filter({ $0.lastPathComponent != "__MACOSX" }),
+           inner.count == 1 { root = inner[0] }
+        guard let d = try? Data(contentsOf: root.appendingPathComponent("pack.json")),
+              let json = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
+              let id = json["id"] as? String, id.range(of: #"^[a-z0-9][a-z0-9_-]{0,40}$"#, options: .regularExpression) != nil else {
+            throw Failure(errorDescription: tr("o pacote não tem um pack.json com um \"id\" válido"))
+        }
+        let allowed: Set<String> = ["json", "metal", "md", "txt", "png"]
+        for f in (fm.enumerator(at: root, includingPropertiesForKeys: [.isSymbolicLinkKey])?.allObjects as? [URL]) ?? [] {
+            if (try? f.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true {
+                throw Failure(errorDescription: tr("o pacote tem links para fora dele"))
+            }
+            if f.hasDirectoryPath { continue }
+            guard allowed.contains(f.pathExtension.lowercased()) else {
+                throw Failure(errorDescription: tr("o pacote tem um arquivo que não é de pacote: %@", f.lastPathComponent))
+            }
+        }
+        let dest = folder.appendingPathComponent(id)
+        if let v = try? dest.resourceValues(forKeys: [.isSymbolicLinkKey]), v.isSymbolicLink == true {
+            throw Failure(errorDescription: tr("%@ já está instalado como link (um pacote em desenvolvimento)", id))
+        }
+        try? fm.removeItem(at: dest)
+        try fm.copyItem(at: root, to: dest)
+        return id
+    }
+
+    /// Reads only this folder (the preview and the check of a pack being made).
+    static func loadOnly(_ dir: URL) {
+        loaded = []; problems = []; themeIds = []; styleIds = []
+        load(dir)
+    }
+
     static func load() {
         loaded = []
         problems = []
+        themeIds = []
+        styleIds = []
         let fm = FileManager.default
         try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
         let dirs = ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
@@ -52,7 +153,9 @@ enum Packs {
         var pack = Loaded(id: json["id"] as? String ?? name, name: json["name"] as? String ?? name)
 
         for t in json["themes"] as? [[String: Any]] ?? [] {
-            if let theme = Theme(json: t, base: Themes.named("classic")) { Themes.register(theme); pack.contents.append(tr("tema %@", theme.name)) }
+            if let theme = Theme(json: t, base: Themes.named("classic")) {
+                Themes.register(theme); themeIds.append(theme.id); pack.contents.append(tr("tema %@", theme.name))
+            }
             else { problems.append(tr("%@: tema sem \"id\"", name)) }
         }
 
@@ -61,6 +164,7 @@ enum Packs {
         for s in json["styles"] as? [[String: Any]] ?? [] {
             if let style = style(s) {
                 Generator.register(style, chords: chords, progressions: progressions)
+                styleIds.append(style.id)
                 if let v = s["visualizer"] as? String { Visualizers.setDefault(v, forStyle: style.id) }
                 pack.contents.append(tr("estilo %@", style.name))
             } else {

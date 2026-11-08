@@ -36,12 +36,19 @@ struct Sprite {
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
     private let queue: MTLCommandQueue
-    private let bgPipeline: MTLRenderPipelineState
-    private let spritePipeline: MTLRenderPipelineState
-    // bloom: the glow target, reduced to a quarter, blurred and added back on top
-    private let downPipeline: MTLRenderPipelineState
-    private let blurPipeline: MTLRenderPipelineState
-    private let addPipeline: MTLRenderPipelineState
+    /// The compiled shader's pipelines (remade when the packs are reloaded).
+    private struct Pipelines {
+        let bg, sprite: MTLRenderPipelineState
+        // bloom: the glow target, reduced to a quarter, blurred and added back on top
+        let down, blur, add: MTLRenderPipelineState
+    }
+    private var pipes: Pipelines
+    private var bgPipeline: MTLRenderPipelineState { pipes.bg }
+    private var spritePipeline: MTLRenderPipelineState { pipes.sprite }
+    private var downPipeline: MTLRenderPipelineState { pipes.down }
+    private var blurPipeline: MTLRenderPipelineState { pipes.blur }
+    private var addPipeline: MTLRenderPipelineState { pipes.add }
+    private let colorFormat: MTLPixelFormat
     private let sampler: MTLSamplerState
     private var glowTex: MTLTexture?
     private var quarterA: MTLTexture?
@@ -84,84 +91,16 @@ final class Renderer: NSObject, MTKViewDelegate {
         precondition(MemoryLayout<ThemeUniforms>.stride == 192, "ThemeUniforms must be 192 bytes")
         self.device = device
         self.queue = queue
+        colorFormat = view.colorPixelFormat
+        let sd = MTLSamplerDescriptor()
+        sd.minFilter = .linear
+        sd.magFilter = .linear
+        sd.sAddressMode = .clampToEdge
+        sd.tAddressMode = .clampToEdge
+        guard let smp = device.makeSamplerState(descriptor: sd) else { return nil }
+        sampler = smp
         do {
-            let lib: MTLLibrary
-            do {
-                lib = try device.makeLibrary(source: FishKinds.shaderSource(), options: nil)
-            } catch where FishKinds.all.contains(where: { $0.pack != nil }) || !SceneryKinds.all.isEmpty || !FaunaKinds.all.isEmpty {
-                // a pack's fish or scenery broke the shader: try each one alone and drop the ones that don't compile
-                for k in FishKinds.all where k.pack != nil {
-                    do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
-                    catch { Renderer.packFishFailed?(k, "\(error)"); FishKinds.drop(k.id) }
-                }
-                for k in SceneryKinds.all {
-                    do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
-                    catch { Renderer.packSceneryFailed?(k, "\(error)"); SceneryKinds.drop(k.id) }
-                }
-                for k in FaunaKinds.all {
-                    do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
-                    catch { Renderer.packFaunaFailed?(k, "\(error)"); FaunaKinds.drop(k.id) }
-                }
-                lib = try device.makeLibrary(source: FishKinds.shaderSource(), options: nil)
-            }
-            let bg = MTLRenderPipelineDescriptor()
-            bg.vertexFunction = lib.makeFunction(name: "bg_vertex")
-            bg.fragmentFunction = lib.makeFunction(name: "bg_fragment")
-            bg.colorAttachments[0].pixelFormat = view.colorPixelFormat
-            bg.colorAttachments[1].pixelFormat = Self.glowTargetFormat
-            bgPipeline = try device.makeRenderPipelineState(descriptor: bg)
-
-            let sp = MTLRenderPipelineDescriptor()
-            sp.vertexFunction = lib.makeFunction(name: "sprite_vertex")
-            sp.fragmentFunction = lib.makeFunction(name: "sprite_fragment")
-            let ca = sp.colorAttachments[0]!
-            ca.pixelFormat = view.colorPixelFormat
-            ca.isBlendingEnabled = true
-            ca.rgbBlendOperation = .add
-            ca.alphaBlendOperation = .add
-            ca.sourceRGBBlendFactor = .one          // premultiplied color
-            ca.sourceAlphaBlendFactor = .one
-            ca.destinationRGBBlendFactor = .oneMinusSourceAlpha
-            ca.destinationAlphaBlendFactor = .oneMinusSourceAlpha
-            // the glow target blends the same way (what's in front covers the glow behind it)
-            let cg = sp.colorAttachments[1]!
-            cg.pixelFormat = Self.glowTargetFormat
-            cg.isBlendingEnabled = true
-            cg.rgbBlendOperation = .add
-            cg.alphaBlendOperation = .add
-            cg.sourceRGBBlendFactor = .one
-            cg.sourceAlphaBlendFactor = .one
-            cg.destinationRGBBlendFactor = .oneMinusSourceAlpha
-            cg.destinationAlphaBlendFactor = .oneMinusSourceAlpha
-            spritePipeline = try device.makeRenderPipelineState(descriptor: sp)
-
-            func post(_ fragment: String, _ format: MTLPixelFormat, additive: Bool = false) throws -> MTLRenderPipelineState {
-                let d = MTLRenderPipelineDescriptor()
-                d.vertexFunction = lib.makeFunction(name: "post_vertex")
-                d.fragmentFunction = lib.makeFunction(name: fragment)
-                d.colorAttachments[0].pixelFormat = format
-                if additive {
-                    let a = d.colorAttachments[0]!
-                    a.isBlendingEnabled = true
-                    a.rgbBlendOperation = .add
-                    a.alphaBlendOperation = .add
-                    a.sourceRGBBlendFactor = .one
-                    a.destinationRGBBlendFactor = .one
-                    a.sourceAlphaBlendFactor = .zero
-                    a.destinationAlphaBlendFactor = .one
-                }
-                return try device.makeRenderPipelineState(descriptor: d)
-            }
-            downPipeline = try post("bloom_down", Self.glowFormat)
-            blurPipeline = try post("bloom_blur", Self.glowFormat)
-            addPipeline = try post("bloom_add", view.colorPixelFormat, additive: true)
-            let sd = MTLSamplerDescriptor()
-            sd.minFilter = .linear
-            sd.magFilter = .linear
-            sd.sAddressMode = .clampToEdge
-            sd.tAddressMode = .clampToEdge
-            guard let smp = device.makeSamplerState(descriptor: sd) else { return nil }
-            sampler = smp
+            pipes = try Self.pipelines(device, view.colorPixelFormat)
         } catch {
             FileHandle.standardError.write("fishbots: shader failed: \(error)\n".data(using: .utf8)!)
             return nil
@@ -171,6 +110,82 @@ final class Renderer: NSObject, MTKViewDelegate {
             buffers.append(b)
         }
         super.init()
+    }
+
+    /// The shader with every registered fish, scenery and creature. When a pack's piece breaks it, each one is tried
+    /// alone, the ones that don't compile are dropped (and reported), and the rest is compiled again.
+    static func library(_ device: MTLDevice) throws -> MTLLibrary {
+        do {
+            return try device.makeLibrary(source: FishKinds.shaderSource(), options: nil)
+        } catch where FishKinds.all.contains(where: { $0.pack != nil }) || !SceneryKinds.all.isEmpty || !FaunaKinds.all.isEmpty {
+            for k in FishKinds.all where k.pack != nil {
+                do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
+                catch { Renderer.packFishFailed?(k, "\(error)"); FishKinds.drop(k.id) }
+            }
+            for k in SceneryKinds.all {
+                do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
+                catch { Renderer.packSceneryFailed?(k, "\(error)"); SceneryKinds.drop(k.id) }
+            }
+            for k in FaunaKinds.all {
+                do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
+                catch { Renderer.packFaunaFailed?(k, "\(error)"); FaunaKinds.drop(k.id) }
+            }
+            return try device.makeLibrary(source: FishKinds.shaderSource(), options: nil)
+        }
+    }
+
+    private static func pipelines(_ device: MTLDevice, _ colorFormat: MTLPixelFormat) throws -> Pipelines {
+        let lib = try library(device)
+        let bg = MTLRenderPipelineDescriptor()
+        bg.vertexFunction = lib.makeFunction(name: "bg_vertex")
+        bg.fragmentFunction = lib.makeFunction(name: "bg_fragment")
+        bg.colorAttachments[0].pixelFormat = colorFormat
+        bg.colorAttachments[1].pixelFormat = Self.glowTargetFormat
+
+        let sp = MTLRenderPipelineDescriptor()
+        sp.vertexFunction = lib.makeFunction(name: "sprite_vertex")
+        sp.fragmentFunction = lib.makeFunction(name: "sprite_fragment")
+        // premultiplied color; the glow target blends the same way (what's in front covers the glow behind it)
+        for (i, format) in [(0, colorFormat), (1, Self.glowTargetFormat)] {
+            let ca = sp.colorAttachments[i]!
+            ca.pixelFormat = format
+            ca.isBlendingEnabled = true
+            ca.rgbBlendOperation = .add
+            ca.alphaBlendOperation = .add
+            ca.sourceRGBBlendFactor = .one
+            ca.sourceAlphaBlendFactor = .one
+            ca.destinationRGBBlendFactor = .oneMinusSourceAlpha
+            ca.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        }
+
+        func post(_ fragment: String, _ format: MTLPixelFormat, additive: Bool = false) throws -> MTLRenderPipelineState {
+            let d = MTLRenderPipelineDescriptor()
+            d.vertexFunction = lib.makeFunction(name: "post_vertex")
+            d.fragmentFunction = lib.makeFunction(name: fragment)
+            d.colorAttachments[0].pixelFormat = format
+            if additive {
+                let a = d.colorAttachments[0]!
+                a.isBlendingEnabled = true
+                a.rgbBlendOperation = .add
+                a.alphaBlendOperation = .add
+                a.sourceRGBBlendFactor = .one
+                a.destinationRGBBlendFactor = .one
+                a.sourceAlphaBlendFactor = .zero
+                a.destinationAlphaBlendFactor = .one
+            }
+            return try device.makeRenderPipelineState(descriptor: d)
+        }
+        return Pipelines(bg: try device.makeRenderPipelineState(descriptor: bg),
+                         sprite: try device.makeRenderPipelineState(descriptor: sp),
+                         down: try post("bloom_down", Self.glowFormat), blur: try post("bloom_blur", Self.glowFormat),
+                         add: try post("bloom_add", colorFormat, additive: true))
+    }
+
+    /// Compiles the shader again with what's registered now (after the packs were reloaded). On failure the old one stays.
+    @discardableResult
+    func reload() -> Bool {
+        do { pipes = try Self.pipelines(device, colorFormat); return true }
+        catch { FileHandle.standardError.write("fishbots: shader failed on reload: \(error)\n".data(using: .utf8)!); return false }
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) { glowTex = nil }

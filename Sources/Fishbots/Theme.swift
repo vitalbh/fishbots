@@ -98,6 +98,7 @@ enum Themes {
     static func register(_ t: Theme) {
         if let i = all.firstIndex(where: { $0.id == t.id }) { all[i] = t } else { all.append(t) }
     }
+    static func unregister(_ ids: [String]) { all.removeAll { ids.contains($0.id) && $0.id != "classic" } }
 
     static func named(_ id: String?) -> Theme { all.first { $0.id == id } ?? all[0] }
 

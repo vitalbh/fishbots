@@ -1,7 +1,7 @@
 // A pond frog sitting (on a lily pad), facing +x: a squat body, a big eye on top, a folded hind leg that stretches
 // out when it hops (extra.w), a throat that pulses, green with dark spots and a pale belly.
 float4 draw_frog(float2 c, float phase, float glow, float4 col, float4 extra) {
-    float2 p = c;
+    float2 p = c + float2(0.0, 0.35);                                            // its feet at c.y = -0.9
     float hop = extra.w;
     float body = (length((p - float2(0.0, -0.05)) / float2(0.62, 0.42)) - 1.0) * 0.4;
     body = smin_k(body, (length((p - float2(0.42, 0.1)) / float2(0.32, 0.26)) - 1.0) * 0.26, 0.1);    // the head
@@ -60,7 +60,7 @@ float4 draw_tadpole(float2 c, float phase, float glow, float4 col, float4 extra)
 // A freshwater shrimp walking on the sand, facing +x: a curved, see-through segmented body, long antennae, legs that
 // step (phase) while it walks (extra.w), and a tail fan.
 float4 draw_shrimp(float2 c, float phase, float glow, float4 col, float4 extra) {
-    float2 p = c;
+    float2 p = c + float2(0.0, 0.35);                                            // its feet at c.y = -0.9
     // the body: a curve of shrinking segments from the head (right) to the tail (left)
     float d = 1e3, seg = 0.0, segT = 0.0;
     float2 prev = float2(0.45, -0.05);

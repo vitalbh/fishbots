@@ -38,6 +38,8 @@ enum FishKinds {
 
     /// Drops a kind that came from a pack (its Metal didn't compile).
     static func drop(_ id: String) { all.removeAll { $0.id == id && $0.pack != nil } }
+    /// Drops every kind that came from a pack (before the packs are read again).
+    static func dropPacks() { all.removeAll { $0.pack != nil } }
 
     /// The shader with only the built-in kinds and this one, and no pack scenery (to find which pack fish breaks it).
     static func shaderSource(testing k: FishKind) -> String {

@@ -124,10 +124,11 @@ the fish, crabs and pearls clear of it and draws it with the rest of the scenery
 | Field | |
 |---|---|
 | `metal`, `function` | the file in the pack and the function in it (below) |
-| `anchor` | `sand` (standing on the sand: the bottom of the drawing, c.y = -1, a little buried), `surface` (floating, riding the waves), `float` (in the water, at `height`) |
+| `anchor` | `sand` (standing on the sand: the ground is at c.y ≈ -0.9), `surface` (floating, riding the waves: the water line is at c.y ≈ 0.12 / extent.y), `float` (in the water, at `height`) |
 | `size` | its height, as a fraction of the tank's height (default 0.06) |
 | `extent` | the quad's width and height, relative to `size` (default `[1, 1]`) |
-| `at` | where the copies go, 0…1 from the left (one number or a list); or `count`, spread out from the id |
+| `at` | where the copies go, 0…1 from the left (one number or a list) |
+| `count` | instead of `at`: how many copies (1…12), spread out from the id |
 | `height` | 0…1 from the bottom, for `float` |
 | `color` | `"#rrggbb"` or `[r, g, b]`: what the function gets as `col`, already lit by the hour |
 | `glowAtNight` | `glow` rises as the light goes down, and its bright parts feed the bloom (a lantern's window) |
@@ -175,13 +176,13 @@ behaviors, with parameters. Only themes that list it get it.
 |---|---|---|
 | `cross` | swims across the tank now and then, at `height`, every `every` seconds | the turtle |
 | `pass` | rare, far away in the background, faded by the water | the whale |
-| `crawl` | walks on the sand, stops, turns around at the edges and the scenery | the crab |
+| `crawl` | walks on the sand (its feet at c.y ≈ -0.9), stops, turns around at the edges and the scenery | the crab |
 | `rest` | stays on the sand, barely moving | the starfish |
 | `glass` | climbs up and down the glass (its drawing's +x points the way it goes) | the snail |
 | `drift` | floats, rising and sinking slowly, at `height` | a jellyfish |
 | `school` | a little group wandering together | the decorative schools |
-| `skim` | just under the surface, darting and stopping | — |
-| `perch` | sits on a piece of scenery (`on`: its id), hopping to another copy now and then | — |
+| `skim` | just under the surface (the water line at c.y ≈ 0.6), darting and stopping | — |
+| `perch` | sits on a piece of scenery (`on`: its id; its feet at c.y ≈ -0.9), hopping to another copy now and then | — |
 
 | Field | |
 |---|---|

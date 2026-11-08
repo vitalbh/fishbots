@@ -106,13 +106,18 @@ The app icon is drawn by `scripts/make-icon.swift` (`swift scripts/make-icon.swi
 
 - **Tema** (in the menu bar menu and the Aquário menu): the scene's look: water, light, seaweed, sand, which creatures live there, and the scene's preferred visualizer and music style. Built in: **Aquário** (the original), **Fundo do mar** (dark, few plants, lanternfish) and **Lagoa** (green water, lots of seaweed).
 - **Tipo de peixe** (in the fish's right-click menu): the project's fish. Automatic follows the session (oval in Rex, elongated in a plain terminal, pufferfish in the Claude app, angelfish in VS Code/Cursor, octopus for GitHub, stingray for Codex); you can pick any kind, including the ones from packs.
-- **Packs** add themes, music styles and fish (with their drawing in Metal) without compiling anything. Put a folder (or a link to one) in `~/Library/Application Support/Fishbots/packs/`; **Tema → Abrir pasta de pacotes…** opens it, and the same menu lists what each pack brought and any problem (a fish whose Metal doesn't compile is skipped, the rest still loads). Packs are data and GPU code only: they can't run anything on the Mac. Example: `packs/examples/coral` (a coral reef theme, a calm "maré" style and a clownfish):
+- **Packs** add themes, music styles, fish, scenery and creatures (each drawing in Metal) without compiling anything. They live in `~/Library/Application Support/Fishbots/packs/`; **Tema → Abrir pasta de pacotes…** opens it, and the same menu lists what each pack brought and any problem (a drawing whose Metal doesn't compile is skipped, the rest still loads). Packs are data and GPU code only: they can't run anything on the Mac. Two examples: `packs/examples/coral` (a coral reef, a calm "maré" style and a clownfish) and `packs/examples/koi` (a Japanese pond: koi, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp and a "zen" style).
 
 ```sh
-ln -s "$PWD/packs/examples/coral" ~/Library/Application\ Support/Fishbots/packs/coral   # then reopen the app
+bin/fishbots pack new my-pack                 # start from the template
+bin/fishbots pack dev my-pack                 # link it: the aquarium reloads it on every save
+bin/fishbots pack preview my-pack             # all its drawings on a sheet, big and at their real size
+bin/fishbots pack zip my-pack                 # my-pack.fishbotspack, to share (double-click installs it)
+bin/fishbots pack install <file|url>          # or install one someone shared
+bin/fishbots skill install                    # teach your coding agent to make packs
 ```
 
-The format is in `Sources/Fishbots/Packs.swift` and the design of all the extension points in [docs/extensions.md](docs/extensions.md).
+How to make one, step by step: [docs/packs.md](docs/packs.md). The format is in `Sources/Fishbots/Packs.swift` and the design of all the extension points in [docs/extensions.md](docs/extensions.md).
 
 ## Screen saver
 

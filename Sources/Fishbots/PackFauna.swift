@@ -136,7 +136,7 @@ final class PackCreature: Creature {
                         if Float.random(in: 0...1) < dt * 0.25 { o.wait = Float.random(in: 1.5...5); if Bool.random() { o.dir = -o.dir } }
                     } else { o.moving = 0; o.phase += dt * 0.3 }
                 } else { o.phase += dt * 0.4 }
-                o.pos.y = sandY(o.pos.x) + k.size * k.extent.y * 0.45
+                o.pos.y = sandY(o.pos.x) + k.size * k.extent.y * 0.9          // its feet (c.y = -0.9) on the sand
                 ones[i] = o
             }
 
@@ -217,7 +217,7 @@ final class PackCreature: Creature {
         case .perch:
             let spots = t.scenery.filter { $0.id == k.on }.map { s -> SIMD2<Float> in
                 let (c, sz) = t.place(s)
-                return c + [0, sz * s.extent.y * 0.3 + k.size * k.extent.y * 0.35]
+                return c + [0, sz * s.extent.y * 0.3 + k.size * k.extent.y * 0.9]   // its feet (c.y = -0.9) on the piece
             }
             guard !spots.isEmpty else { ones = []; return }
             if ones.isEmpty {

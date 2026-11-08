@@ -9,7 +9,90 @@
 #   fishbots presence <source> <id> <kind> <state> [label] [detail]   a creature or object (docs/scene.md)
 #   fishbots presence <source> <id> end                takes it out
 #   fishbots show                                      current state as JSON
+#
+#   fishbots pack new <id> [folder]          start a pack from the template (themes, fish, scenery, creatures)
+#   fishbots pack check <folder>             validate it and compile its drawings (errors at the pack's file:line)
+#   fishbots pack preview <folder> [out.png] draw all its drawings on a sheet (and at their real size)
+#   fishbots pack dev <folder>               link it into the app: it reloads by itself on every save
+#   fishbots pack zip <folder> [out]         make a .fishbotspack to share
+#   fishbots pack install <file|url>         install a .fishbotspack (or double-click it in the Finder)
+#   fishbots pack list | reload              what's installed (and its problems) | read the packs again
+#   fishbots skill install                   teach your coding agent to make packs (~/.claude/skills)
 URL="http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+PACKS="$HOME/Library/Application Support/Fishbots/packs"
+
+# the app's binary (it also previews and checks packs, without opening the aquarium)
+app_bin() {
+  for b in "${FISHBOTS_APP:-}" "$HERE/build/Fishbots.app/Contents/MacOS/Fishbots" "/Applications/Fishbots.app/Contents/MacOS/Fishbots" \
+           "$HERE/.build/release/Fishbots"; do
+    [ -n "$b" ] && [ -x "$b" ] && { echo "$b"; return; }
+  done
+  echo "fishbots: the app wasn't found (build it with scripts/app.sh, or set FISHBOTS_APP)" >&2; exit 1
+}
+running() { curl -s -m 1 "$URL/" >/dev/null 2>&1; }
+
+pack() {
+  sub="$1"; [ $# -gt 0 ] && shift
+  case "$sub" in
+    new)
+      [ $# -ge 1 ] || { echo "usage: fishbots pack new <id> [folder]" >&2; exit 2; }
+      id="$1"; echo "$id" | grep -Eq '^[a-z0-9][a-z0-9_-]{0,40}$' || { echo "fishbots: the id is lowercase letters, digits, - and _" >&2; exit 2; }
+      dir="${2:-./$id}"; [ -e "$dir" ] && { echo "fishbots: $dir already exists" >&2; exit 1; }
+      fn=$(printf '%s' "$id" | tr -- '-' '_')
+      mkdir -p "$dir" && cp "$HERE/packs/template/"* "$dir/"
+      for f in "$dir"/*; do sed -i '' -e "s/draw_template_/draw_${fn}_/g" -e "s/template-/$id-/g" -e "s/\"template\"/\"$id\"/g" "$f"; done
+      echo "✓ $dir: a pack with a theme, a fish, a piece of scenery and a creature"
+      echo "  next: fishbots pack preview $dir   (draws everything; look at the images after each change)"
+      echo "        fishbots pack dev $dir       (with the app open: it reloads the pack on every save)" ;;
+    check)
+      [ $# -ge 1 ] || { echo "usage: fishbots pack check <folder>" >&2; exit 2; }
+      "$(app_bin)" --check "$1" ;;
+    preview)
+      [ $# -ge 1 ] || { echo "usage: fishbots pack preview <folder> [out.png]" >&2; exit 2; }
+      "$(app_bin)" --preview "$1" --out "${2:-$1/preview.png}" ;;
+    dev)
+      [ $# -ge 1 ] || { echo "usage: fishbots pack dev <folder>" >&2; exit 2; }
+      dir="$(cd "$1" && pwd)"; id=$(sed -n 's/^[[:space:]]*"id":[[:space:]]*"\([^"]*\)".*/\1/p' "$dir/pack.json" | head -1)
+      [ -n "$id" ] || { echo "fishbots: no \"id\" in $dir/pack.json" >&2; exit 1; }
+      mkdir -p "$PACKS"
+      if [ -e "$PACKS/$id" ] && [ ! -L "$PACKS/$id" ]; then echo "fishbots: $PACKS/$id is an installed copy; remove it first" >&2; exit 1; fi
+      ln -sfn "$dir" "$PACKS/$id"
+      echo "✓ $id is linked: the aquarium reloads it whenever you save (pick its theme in the menu)"
+      running && curl -s -m 10 -X POST "$URL/packs/reload" >/dev/null && echo "  reloaded" || echo "  (open the app to see it)" ;;
+    zip)
+      [ $# -ge 1 ] || { echo "usage: fishbots pack zip <folder> [out.fishbotspack]" >&2; exit 2; }
+      "$(app_bin)" --check "$1" || { echo "fishbots: fix the problems first" >&2; exit 1; }
+      dir="$(cd "$1" && pwd)"; out="${2:-$(dirname "$dir")/$(basename "$dir").fishbotspack}"
+      rm -f "$out"; (cd "$dir" && zip -q -r - . -x 'preview*.png' -x '.*') > "$out" && echo "✓ $out" ;;
+    install)
+      [ $# -ge 1 ] || { echo "usage: fishbots pack install <file.fishbotspack|url>" >&2; exit 2; }
+      src="$1"
+      case "$src" in
+        http://*) echo "fishbots: only https:// links (a pack over http could be swapped on the way)" >&2; exit 1 ;;
+        https://*) tmp="$(mktemp -d)/pack.fishbotspack"; curl -fsSL -m 60 "$src" -o "$tmp" || { echo "fishbots: download failed" >&2; exit 1; }; src="$tmp" ;;
+      esac
+      [ -f "$src" ] || { echo "fishbots: $src not found" >&2; exit 1; }
+      src="$(cd "$(dirname "$src")" && pwd)/$(basename "$src")"
+      if running; then
+        curl -s -m 30 -H 'Content-Type: application/json' --data-binary "{\"path\":\"$(esc "$src")\"}" "$URL/packs/install"; echo
+      else
+        echo "fishbots: open the app first (it checks the pack while installing it), or double-click the file" >&2; exit 1
+      fi ;;
+    list)   curl -s -m 2 "$URL/packs" || { echo "fishbots: is the app running?" >&2; exit 1; }; echo ;;
+    reload) curl -s -m 30 -X POST "$URL/packs/reload" || { echo "fishbots: is the app running?" >&2; exit 1; }; echo ;;
+    *) sed -n '/^#   fishbots pack new/,/^#   fishbots skill/p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  esac
+}
+
+skill() {
+  case "$1" in
+    install)
+      dest="${2:-$HOME/.claude/skills}/fishbots-packs"
+      mkdir -p "$dest" && cp -R "$HERE/skills/fishbots-packs/"* "$dest/" && echo "✓ $dest (your agent now knows how to make Fishbots packs)" ;;
+    *) echo "usage: fishbots skill install [skills folder]   (default: ~/.claude/skills)" >&2; exit 2 ;;
+  esac
+}
 
 esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 post() { curl -s -m 2 -H 'Expect:' -H 'Content-Type: application/json' --data-binary "$1" "$URL/event" || { echo "fishbots: is the app running?" >&2; exit 1; }; echo; }
@@ -40,5 +123,7 @@ case "$cmd" in
            post "{\"source\":\"$(esc "$1")\",\"presence\":\"$(esc "$2")\",\"kind\":\"$(esc "$3")\",\"state\":\"$(esc "$4")\"$l$d}"
          fi ;;
   show)  curl -s -m 2 "$URL/state" || { echo "fishbots: is the app running?" >&2; exit 1; } ;;
-  *)     sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  pack)  pack "$@" ;;
+  skill) skill "$@" ;;
+  *)     sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

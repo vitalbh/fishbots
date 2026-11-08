@@ -65,6 +65,7 @@ enum Generator {
         presets.merge(progressions) { $1 }
         if let i = styles.firstIndex(where: { $0.id == s.id }) { styles[i] = s } else { styles.append(s) }
     }
+    static func unregister(_ ids: [String]) { styles.removeAll { ids.contains($0.id) } }
 
     /// The theme's style: chosen more often.
     static var preferredStyle: String?

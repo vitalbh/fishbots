@@ -28,6 +28,18 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSSpeechRecognitionUsageDescription</key><string>Para transcrever o que você fala ao peixinho (no próprio Mac quando possível).</string>
   <key>NSAudioCaptureUsageDescription</key><string>Para os visualizadores dançarem com o Spotify ou o Música: só o som desses apps, analisado na hora, nada é gravado.</string>
   <key>NSAppleEventsUsageDescription</key><string>Para levar você até o terminal de uma sessão quando você clica no peixe.</string>
+  <key>CFBundleDocumentTypes</key><array><dict>
+    <key>CFBundleTypeName</key><string>Fishbots pack</string>
+    <key>CFBundleTypeRole</key><string>Viewer</string>
+    <key>LSHandlerRank</key><string>Owner</string>
+    <key>LSItemContentTypes</key><array><string>io.vitalbh.fishbots.pack</string></array>
+  </dict></array>
+  <key>UTExportedTypeDeclarations</key><array><dict>
+    <key>UTTypeIdentifier</key><string>io.vitalbh.fishbots.pack</string>
+    <key>UTTypeDescription</key><string>Fishbots pack</string>
+    <key>UTTypeConformsTo</key><array><string>public.zip-archive</string></array>
+    <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>fishbotspack</string></array></dict>
+  </dict></array>
   <key>LSApplicationCategoryType</key><string>public.app-category.music</string>
 </dict></plist>
 PLIST

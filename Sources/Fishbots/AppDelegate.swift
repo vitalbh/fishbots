@@ -146,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         notifier.prepare()
         if let p = Env.value("PORT"), let n = UInt16(p) { port = n }
         buildMenu()
+        watchPacks()
 
         window = TankWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -640,10 +641,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 case ("POST", "/summary"):
                     self.recentSummary()
                     return (200, Data(#"{"ok":true}"#.utf8))
+                case ("POST", "/packs/reload"):
+                    self.reloadPacks()
+                    return (200, self.packsJSON())
+                case ("GET", "/packs"):
+                    return (200, self.packsJSON())
+                case ("POST", "/packs/install"):
+                    // {"path": "/…/x.fishbotspack"}: installs it and reloads
+                    guard let j = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any], let p = j["path"] as? String else {
+                        return (400, Data(#"{"error":"send {\"path\": \"…\"}"}"#.utf8))
+                    }
+                    do {
+                        let id = try Packs.install(URL(fileURLWithPath: p))
+                        self.reloadPacks()
+                        var out = (try? JSONSerialization.jsonObject(with: self.packsJSON())) as? [String: Any] ?? [:]
+                        out["installed"] = id
+                        return (200, (try? JSONSerialization.data(withJSONObject: out)) ?? Data())
+                    } catch {
+                        return (400, (try? JSONSerialization.data(withJSONObject: ["error": error.localizedDescription])) ?? Data())
+                    }
                 case ("GET", "/state"), ("GET", "/estado"):
                     return (200, TankProtocol.state(self.tank))
                 case ("GET", "/"):
-                    let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state"]
+                    let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /packs", "POST /packs/reload", "POST /packs/install"]
                     return (200, (try? JSONSerialization.data(withJSONObject: ["fishbots": "ok", "routes": routes])) ?? Data())
                 case ("POST", _):
                     if let (p, isPermission) = Providers.route(route), !isPermission {
@@ -1652,10 +1672,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let open = NSMenuItem(title: tr("Abrir pasta de pacotes…"), action: #selector(openPacks), keyEquivalent: "")
         open.target = self
         m.addItem(open)
+        let reload = NSMenuItem(title: tr("Recarregar pacotes"), action: #selector(reloadPacks), keyEquivalent: "")
+        reload.target = self
+        m.addItem(reload)
         item.submenu = m
         return item
     }
     @objc func openPacks() { NSWorkspace.shared.open(Packs.folder) }
+
+    /// Reads the packs again, recompiles the shader and applies the theme, without restarting (a pack being made).
+    /// The fish keep their kind by its id (the indices may move).
+    @objc func reloadPacks() {
+        let kinds = tank.fish.map { ($0, $0.kindID) }
+        Packs.reload()
+        let ok = renderer.reload()
+        for (f, id) in kinds { f.species = FishKinds.index(of: id) }
+        applyTheme()
+        buildMenu()
+        packsSignature = Packs.signature()
+        let n = Packs.problems.count
+        tank.notice = (!ok ? tr("pacotes: o shader não compilou, ficou o anterior")
+                       : n == 0 ? tr("pacotes recarregados") : tr("pacotes recarregados, %@ problema(s): veja o menu Tema", "\(n)"), tank.time)
+    }
+
+    /// The packs, what they bring and their problems, as JSON (GET /packs, and the answer of a reload).
+    func packsJSON() -> Data {
+        let obj: [String: Any] = ["packs": Packs.loaded.map { ["id": $0.id, "name": $0.name, "contents": $0.contents] },
+                                  "problems": Packs.problems, "folder": Packs.folder.path]
+        return (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+    }
+
+    /// Watches the packs folder: when a file changes (someone making a pack), it reloads by itself.
+    private var packsSignature = ""
+    private var packsWatch: Timer?
+    private func watchPacks() {
+        packsSignature = Packs.signature()
+        packsWatch = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            guard let self, UserDefaults.standard.object(forKey: "watchPacks") as? Bool ?? true else { return }
+            let sig = Packs.signature()
+            if sig != self.packsSignature { self.packsSignature = sig; self.reloadPacks() }
+        }
+    }
+
+    /// A .fishbotspack opened in the Finder (or dragged onto the app): installed and loaded.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for u in urls where u.pathExtension.lowercased() == "fishbotspack" {
+            do {
+                let id = try Packs.install(u)
+                reloadPacks()
+                tank.notice = (tr("pacote instalado: %@", Packs.loaded.first { $0.id == id }?.name ?? id), tank.time)
+            } catch {
+                tank.notice = (tr("pacote não instalado: %@", error.localizedDescription), tank.time)
+            }
+        }
+    }
     @objc func chooseTheme(_ i: NSMenuItem) {
         guard let id = i.representedObject as? String else { return }
         Themes.current = Themes.named(id)

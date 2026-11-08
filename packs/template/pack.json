@@ -1,0 +1,38 @@
+{
+  "id": "template",
+  "name": "Meu pacote",
+  "themes": [
+    {
+      "id": "template-theme",
+      "name": "Meu tema",
+      "names": { "en": "My theme" },
+      "visualizer": "plankton",
+      "music": "template-style",
+      "fauna": ["snail", "starfish", "template-creature"],
+      "scenery": ["rock", "template-scenery"],
+      "water": {
+        "deep": "#061a2c", "shallow": "#2a6f8a", "rays": "#bfe3f0", "raysStrength": 0.25,
+        "caustics": "#e0f6ff", "causticsStrength": 0.08, "surface": "#6cb6cc", "murk": "#2a2a1c"
+      },
+      "weeds": { "count": 10, "farCount": 12, "far": "#21423f", "low": "#174a2c", "high": "#5c9a42" },
+      "sand": { "dark": "#7a6a4a", "light": "#c9b48a" }
+    }
+  ],
+  "styles": [
+    {
+      "id": "template-style", "name": "meu estilo", "bpm": [56, 66], "progressions": ["Dreamy"], "scale": "penta",
+      "lead": ["kalimba", "soft"], "accomp": "arpeggio", "accompTimbre": ["soft"], "notesPerBar": [2, 3], "energy": 0.3, "rest": 0.4
+    }
+  ],
+  "fish": [
+    { "id": "template-fish", "name": "meu peixe", "metal": "fish.metal", "function": "draw_template_fish" }
+  ],
+  "scenery": [
+    { "id": "template-scenery", "name": "minha pedra", "metal": "scenery.metal", "function": "draw_template_scenery",
+      "anchor": "sand", "size": 0.07, "extent": [1.0, 0.8], "at": [0.4], "glowAtNight": true, "color": "#8a7f9a" }
+  ],
+  "fauna": [
+    { "id": "template-creature", "name": "minha criatura", "metal": "creature.metal", "function": "draw_template_creature",
+      "behavior": "crawl", "size": 14, "extent": [1.4, 1.0], "count": [1, 2], "speed": 10, "color": "#d97a4a" }
+  ]
+}

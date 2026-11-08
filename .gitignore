@@ -3,3 +3,6 @@ build/
 .DS_Store
 # agent worktrees and local data
 .claude/
+
+# pack previews (fishbots pack preview)
+packs/**/preview*.png
