@@ -81,6 +81,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// The seaweed: x, height and bend of each blade (Tank.weedUniforms), 16 of them.
     var weeds = [SIMD4<Float>](repeating: .zero, count: 16)
 
+    /// Told when the GPU finished a frame: how long it took (ms) and whether it aborted it (see PackGuard).
+    var onGPUFrame: ((Double, Bool) -> Void)?
+
     /// Called every frame with dt; returns uniforms (without size) and sprites.
     var frame: ((Float) -> (Uniforms, [Sprite]))?
 
@@ -288,10 +291,11 @@ final class Renderer: NSObject, MTKViewDelegate {
         let stats = gpuStats
         cmd.addCompletedHandler { [weak self] c in
             without.signal()
-            guard stats else { return }
-            let ms = (c.gpuEndTime - c.gpuStartTime) * 1000
+            let ms = (c.gpuEndTime - c.gpuStartTime) * 1000, failed = c.status == .error
             DispatchQueue.main.async {
                 guard let self else { return }
+                self.onGPUFrame?(ms, failed)
+                guard stats else { return }
                 self.gpuSum += ms; self.gpuFrames += 1
                 if CACurrentMediaTime() - self.gpuSince > 5 {
                     let line = String(format: "fishbots gpu: %.2f ms/frame (%d frames)\n", self.gpuSum / Double(max(1, self.gpuFrames)), self.gpuFrames)

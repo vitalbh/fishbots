@@ -26,6 +26,28 @@ enum Packs {
     private(set) static var problems: [String] = []
     /// What the packs registered (to undo it on a reload).
     private(set) static var themeIds: [String] = []
+    /// Packs paused by the guard (too heavy for the GPU), by id, with the reason; they aren't read until turned back on.
+    static var paused: [String: String] {
+        get { UserDefaults.standard.dictionary(forKey: "pausedPacks") as? [String: String] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "pausedPacks") }
+    }
+    /// The paused packs that were found on the last load: (id, name, reason).
+    private(set) static var pausedFound: [(id: String, name: String, reason: String)] = []
+
+    static func pause(_ id: String, reason: String) { paused[id] = reason }
+    /// Why a pack was paused, for people.
+    static func reasonText(_ reason: String) -> String {
+        if reason == "gpu" { return tr("travou a GPU") }
+        return tr("pesado demais para a GPU")
+    }
+    static func resume(_ id: String) { paused[id] = nil }
+    /// A pack being made (linked with `fishbots pack dev`) comes back when its files change: it may be fixed.
+    static func resumeLinked() {
+        for id in paused.keys {
+            let u = folder.appendingPathComponent(id)
+            if (try? u.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { resume(id) }
+        }
+    }
     private static var styleIds: [String] = []
 
     static var folder: URL {
@@ -126,13 +148,14 @@ enum Packs {
 
     /// Reads only this folder (the preview and the check of a pack being made).
     static func loadOnly(_ dir: URL) {
-        loaded = []; problems = []; themeIds = []; styleIds = []
+        loaded = []; problems = []; themeIds = []; styleIds = []; pausedFound = []
         load(dir)
     }
 
     static func load() {
         loaded = []
         problems = []
+        pausedFound = []
         themeIds = []
         styleIds = []
         let fm = FileManager.default
@@ -151,6 +174,11 @@ enum Packs {
             return
         }
         var pack = Loaded(id: json["id"] as? String ?? name, name: json["name"] as? String ?? name)
+        if let reason = paused[pack.id] {
+            pausedFound.append((pack.id, pack.name, reason))
+            problems.append(tr("%@: pausado, %@ (Tema → Reativar)", pack.name, reasonText(reason)))
+            return
+        }
 
         for t in json["themes"] as? [[String: Any]] ?? [] {
             if let theme = Theme(json: t, base: Themes.named("classic")) {

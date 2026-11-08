@@ -104,6 +104,11 @@ your sessions. Its Metal runs on the GPU with only what the app gives it to draw
 *can* do is be expensive to draw (a slow aquarium, a warm Mac) or draw something misleading inside the tank; the
 app's own windows (permissions, cards) are native and can't be drawn over.
 
+The app watches the GPU time of every frame. If the aquarium gets slow (under 30 frames a second for a few seconds,
+or much worse) while a pack's drawings are on screen, it hides them for a moment to check they are the cause, finds
+which pack it is, and pauses it: it's left out until you turn it back on (Tema → Reativar), and a pack linked with
+`pack dev` comes back by itself when you save a change. A frame the GPU has to abort pauses the packs on screen at once.
+
 Installing a `.fishbotspack` checks it before anything is extracted: no links, no paths that climb out of the
 folder (`../`, absolute), at most 20 MB, a `pack.json` with a valid id, only pack files (json, metal, md, txt, png).
 Links are installed only from `https://`. Packs you link with `pack dev` are yours and aren't checked this way.

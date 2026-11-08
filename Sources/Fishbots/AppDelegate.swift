@@ -182,6 +182,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         setupFooter()
 
         renderer.frame = { [unowned self] dt in self.frame(dt) }
+        renderer.onGPUFrame = { [unowned self] ms, failed in self.packGuard.gpu(ms: ms, failed: failed) }
+        packGuard.onCulprit = { [unowned self] id, reason in
+            let name = Packs.loaded.first { $0.id == id }?.name ?? id
+            Packs.pause(id, reason: reason)
+            self.reloadPacks()
+            self.tank.notice = (tr("pacote pausado: %@ (%@)", name, Packs.reasonText(reason)), self.tank.time)
+        }
         applyTheme()
         view.onKey = { [unowned self] k in self.key(k) }
         // while a card is open from the keyboard (Tab), these keys work even with its reply field focused
@@ -1264,7 +1271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         visual.size = tank.size
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))
-        return (u, visual.sprites() + tank.sprites())
+        return (u, packGuard.filter(visual.sprites() + tank.sprites()))
     }
 
     /// The hour now, with minutes (FISHBOTS_HOUR fixes it, to see dawn or dusk any time).
@@ -1675,6 +1682,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let reload = NSMenuItem(title: tr("Recarregar pacotes"), action: #selector(reloadPacks), keyEquivalent: "")
         reload.target = self
         m.addItem(reload)
+        for p in Packs.pausedFound {
+            let it = NSMenuItem(title: tr("Reativar %@", p.name), action: #selector(resumePack(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = p.id
+            m.addItem(it)
+        }
         item.submenu = m
         return item
     }
@@ -1702,6 +1715,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         return (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()
     }
 
+    /// Pauses a pack whose drawings make the aquarium heavy (see PackGuard).
+    private let packGuard = PackGuard()
+
+    @objc func resumePack(_ i: NSMenuItem) {
+        guard let id = i.representedObject as? String else { return }
+        Packs.resume(id)
+        reloadPacks()
+    }
+
     /// Watches the packs folder: when a file changes (someone making a pack), it reloads by itself.
     private var packsSignature = ""
     private var packsWatch: Timer?
@@ -1710,7 +1732,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         packsWatch = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             guard let self, UserDefaults.standard.object(forKey: "watchPacks") as? Bool ?? true else { return }
             let sig = Packs.signature()
-            if sig != self.packsSignature { self.packsSignature = sig; self.reloadPacks() }
+            if sig != self.packsSignature { self.packsSignature = sig; Packs.resumeLinked(); self.reloadPacks() }
         }
     }
 
