@@ -33,7 +33,12 @@ The `fishbots` CLI does everything (`fishbots pack …`). It lives in the Fishbo
 4. **Errors:** `fishbots pack check <folder>` prints Metal errors as `file.metal:line:col` in the pack's own files.
    Fix the first error first (later ones often follow from it). A piece that doesn't compile is left out of the
    aquarium and listed at the bottom of its Tema menu; the rest keeps working.
-5. **Share:** `fishbots pack zip <folder>` → `<id>.fishbotspack` next to the folder (checked first). Install with
+5. **For the community catalog:** fill in `version` (1.0), `author`, `license` (MIT, CC-BY-4.0…), `description`,
+   and `names`/`descriptions` with `{"en": "…"}` (on the pack and on each theme, fish, scenery, creature and style:
+   the app shows them in its language). Then `fishbots pack cover <folder>` (cover.png) and
+   `fishbots pack check <folder> --catalog`. Submitting is a pull request adding the folder to `community/packs/`
+   in the Fishbots repository and running `python3 scripts/catalog.py` (see `community/README.md` there).
+6. **Share:** `fishbots pack zip <folder>` → `<id>.fishbotspack` next to the folder (checked first). Install with
    `fishbots pack install <file|https url>` (the app must be open; only https links) or a double-click in the Finder.
 
 Don't touch the user's real aquarium settings (theme, fish kinds) unless asked; tell them which theme to pick.

@@ -21,7 +21,26 @@ enum Packs {
         let id: String
         let name: String
         var contents: [String] = []
+        /// From pack.json: "version", "author", "license", "description", "homepage", "minApp".
+        var meta: [String: String] = [:]
+        var version: String { meta["version"] ?? "" }
     }
+
+    /// This app's version (packs can ask for a minimum with "minApp").
+    static var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1" }
+
+    /// Compares "1.2.3"-style versions: is a older than b?
+    static func older(_ a: String, than b: String) -> Bool {
+        let x = a.split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(x.count, y.count) {
+            let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0
+            if p != q { return p < q }
+        }
+        return false
+    }
+
+    /// The catalog's metadata, all required for a pack in the community catalog (`--check --catalog`).
+    static let catalogFields = ["version", "author", "license", "description"]
 
     private(set) static var loaded: [Loaded] = []
     private(set) static var problems: [String] = []
@@ -147,6 +166,11 @@ enum Packs {
         return id
     }
 
+    /// An entry's name in the interface's language ("names": {"en": "…"}), or its "name", or its id.
+    static func localName(_ d: [String: Any], _ id: String) -> String {
+        (d["names"] as? [String: String])?[L10n.resolved] ?? d["name"] as? String ?? id
+    }
+
     /// Reads only this folder (the preview and the check of a pack being made).
     static func loadOnly(_ dir: URL) {
         loaded = []; problems = []; themeIds = []; styleIds = []; pausedFound = []
@@ -174,7 +198,14 @@ enum Packs {
             problems.append(tr("%@: pack.json ausente ou inválido", name))
             return
         }
-        var pack = Loaded(id: json["id"] as? String ?? name, name: json["name"] as? String ?? name)
+        var pack = Loaded(id: json["id"] as? String ?? name,
+                          name: (json["names"] as? [String: String])?[L10n.resolved] ?? json["name"] as? String ?? name)
+        for k in ["version", "author", "license", "description", "homepage", "minApp"] { if let v = json[k] as? String { pack.meta[k] = v } }
+        if let d = (json["descriptions"] as? [String: String])?[L10n.resolved] { pack.meta["description"] = d }
+        if let min = pack.meta["minApp"], older(appVersion, than: min) {
+            problems.append(tr("%@: precisa do Fishbots %@ ou mais novo", pack.name, min))
+            return
+        }
         if let reason = paused[pack.id] {
             pausedFound.append((pack.id, pack.name, reason))
             problems.append(tr("%@: pausado, %@ (Tema → Reativar)", pack.name, reasonText(reason)))
@@ -188,7 +219,7 @@ enum Packs {
         }
         for t in json["themes"] as? [[String: Any]] ?? [] {
             if let theme = Theme(json: t, base: Themes.named("classic")) {
-                Themes.register(theme); themeIds.append(theme.id); pack.contents.append(tr("tema %@", theme.name))
+                Themes.register(theme); themeIds.append(theme.id); pack.contents.append(tr("tema %@", theme.displayName))
             }
             else { problems.append(tr("%@: tema sem \"id\"", name)) }
         }
@@ -200,7 +231,7 @@ enum Packs {
                 Generator.register(style, chords: chords, progressions: progressions)
                 styleIds.append(style.id)
                 if let v = s["visualizer"] as? String { Visualizers.setDefault(v, forStyle: style.id) }
-                pack.contents.append(tr("estilo %@", style.name))
+                pack.contents.append(tr("estilo %@", localName(s, style.name)))
             } else {
                 problems.append(tr("%@: estilo incompleto (%@)", name, s["id"] as? String ?? "?"))
             }
@@ -213,9 +244,9 @@ enum Packs {
                 problems.append(tr("%@: peixe incompleto (%@)", name, f["id"] as? String ?? "?"))
                 continue
             }
-            FishKinds.register(FishKind(id: id, name: f["name"] as? String ?? id, source: src, call: "\(fn)(c, phase, glow, col, extra)",
+            FishKinds.register(FishKind(id: id, name: localName(f, id), source: src, call: "\(fn)(c, phase, glow, col, extra)",
                                         pack: pack.id))
-            pack.contents.append(tr("peixe %@", f["name"] as? String ?? id))
+            pack.contents.append(tr("peixe %@", localName(f, id)))
         }
         for sc in json["scenery"] as? [[String: Any]] ?? [] {
             guard let id = sc["id"] as? String, let file = sc["metal"] as? String, let fn = sc["function"] as? String,
@@ -238,12 +269,12 @@ enum Packs {
             let ext = vec("extent")
             let col = Theme.color(sc["color"]).map { SIMD3($0.x, $0.y, $0.z) } ?? [0.6, 0.6, 0.6]
             SceneryKinds.register(SceneryKind(
-                id: id, name: sc["name"] as? String ?? id, source: src, function: fn, pack: pack.id, anchor: anchor,
+                id: id, name: localName(sc, id), source: src, function: fn, pack: pack.id, anchor: anchor,
                 extent: ext.flatMap { $0.count == 2 ? SIMD2($0[0], $0[1]) : nil } ?? [1, 1],
                 size: max(0.005, min(0.5, num("size", 0.06))), color: col, at: at.map { max(0, min(1, $0)) },
                 height: max(0, min(1, num("height", 0.5))), glowAtNight: sc["glowAtNight"] as? Bool ?? false,
                 drift: sc["drift"] as? Bool ?? (anchor == .surface), solid: sc["solid"] as? Bool ?? (anchor != .surface)))
-            pack.contents.append(tr("cenário %@", sc["name"] as? String ?? id))
+            pack.contents.append(tr("cenário %@", localName(sc, id)))
         }
         for fa in json["fauna"] as? [[String: Any]] ?? [] {
             guard let id = fa["id"] as? String, let file = fa["metal"] as? String, let fn = fa["function"] as? String,
@@ -266,7 +297,7 @@ enum Packs {
                 ?? (behavior == .pass ? 900...2700 : 60...180)
             let ext = vec("extent")
             FaunaKinds.register(FaunaKind(
-                id: id, name: fa["name"] as? String ?? id, source: src, function: fn, pack: pack.id, behavior: behavior,
+                id: id, name: localName(fa, id), source: src, function: fn, pack: pack.id, behavior: behavior,
                 size: max(4, min(400, num("size", 16))), count: max(1, cnt.lowerBound)...min(30, max(1, cnt.upperBound)),
                 speed: max(1, min(400, num("speed", 20))), height: max(0.05, hgt.lowerBound)...min(0.95, hgt.upperBound),
                 when: FaunaKind.When(rawValue: fa["when"] as? String ?? "any") ?? .any,
@@ -274,7 +305,7 @@ enum Packs {
                 extent: ext.flatMap { $0.count == 2 ? SIMD2($0[0], $0[1]) : nil } ?? [1, 1],
                 every: max(5, every.lowerBound)...max(5, every.upperBound), shy: fa["shy"] as? Bool ?? false,
                 on: fa["on"] as? String, front: fa["front"] as? Bool ?? false))
-            pack.contents.append(tr("criatura %@", fa["name"] as? String ?? id))
+            pack.contents.append(tr("criatura %@", localName(fa, id)))
         }
         loaded.append(pack)
     }
@@ -325,7 +356,7 @@ enum Packs {
         let accomp: Accomp = ["lofi": .lofi, "bossa": .bossa][s["accomp"] as? String ?? ""] ?? .arpeggio
         let notes = range("notesPerBar", 2...3)
         let keys = (s["keys"] as? [NSNumber])?.map { $0.intValue % 12 } ?? [0, 2, 5, 7]
-        return Style(id: id, name: s["name"] as? String ?? id, bpm: range("bpm", 56...72), progs: progs, scale: scale,
+        return Style(id: id, name: localName(s, id), bpm: range("bpm", 56...72), progs: progs, scale: scale,
                      barsPerChord: max(1, (s["barsPerChord"] as? NSNumber)?.intValue ?? 2),
                      lead: timbreList("lead", [.soft]), accomp: accomp, accompTimbre: timbreList("accompTimbre", [.soft]),
                      notesPerBar: Int(notes.lowerBound)...Int(notes.upperBound), swing: range("swing", 0...0.1),

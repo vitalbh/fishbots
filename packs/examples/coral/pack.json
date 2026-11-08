@@ -1,6 +1,12 @@
 {
   "id": "coral",
   "name": "Recife de coral",
+  "names": {"en": "Coral reef"},
+  "version": "1.0",
+  "author": "Fishbots",
+  "license": "MIT",
+  "description": "Um recife de coral: água turquesa, algas coloridas, um peixe-palhaço, a baleia ao longe e uma música de maré.",
+  "descriptions": {"en": "A coral reef: turquoise water, colorful seaweed, a clownfish, the whale in the distance and a tide-like music."},
   "themes": [
     {
       "id": "coral-reef",
@@ -21,13 +27,13 @@
   "progressions": { "Tide": ["Cmaj7", "Dm9", "Fmaj9", "Cmaj7"] },
   "styles": [
     {
-      "id": "tide", "name": "maré", "bpm": [58, 70], "progressions": ["Tide", "Dreamy"], "scale": "major",
+      "id": "tide", "name": "maré", "names": {"en": "tide"}, "bpm": [58, 70], "progressions": ["Tide", "Dreamy"], "scale": "major",
       "lead": ["kalimba", "flute"], "accomp": "arpeggio", "accompTimbre": ["soft"],
       "notesPerBar": [2, 3], "swing": [0, 0.1], "keys": [0, 2, 5, 7], "energy": 0.3, "rest": 0.4,
       "visualizer": "plankton"
     }
   ],
   "fish": [
-    { "id": "clownfish", "name": "peixe-palhaço", "metal": "clownfish.metal", "function": "draw_clownfish" }
+    { "id": "clownfish", "name": "peixe-palhaço", "names": {"en": "clownfish"}, "metal": "clownfish.metal", "function": "draw_clownfish" }
   ]
 }

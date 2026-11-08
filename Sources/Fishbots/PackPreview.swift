@@ -9,27 +9,50 @@ enum PackPreview {
     /// Runs if the arguments ask for it; returns the exit code (nil: not a preview, open the app).
     static func runIfAsked() -> Int32? {
         let args = CommandLine.arguments
-        guard let i = args.firstIndex(where: { $0 == "--preview" || $0 == "--check" }), i + 1 < args.count else { return nil }
+        guard let i = args.firstIndex(where: { $0 == "--preview" || $0 == "--check" || $0 == "--cover" }), i + 1 < args.count else { return nil }
         let dir = URL(fileURLWithPath: (args[i + 1] as NSString).expandingTildeInPath).standardizedFileURL
         let out = args.firstIndex(of: "--out").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
-            ?? dir.appendingPathComponent("preview.png").path
-        return run(dir, out: args[i] == "--preview" ? out : nil)
+            ?? dir.appendingPathComponent(args[i] == "--cover" ? "cover.png" : "preview.png").path
+        offline = args.contains("--offline")
+        catalog = args.contains("--catalog")
+        return run(dir, out: args[i] == "--check" ? nil : out, cover: args[i] == "--cover")
     }
+
+    /// Compile with the offline compiler (`xcrun metal`) instead of the GPU: for machines without one (CI).
+    private static var offline = false
+    /// Also require what the community catalog needs: the metadata and a cover.png.
+    private static var catalog = false
 
     private static func say(_ s: String) { print(s) }
 
-    private static func run(_ dir: URL, out: String?) -> Int32 {
+    private static func run(_ dir: URL, out: String?, cover: Bool = false) -> Int32 {
         guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("pack.json").path) else {
             say("✗ \(dir.path): no pack.json here"); return 2
         }
         Packs.loadOnly(dir)
         var failures = 0
         for p in Packs.problems { say("✗ \(p)"); failures += 1 }
-        guard let device = MTLCreateSystemDefaultDevice() else { say("✗ no Metal device"); return 2 }
+        if catalog, let p = Packs.loaded.first {
+            for k in Packs.catalogFields where (p.meta[k] ?? "").isEmpty { say("✗ catalog: pack.json needs \"\(k)\""); failures += 1 }
+            if let v = p.meta["version"], v.range(of: #"^\d+(\.\d+){0,2}$"#, options: .regularExpression) == nil {
+                say("✗ catalog: \"version\" is numbers like 1.0 or 1.2.3"); failures += 1
+            }
+            if p.id.range(of: #"^[a-z0-9][a-z0-9_-]{0,40}$"#, options: .regularExpression) == nil {
+                say("✗ catalog: the id is lowercase letters, digits, - and _"); failures += 1
+            }
+            if !FileManager.default.fileExists(atPath: dir.appendingPathComponent("cover.png").path) {
+                say("✗ catalog: no cover.png (make it with: fishbots pack cover <folder>)"); failures += 1
+            }
+        }
+        let device = offline ? nil : MTLCreateSystemDefaultDevice()
+        if device == nil && !offline { say("  (no Metal device here: compiling with xcrun metal)") }
 
         // compile each piece alone, and point at its own file and line when it fails
         func check(_ what: String, _ name: String, _ src: String, _ full: String) -> Bool {
-            do { _ = try device.makeLibrary(source: full, options: nil); return true } catch {
+            do {
+                if let device { _ = try device.makeLibrary(source: full, options: nil) } else { try compileOffline(full) }
+                return true
+            } catch {
                 let start = full.components(separatedBy: "\n").firstIndex { src.hasPrefix($0) && !$0.isEmpty } ?? 0
                 let file = fileName(for: src, in: dir)
                 say("✗ \(what) \(name) doesn't compile:")
@@ -54,8 +77,50 @@ enum PackPreview {
 
         let p = Packs.loaded.first
         say((failures == 0 ? "✓ " : "• ") + (p.map { "\($0.name) (\($0.id)): " + ($0.contents.isEmpty ? "nothing" : $0.contents.joined(separator: ", ")) } ?? "no pack"))
-        if let out { draw(device, to: out) }
+        if let out {
+            guard let device else { say("✗ drawing the preview needs a Metal device"); return 2 }
+            if cover { drawCover(device, to: out) } else { draw(device, to: out) }
+        }
         return failures == 0 ? 0 : 1
+    }
+
+    /// Compiles with the offline Metal compiler; throws its error text (with "program_source:" lines, like the GPU's).
+    private static func compileOffline(_ src: String) throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory.appendingPathComponent("fishbots-check-\(UUID().uuidString)")
+        try fm.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: tmp) }
+        let file = tmp.appendingPathComponent("program_source.metal")
+        try src.write(to: file, atomically: true, encoding: .utf8)
+        let p = Process(), err = Pipe()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        p.arguments = ["-sdk", "macosx", "metal", "-c", file.path, "-o", tmp.appendingPathComponent("out.air").path]
+        p.standardError = err
+        p.standardOutput = Pipe()
+        try p.run()
+        let text = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        p.waitUntilExit()
+        guard p.terminationStatus == 0 else {
+            // "/…/program_source.metal:12:3: error: …" → "program_source:12:3: error: …"
+            throw Failure(description: text.replacingOccurrences(of: file.path, with: "program_source"))
+        }
+    }
+
+    /// cover.png for the catalog: the pack's first theme and drawings in a strip (900 × 200).
+    private static func drawCover(_ device: MTLDevice, to out: String) {
+        let cs = cells().filter { !$0.label.hasSuffix("asleep") && !$0.label.hasSuffix("glowing") && !$0.label.hasSuffix("night") }
+        var pick: [Cell] = []
+        if let t = cs.first(where: { $0.label.hasPrefix("theme ") }) { pick.append(t) }
+        var seen = Set<String>()
+        for c in cs where !c.label.hasPrefix("theme ") {
+            let id = c.label.components(separatedBy: " · ").first ?? c.label
+            if seen.insert(id).inserted { pick.append(c) }
+            if pick.count == 6 { break }
+        }
+        guard !pick.isEmpty else { say("  (nothing to draw)"); return }
+        if render(device, pick.map { Cell(call: $0.call, aspect: $0.aspect, label: "", sand: $0.sand) }, cellW: 300, labels: false,
+                  scale: 1, cols: min(3, pick.count), maxRows: 2, to: out) { say("  cover: \(out)") }
     }
 
     /// Which of the pack's .metal files a source came from (for the error lines).
@@ -151,8 +216,9 @@ enum PackPreview {
         }
     }
 
-    private static func render(_ device: MTLDevice, _ cs: [Cell], cellW: Int, labels: Bool, scale: Int, to path: String) -> Bool {
-        let cols = 6, cellH = cellW * 2 / 3, rows = (cs.count + cols - 1) / cols
+    private static func render(_ device: MTLDevice, _ cs: [Cell], cellW: Int, labels: Bool, scale: Int, cols: Int = 6, maxRows: Int = 1000,
+                               to path: String) -> Bool {
+        let cellH = cellW * 2 / 3, rows = min(maxRows, (cs.count + cols - 1) / cols)
         var sw = ""
         for (i, c) in cs.enumerated() {
             sw += "    case \(i): { float asp = \(c.aspect) / \(Float(cellW) / Float(cellH)); if (asp < 1.0) c.x /= asp; else c.y *= asp; c *= 1.1;"
@@ -162,7 +228,7 @@ enum PackPreview {
 
         float4 pv_theme(float2 c, float3 deep, float3 shallow, float3 rays, float3 surf, float3 wl, float3 wh,
                         float3 sd, float3 sl, float3 far, float raysK) {
-            float2 uv = c * 0.5 + 0.5;
+            float2 uv = clamp(c * 0.5 + 0.5, 0.0, 1.0);
             float3 col = mix(deep, shallow, pow(uv.y, 1.3));
             float r = pow(sin((uv.x + uv.y * 0.35) * 9.0) * 0.5 + 0.5, 3.0) * smoothstep(0.1, 1.0, uv.y);
             col += rays * r * raysK * 1.5;
@@ -176,7 +242,7 @@ enum PackPreview {
                 col = mix(col, k % 2 == 0 ? mix(wl, wh, t) : far, blade * (k % 2 == 0 ? 0.9 : 0.5));
             }
             float sandH = 0.17 + 0.02 * sin(uv.x * 7.0);
-            float3 sand = mix(sd, sl, vnoise(uv * float2(26.0, 14.0)) * 0.6 + vnoise(uv * float2(70.0, 40.0)) * 0.4) * mix(0.65, 1.0, uv.y / sandH);
+            float3 sand = mix(sd, sl, vnoise(uv * float2(26.0, 14.0)) * 0.6 + vnoise(uv * float2(70.0, 40.0)) * 0.4) * mix(0.65, 1.0, clamp(uv.y / sandH, 0.0, 1.0));
             col = mix(sand, col, smoothstep(sandH - 0.005, sandH, uv.y));
             return float4(col, 1.0);
         }

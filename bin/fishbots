@@ -13,6 +13,7 @@
 #   fishbots pack new <id> [folder]          start a pack from the template (themes, fish, scenery, creatures)
 #   fishbots pack check <folder>             validate it and compile its drawings (errors at the pack's file:line)
 #   fishbots pack preview <folder> [out.png] draw all its drawings on a sheet (and at their real size)
+#   fishbots pack cover <folder>             cover.png, the picture of the pack in the catalog
 #   fishbots pack dev <folder>               link it into the app: it reloads by itself on every save
 #   fishbots pack zip <folder> [out]         make a .fishbotspack to share
 #   fishbots pack install <file|url>         install a .fishbotspack (or double-click it in the Finder)
@@ -24,10 +25,14 @@ PACKS="$HOME/Library/Application Support/Fishbots/packs"
 
 # the app's binary (it also previews and checks packs, without opening the aquarium)
 app_bin() {
-  for b in "${FISHBOTS_APP:-}" "$HERE/build/Fishbots.app/Contents/MacOS/Fishbots" "/Applications/Fishbots.app/Contents/MacOS/Fishbots" \
-           "$HERE/.build/release/Fishbots"; do
-    [ -n "$b" ] && [ -x "$b" ] && { echo "$b"; return; }
+  if [ -n "${FISHBOTS_APP:-}" ]; then [ -x "$FISHBOTS_APP" ] && { echo "$FISHBOTS_APP"; return; }; echo "fishbots: FISHBOTS_APP isn't executable" >&2; exit 1; fi
+  # the newest of the builds found (an older one wouldn't know the newer options and would open the aquarium instead)
+  best=""
+  for b in "$HERE/.build/release/Fishbots" "$HERE/build/Fishbots.app/Contents/MacOS/Fishbots" "/Applications/Fishbots.app/Contents/MacOS/Fishbots"; do
+    [ -x "$b" ] || continue
+    if [ -z "$best" ] || [ "$b" -nt "$best" ]; then best="$b"; fi
   done
+  [ -n "$best" ] && { echo "$best"; return; }
   echo "fishbots: the app wasn't found (build it with scripts/app.sh, or set FISHBOTS_APP)" >&2; exit 1
 }
 running() { curl -s -m 1 "$URL/" >/dev/null 2>&1; }
@@ -46,11 +51,14 @@ pack() {
       echo "  next: fishbots pack preview $dir   (draws everything; look at the images after each change)"
       echo "        fishbots pack dev $dir       (with the app open: it reloads the pack on every save)" ;;
     check)
-      [ $# -ge 1 ] || { echo "usage: fishbots pack check <folder>" >&2; exit 2; }
-      "$(app_bin)" --check "$1" ;;
+      [ $# -ge 1 ] || { echo "usage: fishbots pack check <folder> [--catalog] [--offline]" >&2; exit 2; }
+      "$(app_bin)" --check "$@" ;;
     preview)
       [ $# -ge 1 ] || { echo "usage: fishbots pack preview <folder> [out.png]" >&2; exit 2; }
       "$(app_bin)" --preview "$1" --out "${2:-$1/preview.png}" ;;
+    cover)
+      [ $# -ge 1 ] || { echo "usage: fishbots pack cover <folder>" >&2; exit 2; }
+      "$(app_bin)" --cover "$1" --out "$1/cover.png" ;;
     dev)
       [ $# -ge 1 ] || { echo "usage: fishbots pack dev <folder>" >&2; exit 2; }
       dir="$(cd "$1" && pwd)"; id=$(sed -n 's/^[[:space:]]*"id":[[:space:]]*"\([^"]*\)".*/\1/p' "$dir/pack.json" | head -1)

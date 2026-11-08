@@ -1,6 +1,12 @@
 {
   "id": "template",
   "name": "Meu pacote",
+  "names": {"en": "My pack"},
+  "version": "0.1",
+  "author": "Your name",
+  "license": "MIT",
+  "description": "O que o seu pacote traz, numa frase.",
+  "descriptions": {"en": "What your pack brings, in one sentence."},
   "themes": [
     {
       "id": "template-theme",

@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "packs": [
+    {
+      "id": "koi",
+      "name": "Lago japonês",
+      "version": "1.0",
+      "author": "Fishbots",
+      "license": "MIT",
+      "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
+      "descriptions": {
+        "en": "A Japanese pond: koi in four varieties, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp and zen music."
+      },
+      "names": {
+        "en": "Japanese pond"
+      },
+      "path": "packs/examples/koi",
+      "files": [
+        "cover.png",
+        "creatures.metal",
+        "koi.metal",
+        "lantern.metal",
+        "lily.metal",
+        "pack.json"
+      ],
+      "cover": "cover.png",
+      "contents": {
+        "themes": 1,
+        "styles": 1,
+        "fish": 1,
+        "scenery": 2,
+        "fauna": 3
+      }
+    },
+    {
+      "id": "coral",
+      "name": "Recife de coral",
+      "version": "1.0",
+      "author": "Fishbots",
+      "license": "MIT",
+      "description": "Um recife de coral: água turquesa, algas coloridas, um peixe-palhaço, a baleia ao longe e uma música de maré.",
+      "descriptions": {
+        "en": "A coral reef: turquoise water, colorful seaweed, a clownfish, the whale in the distance and a tide-like music."
+      },
+      "names": {
+        "en": "Coral reef"
+      },
+      "path": "packs/examples/coral",
+      "files": [
+        "clownfish.metal",
+        "cover.png",
+        "pack.json"
+      ],
+      "cover": "cover.png",
+      "contents": {
+        "themes": 1,
+        "styles": 1,
+        "fish": 1
+      }
+    }
+  ]
+}

@@ -1,6 +1,12 @@
 {
   "id": "koi",
   "name": "Lago japonês",
+  "names": {"en": "Japanese pond"},
+  "version": "1.0",
+  "author": "Fishbots",
+  "license": "MIT",
+  "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
+  "descriptions": {"en": "A Japanese pond: koi in four varieties, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp and zen music."},
   "themes": [
     {
       "id": "koi-pond",
@@ -24,28 +30,28 @@
   "progressions": { "Pond": ["Fm(add9)", "Dbmaj7", "Bbm7", "Csus4"] },
   "styles": [
     {
-      "id": "zen", "name": "zen", "bpm": [50, 60], "progressions": ["Pond"], "scale": [0, 1, 5, 7, 8],
+      "id": "zen", "name": "zen", "names": {"en": "zen"}, "bpm": [50, 60], "progressions": ["Pond"], "scale": [0, 1, 5, 7, 8],
       "lead": ["kalimba", "pluck", "flute"], "accomp": "arpeggio", "accompTimbre": ["pluck", "soft"],
       "notesPerBar": [1, 3], "swing": [0, 0.05], "keys": [0, 2, 5], "energy": 0.2, "rest": 0.5,
       "visualizer": "surface"
     }
   ],
   "fish": [
-    { "id": "koi", "name": "carpa koi", "metal": "koi.metal", "function": "draw_koi" }
+    { "id": "koi", "name": "carpa koi", "names": {"en": "koi carp"}, "metal": "koi.metal", "function": "draw_koi" }
   ],
   "scenery": [
-    { "id": "lantern", "name": "lanterna de pedra", "metal": "lantern.metal", "function": "draw_lantern",
+    { "id": "lantern", "name": "lanterna de pedra", "names": {"en": "stone lantern"}, "metal": "lantern.metal", "function": "draw_lantern",
       "anchor": "sand", "size": 0.11, "extent": [0.6, 1.0], "at": [0.27], "glowAtNight": true, "color": "#8c8c88" },
-    { "id": "lilypad", "name": "vitória-régia", "metal": "lily.metal", "function": "draw_lily",
+    { "id": "lilypad", "name": "vitória-régia", "names": {"en": "lily pad"}, "metal": "lily.metal", "function": "draw_lily",
       "anchor": "surface", "size": 0.06, "extent": [1.0, 0.7], "at": [0.12, 0.3, 0.52, 0.71, 0.88], "color": "#4f8a3e" }
   ],
   "fauna": [
-    { "id": "frog", "name": "sapo", "metal": "creatures.metal", "function": "draw_frog",
+    { "id": "frog", "name": "sapo", "names": {"en": "frog"}, "metal": "creatures.metal", "function": "draw_frog",
       "behavior": "perch", "on": "lilypad", "size": 15, "extent": [1.2, 1.0], "count": 2, "color": "#5f8f3e" },
-    { "id": "tadpoles", "name": "girinos", "metal": "creatures.metal", "function": "draw_tadpole",
+    { "id": "tadpoles", "name": "girinos", "names": {"en": "tadpoles"}, "metal": "creatures.metal", "function": "draw_tadpole",
       "behavior": "school", "size": 7, "extent": [2.0, 1.0], "count": [6, 9], "speed": 18, "height": [0.15, 0.45],
       "color": "#3a3328", "shy": true },
-    { "id": "shrimp", "name": "camarão", "metal": "creatures.metal", "function": "draw_shrimp",
+    { "id": "shrimp", "name": "camarão", "names": {"en": "shrimp"}, "metal": "creatures.metal", "function": "draw_shrimp",
       "behavior": "crawl", "size": 10, "extent": [1.6, 1.0], "count": [2, 3], "speed": 8, "color": "#d9806a" }
   ]
 }

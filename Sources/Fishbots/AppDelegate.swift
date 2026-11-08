@@ -148,6 +148,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         if let p = Env.value("PORT"), let n = UInt16(p) { port = n }
         buildMenu()
         watchPacks()
+        // the catalog: a while after launch, then once a day (FISHBOTS_CATALOG=off skips it)
+        if Env.value("CATALOG") != "off" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.checkCatalog() }
+            Timer.scheduledTimer(withTimeInterval: 86_400, repeats: true) { [weak self] _ in self?.checkCatalog() }
+        }
 
         window = TankWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -642,6 +647,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                     // to check the preferences window without clicking: ?tab=0…3
                     let tab = path.components(separatedBy: "tab=").dropFirst().first.flatMap { Int($0.prefix(1)) }
                     self.preferences.show(tab: tab)
+                    return (200, Data(#"{"ok":true}"#.utf8))
+                case ("POST", "/test/catalog"):
+                    // ?install=<id>: installs that pack from the catalog, as the button would
+                    if let id = path.components(separatedBy: "install=").dropFirst().first {
+                        PackCatalog.fetch { r in
+                            guard case .success(let all) = r, let e = all.first(where: { $0.id == id }) else { return }
+                            PackCatalog.install(e) { res in
+                                if case .success = res { self.reloadPacks() }
+                                FileHandle.standardError.write(Data("catalog install \(id): \(res)\n".utf8))
+                            }
+                        }
+                    } else { self.explorePacks() }
                     return (200, Data(#"{"ok":true}"#.utf8))
                 case ("POST", "/test/widget"):
                     self.toggleWidget()
@@ -1677,6 +1694,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             it.isEnabled = false
             m.addItem(it)
         }
+        let explore = NSMenuItem(title: tr("Explorar pacotes…") + (catalogUpdates > 0 ? "  " + tr("(%@ atualização)", "\(catalogUpdates)") : ""),
+                                 action: #selector(explorePacks), keyEquivalent: "")
+        explore.target = self
+        m.addItem(explore)
         let open = NSMenuItem(title: tr("Abrir pasta de pacotes…"), action: #selector(openPacks), keyEquivalent: "")
         open.target = self
         m.addItem(open)
@@ -1714,6 +1735,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let obj: [String: Any] = ["packs": Packs.loaded.map { ["id": $0.id, "name": $0.name, "contents": $0.contents] },
                                   "problems": Packs.problems, "folder": Packs.folder.path]
         return (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+    }
+
+    /// The pack catalog ("Explorar pacotes…") and how many installed packs have a newer version there.
+    private lazy var catalogWindow: PackCatalogWindow = {
+        let w = PackCatalogWindow()
+        w.onInstalled = { [unowned self] _ in self.reloadPacks(); self.checkCatalog() }
+        return w
+    }()
+    private var catalogUpdates = 0
+    @objc func explorePacks() { catalogWindow.show() }
+
+    /// Looks for newer versions of the installed packs (at launch and once a day).
+    private func checkCatalog() {
+        PackCatalog.fetch { [weak self] r in
+            guard let self, case .success(let entries) = r else { return }
+            let n = entries.filter(PackCatalog.hasUpdate).count
+            if n != self.catalogUpdates { self.catalogUpdates = n; self.buildMenu() }
+            if n > 0 { self.tank.notice = (tr("%@ pacote(s) com versão nova: Tema → Explorar pacotes", "\(n)"), self.tank.time) }
+        }
     }
 
     /// Pauses a pack whose drawings make the aquarium heavy (see PackGuard).

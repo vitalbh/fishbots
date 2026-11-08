@@ -89,6 +89,11 @@ What we learned redrawing the built-in fish and scenery:
 
 ## 5. Share it
 
+To put it in the community catalog (**Tema → Explorar pacotes…**), give `pack.json` its metadata (`version`,
+`author`, `license`, `description`, and `names`/`descriptions` in other languages), make its cover with
+`bin/fishbots pack cover sunken-ship`, check it with `bin/fishbots pack check sunken-ship --catalog` and send it as
+a pull request: see [community/README.md](../community/README.md). Or share the file directly:
+
 ```sh
 bin/fishbots pack zip sunken-ship            # sunken-ship.fishbotspack (it's checked first)
 bin/fishbots pack install sunken-ship.fishbotspack       # or a https:// link, or double-click it in the Finder
