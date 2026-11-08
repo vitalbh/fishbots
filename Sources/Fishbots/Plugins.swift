@@ -196,12 +196,18 @@ final class Plugins {
                let f = m["source"] as? String, !State.isEnd(m["state"] as? String ?? "") {
                 if let e = m["entity"] as? String { seen.insert("\(f)\t\(e)") }
                 if let p = m["presence"] as? String { seen.insert("@presence\t\(f)\t\(p)") }
+                if let g = m["gauge"] as? String, !(m["value"] is NSNull) { seen.insert("@gauge\t\(f)\t\(g)") }
             }
         }
         return seen
     }
 
     private func remove(_ projectKey: String) {
+        if projectKey.hasPrefix("@gauge\t") {
+            let p = projectKey.split(separator: "\t", maxSplits: 2).map(String.init)
+            if p.count == 3 { tank.removeGauge(source: p[1], name: p[2]) }
+            return
+        }
         if projectKey.hasPrefix("@presence\t") {
             let p = projectKey.split(separator: "\t", maxSplits: 2).map(String.init)
             if p.count == 3 { tank.scene.remove(source: p[1], id: p[2], party: false, tank) }

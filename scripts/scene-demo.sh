@@ -29,7 +29,7 @@ if [ "$1" != "effects" ]; then
   post '[{"source":"demo-scene","gauge":"rain","value":0.9},{"source":"demo-scene","gauge":"waves","value":0.8}]'; nap 6
   post '[{"source":"demo-scene","gauge":"rain","value":0},{"source":"demo-scene","gauge":"waves","value":0.2},{"source":"demo-scene","gauge":"temperature","value":0.95}]'; nap 5
   post '[{"source":"demo-scene","gauge":"temperature","value":0.05},{"source":"demo-scene","gauge":"fog","value":0.8}]'; nap 5
-  post '[{"source":"demo-scene","gauge":"waves","value":0},{"source":"demo-scene","gauge":"temperature","value":0.5},{"source":"demo-scene","gauge":"fog","value":0}]'
+  post '[{"source":"demo-scene","gauge":"rain","value":null},{"source":"demo-scene","gauge":"waves","value":null},{"source":"demo-scene","gauge":"temperature","value":null},{"source":"demo-scene","gauge":"fog","value":null}]'
 fi
 
 for e in food fireworks whale splash ink bubbles sparkle ring scare pearl lightning quake school shooting-star; do

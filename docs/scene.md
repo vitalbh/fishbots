@@ -161,7 +161,8 @@ Some gauge names change the whole scene, whatever the source (the highest value 
 | `fog` | a haze over everything |
 
 The older ones still work: `disk` (murky water), `mac:cpu` (current), `mac:battery` / `mac:charging` (the battery on the sand).
-Send `0` (or `0.5` for temperature) to turn one off.
+`"value": null` removes a gauge (`bin/fishbots gauge <source> <name> end`); one not sent for an hour goes away by itself,
+and a script plugin with an interval loses the gauges it stopped sending, like its fish and presences.
 
 ## Not yet
 

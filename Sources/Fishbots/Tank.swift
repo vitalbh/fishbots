@@ -969,7 +969,23 @@ final class Tank {
     }
 
     func gauge(source: String, name: String, value: Float) {
-        gauges["\(source):\(Self.legacyGauges[name] ?? name)"] = max(0, min(1, value))
+        let key = "\(source):\(Self.legacyGauges[name] ?? name)"
+        gauges[key] = max(0, min(1, value))
+        gaugeAt[key] = time
+    }
+
+    /// When each gauge was last sent: one silent for over an hour goes away (a plugin that stopped).
+    private var gaugeAt: [String: Double] = [:]
+    static let gaugeLifetime: Double = 3600
+
+    func removeGauge(source: String, name: String) {
+        let key = "\(source):\(Self.legacyGauges[name] ?? name)"
+        gauges[key] = nil
+        gaugeAt[key] = nil
+    }
+
+    private func expireGauges() {
+        for (k, at) in gaugeAt where time - at > Self.gaugeLifetime { gauges[k] = nil; gaugeAt[k] = nil }
     }
 
     func feed(at p: SIMD2<Float>) {
@@ -1067,6 +1083,7 @@ final class Tank {
 
         scene.update(self, dt: dt)
         updateWeeds(dt: dt)
+        if Int(time * 10) % 50 == 0 { expireGauges() }
         breathe(dt: dt)
         rainOnSurface()
         updateMotes(dt: dt)

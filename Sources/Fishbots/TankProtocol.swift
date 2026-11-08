@@ -8,7 +8,7 @@ import Foundation
 ///   optional on an entity: "detail" (2nd line of the label), "link" (opened on click),
 ///   "where" ({"term","tty","rex_session","rex_block","rex_bin","iterm","tmux","wezterm","kitty","cwd"})
 ///   {"source":"x","event":"deploy","label":"meu-site"}                event (food)
-///   {"source":"x","gauge":"disk","value":0.87}                        gauge (0…1)
+///   {"source":"x","gauge":"disk","value":0.87}                        gauge (0…1; null removes it; silent for 1 h: gone)
 ///   {"source":"x","effect":"fireworks","label":"deploy"}              effect (docs/scene.md)
 ///   {"source":"x","presence":"id","kind":"shark","state":"error","label":"prod","detail":"…"}   presence (docs/scene.md)
 ///
@@ -121,7 +121,12 @@ enum TankProtocol {
             return nil
         }
         if let gauge = text(m["gauge"], max: 40) {
-            guard let v = (m["value"] as? NSNumber)?.floatValue, v.isFinite else { return "gauge without a numeric \"value\"" }
+            // "value": null (or "state": "end") takes it away
+            if m["value"] is NSNull || (text(m["state"]).map(State.isEnd) ?? false) {
+                tank.removeGauge(source: source, name: gauge)
+                return nil
+            }
+            guard let v = (m["value"] as? NSNumber)?.floatValue, v.isFinite else { return "gauge without a numeric \"value\" (null removes it)" }
             tank.gauge(source: source, name: gauge, value: v)
             return nil
         }

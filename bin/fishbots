@@ -4,7 +4,7 @@
 #   fishbots state <source> <entity> <state> [label]   states: born busy idle waiting ok alert error done end
 #   fishbots tool  <source> <entity> <name>            activity pulse (a short note)
 #   fishbots event <source> <name> [label]             food in the tank (e.g. deploy, commit)
-#   fishbots gauge <source> <name> <value 0..1>        e.g. disk 0.87
+#   fishbots gauge <source> <name> <value 0..1|end>    e.g. disk 0.87 ("end" removes it)
 #   fishbots effect <source> <name> [label]            e.g. fireworks, lightning, quake, school (docs/scene.md)
 #   fishbots presence <source> <id> <kind> <state> [label] [detail]   a creature or object (docs/scene.md)
 #   fishbots presence <source> <id> end                takes it out
@@ -27,7 +27,8 @@ case "$cmd" in
   event) [ $# -ge 2 ] || { echo "usage: fishbots event <source> <name> [label]" >&2; exit 2; }
          post "{\"source\":\"$(esc "$1")\",\"event\":\"$(esc "$2")\",\"label\":\"$(esc "${3:-}")\"}" ;;
   gauge) [ $# -ge 3 ] || { echo "usage: fishbots gauge <source> <name> <value>" >&2; exit 2; }
-         post "{\"source\":\"$(esc "$1")\",\"gauge\":\"$(esc "$2")\",\"value\":$3}" ;;
+         v="$3"; [ "$v" = "end" ] && v=null
+         post "{\"source\":\"$(esc "$1")\",\"gauge\":\"$(esc "$2")\",\"value\":$v}" ;;
   effect) [ $# -ge 2 ] || { echo "usage: fishbots effect <source> <name> [label]" >&2; exit 2; }
          post "{\"source\":\"$(esc "$1")\",\"effect\":\"$(esc "$2")\",\"label\":\"$(esc "${3:-}")\"}" ;;
   presence)
