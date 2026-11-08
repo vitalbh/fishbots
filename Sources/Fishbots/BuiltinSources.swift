@@ -58,7 +58,56 @@ final class Demo {
             if let f = tank.fish(source: "demo", entity: s.id) { f.whereabouts = sampleWhereabouts[i % sampleWhereabouts.count]; Providers.refresh(f); f.sub = Whereabouts.terminalName(sampleWhereabouts[i % sampleWhereabouts.count]["term"] ?? "ClaudeCode") }
         }
         nextDeploy = now + 20
+        // the scene too (docs/scene.md): presences that change state, and a "moment" now and then
+        let t = tank
+        for (id, kind, state, label, detail, x) in [
+            ("prod", "helm", "ok", "prod", "312 pods ok", 0.08), ("staging", "helm", "busy", "staging", "Flux reconciliando", 0.92),
+            ("issue", "bottle", "waiting", "TypeError", "checkout · 12 eventos", 0.62),
+            ("deploy", "hourglass", "busy", "deploy", "faltam 4 min", 0.45), ("site", "flag", "ok", "meu-site", "99,98% · 120 ms", 0.78),
+        ] as [(String, String, String, String, String, Double)] {
+            _ = t.scene.upsert(t, source: "demo", id: id, kind: kind, state: State(rawValue: state), label: label, detail: detail,
+                               link: nil, value: kind == "hourglass" ? 1 : nil, color: nil, x: Float(x))
+        }
+        nextMoment = now + 12
+        moment = 0
         timer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in self?.step() }
+    }
+
+    private var nextMoment: Double = 0
+    private var moment = 0
+    private var endShark: Double = 0
+    private var endRain: Double = 0
+
+    /// A moment of the scene, in turns: a shark, a rain shower, fireworks, a school, lightning, a shooting star;
+    /// and the presences change state.
+    private func sceneMoment(_ now: Double) {
+        let t = tank
+        switch moment % 6 {
+        case 0:
+            _ = t.scene.upsert(t, source: "demo", id: "shark", kind: "shark", state: .error, label: "prod",
+                               detail: "3 pods em CrashLoop", link: nil, value: nil, color: nil, x: nil)
+            _ = t.scene.upsert(t, source: "demo", id: "prod", kind: nil, state: .error, label: nil, detail: "3 pods em CrashLoop",
+                               link: nil, value: nil, color: nil, x: nil)
+            endShark = now + 18
+        case 1:
+            t.gauge(source: "demo", name: "rain", value: 0.8)
+            t.gauge(source: "demo", name: "waves", value: 0.7)
+            endRain = now + 16
+        case 2: _ = t.scene.effect("fireworks", t, source: "demo", label: "deploy meu-site", x: 0.5, y: nil, color: nil)
+        case 3:
+            _ = t.scene.effect("school", t, source: "demo", label: nil, x: nil, y: nil, color: nil)
+            _ = t.scene.upsert(t, source: "demo", id: "staging", kind: nil, state: .alert, label: nil, detail: "2 CrashLoop",
+                               link: nil, value: nil, color: nil, x: nil)
+        case 4:
+            _ = t.scene.effect("lightning", t, source: "demo", label: "pico de erros", x: nil, y: nil, color: nil)
+            _ = t.scene.upsert(t, source: "demo", id: "staging", kind: nil, state: .busy, label: nil, detail: "Flux reconciliando",
+                               link: nil, value: nil, color: nil, x: nil)
+        default:
+            _ = t.scene.effect("shooting-star", t, source: "demo", label: nil, x: nil, y: nil, color: nil)
+            _ = t.scene.upsert(t, source: "demo", id: "issue", kind: nil, state: .waiting, label: nil, detail: "checkout · 12 eventos",
+                               link: nil, value: nil, color: nil, x: nil)
+        }
+        moment += 1
     }
 
     func turnOff() {
@@ -68,6 +117,11 @@ final class Demo {
         timer = nil
         for s in sessions { tank.remove(source: "demo", entity: s.id) }
         sessions = []
+        for p in tank.scene.presences where p.source == "demo" {
+            tank.scene.remove(source: "demo", id: String(p.id.dropFirst("demo:".count)), party: false, tank)
+        }
+        tank.removeGauge(source: "demo", name: "rain")
+        tank.removeGauge(source: "demo", name: "waves")
     }
 
     private func step() {
@@ -96,6 +150,26 @@ final class Demo {
                 tank.upsert(source: "demo", entity: s.id, state: new, label: s.label)
             }
             sessions[i] = s
+        }
+        // the scene's moments, the hourglass running down, the shark leaving, the rain stopping
+        if now > nextMoment { nextMoment = now + .random(in: 20...35); sceneMoment(now) }
+        if let h = tank.scene.presence(source: "demo", id: "deploy") {
+            let v = max(0, (h.value ?? 1) - 0.35 / 240)
+            let left = Int((v * 4 * 60).rounded())
+            _ = tank.scene.upsert(tank, source: "demo", id: "deploy", kind: nil, state: v > 0 ? .busy : .done, label: nil,
+                                  detail: v > 0 ? "faltam \(left / 60):\(String(format: "%02d", left % 60))" : "no ar",
+                                  link: nil, value: v > 0 ? v : 1, color: nil, x: nil)
+        }
+        if endShark > 0 && now > endShark {
+            endShark = 0
+            tank.scene.remove(source: "demo", id: "shark", party: false, tank)
+            _ = tank.scene.upsert(tank, source: "demo", id: "prod", kind: nil, state: .ok, label: nil, detail: "312 pods ok",
+                                  link: nil, value: nil, color: nil, x: nil)
+        }
+        if endRain > 0 && now > endRain {
+            endRain = 0
+            tank.removeGauge(source: "demo", name: "rain")
+            tank.removeGauge(source: "demo", name: "waves")
         }
         if now > nextDeploy {
             nextDeploy = now + .random(in: 25...45)
