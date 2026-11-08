@@ -309,7 +309,9 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             v.append(b)
         }
         if request == nil && reply == nil {
-            let hint = tr(f.link != nil ? "clique: abrir  ·  botão direito: menu" : "clique: ir até lá  ·  botão direito: menu")
+            let hint = keyboardHint
+                ? tr("Tab: próximo  ·  ↩ ir  ·  R ouvir  ·  M falar  ·  E escrever  ·  Esc fechar")
+                : tr(f.link != nil ? "clique: abrir  ·  botão direito: menu" : "clique: ir até lá  ·  botão direito: menu")
             v.append(text(hint, 10, color: .tertiaryLabelColor))
         }
 
@@ -391,6 +393,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             ed.scrollRangeToVisible(NSRange(location: n, length: 0))
         }
     }
+
+    /// Opened from the keyboard (Tab): the hint shows the keys instead of the clicks.
+    var keyboardHint = false
+
+    /// Puts the cursor in the reply field (E, from the keyboard).
+    func focusReply() { cursorAtEnd() }
 
     /// Starts the microphone (the global shortcut "reply by voice").
     func startDictation() {

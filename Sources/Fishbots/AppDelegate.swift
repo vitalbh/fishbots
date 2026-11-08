@@ -32,6 +32,13 @@ final class TankView: MTKView {
         (hits?(p) == true ? NSCursor.pointingHand : NSCursor.arrow).set()
     }
     override func keyDown(with event: NSEvent) {
+        // Tab / ⇧Tab, Return and Esc: moving through who needs you (see AppDelegate.nav)
+        switch Int(event.keyCode) {
+        case 48: onKey?(event.modifierFlags.contains(.shift) ? "⇤" : "⇥"); return
+        case 36, 76: onKey?("↩"); return
+        case 53: onKey?("⎋"); return
+        default: break
+        }
         if let c = event.charactersIgnoringModifiers?.lowercased() { onKey?(c) } else { super.keyDown(with: event) }
     }
     // a click counts on release, so it can be told from a drag; a double click knocks on the glass
@@ -315,6 +322,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// Reads aloud the question (or the last reply) of whoever has waited longest.
     @objc func readLongestWaiting() {
         guard let f = longestWaiting else { Speaker.shared.speak(tr("ninguém esperando")); return }
+        read(f)
+    }
+
+    /// Reads a fish's question (or its last reply) aloud; again stops it.
+    private func read(_ f: Fish) {
         if Speaker.shared.speaking { Speaker.shared.stop(); return }
         let name = f.nickname ?? f.displayTitle ?? f.label
         if let q = f.asked { Speaker.shared.speak(tr("%@ pergunta: %@", name, q)) }
@@ -938,6 +950,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }()
         // writing a reply: the card stays open until sending or clicking outside
         if (hoverCard?.contentViewController as? FishCard)?.typing == true { return }
+        // chosen with Tab: stays open until Esc, or until the mouse rests on another fish
+        if let pick = keyboardPick {
+            if let id = hoverId, id != pick, now.timeIntervalSince(hoverSince) > 0.5 { keyboardPick = nil }
+            else if hoverCardId == pick {
+                if let pop = hoverCard, now.timeIntervalSince(cardCheckedAt) > 1, let f = tank.fish.first(where: { $0.id == pick }) {
+                    cardCheckedAt = now
+                    let a = signature(f)
+                    if a != cardSignature { cardSignature = a; let c = cardContent(f); c.keyboardHint = true; pop.contentViewController = c }
+                }
+                return
+            } else { keyboardPick = nil }
+        }
         // card open: once a second, if something changed in the session, rebuild the content in the same bubble
         if let pop = hoverCard, let id = hoverCardId, now.timeIntervalSince(cardCheckedAt) > 1,
            let f = tank.fish.first(where: { $0.id == id }) {
@@ -966,13 +990,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
          "\(f.finished.count)", f.compactingSince == nil ? "" : "c"].joined(separator: "|")
     }
 
-    private func showCard(_ f: Fish) {
+    private func showCard(_ f: Fish, keyboard: Bool = false) {
         closeCard()
         let pop = NSPopover()
         pop.behavior = .applicationDefined
         pop.animates = false
         pop.appearance = NSAppearance(named: .darkAqua)   // dark glass (see FishCard.glass)
-        pop.contentViewController = cardContent(f)
+        let content = cardContent(f)
+        content.keyboardHint = keyboard
+        pop.contentViewController = content
         cardSignature = signature(f)
         cardCheckedAt = Date()
         let r = NSRect(x: CGFloat(f.pos.x) - f.size.cg, y: CGFloat(f.pos.y) - f.size.cg * 0.6, width: f.size.cg * 2, height: f.size.cg * 1.2)
@@ -1364,7 +1390,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     // MARK: - keys and menu
 
+    // MARK: - keyboard: moving through who needs you
+
+    /// The fish chosen with Tab (its card stays open until Esc or the mouse goes to another fish).
+    private var keyboardPick: String?
+
+    /// Who needs you, in order of arrival: waiting (questions, permission requests), alerts and errors.
+    private var needingYou: [Fish] {
+        tank.fish.filter { !$0.decor && !$0.leaving && ([.waiting, .error, .alert].contains($0.state) || permissions.request(ofFish: $0.id) != nil) }
+            .sorted { $0.since < $1.since }
+    }
+
+    private func pick(_ f: Fish) {
+        keyboardPick = f.id
+        hoverId = nil
+        showCard(f, keyboard: true)
+        f.glow = max(f.glow, 0.6)
+        tank.ring(at: f.pos, color: [1, 0.9, 0.5], size: f.size * 0.5, grow: 110, life: 0.6)
+    }
+
+    /// Tab / ⇧Tab, Return, Esc and the card's letters (R ouvir, M falar, E escrever, A permitir, N negar).
+    /// Returns false when the key isn't about the keyboard pick (then it does what it always did).
+    private func nav(_ k: String) -> Bool {
+        let list = needingYou
+        let current = keyboardPick.flatMap { id in tank.fish.first { $0.id == id && !$0.leaving } }
+        switch k {
+        case "⇥", "⇤":
+            guard !list.isEmpty else { keyboardPick = nil; closeCard(); tank.notice = (tr("✓ ninguém esperando"), tank.time); return true }
+            let i = current.flatMap { c in list.firstIndex { $0 === c } }
+            let next = i.map { (k == "⇥" ? $0 + 1 : $0 - 1 + list.count) % list.count } ?? (k == "⇥" ? 0 : list.count - 1)
+            pick(list[next])
+            return true
+        case "⎋":
+            guard keyboardPick != nil || hoverCard != nil else { return false }
+            keyboardPick = nil
+            closeCard()
+            return true
+        default: break
+        }
+        guard let f = current else { return false }
+        switch k {
+        case "↩":
+            closeCard(); keyboardPick = nil
+            if !Whereabouts.go(f) { tank.notice = (tr("%@: não sei onde fica", f.label), tank.time) }
+        case "r": read(f)
+        case "m":
+            guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return true }
+            (hoverCard?.contentViewController as? FishCard)?.startDictation()
+        case "e":
+            guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return true }
+            (hoverCard?.contentViewController as? FishCard)?.focusReply()
+        case "a", "n":
+            guard let p = permissions.request(ofFish: f.id) else { return false }
+            closeCard(); keyboardPick = nil
+            decide(p.id, k == "a" ? "allow" : "deny")
+        default: return false
+        }
+        return true
+    }
+
     private func key(_ k: String) {
+        if nav(k) { return }
         switch k {
         case "d": toggleDemo()
         case "m": toggleMute()

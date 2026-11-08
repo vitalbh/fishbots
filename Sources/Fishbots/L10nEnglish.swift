@@ -173,6 +173,7 @@ let english: [String: String] = [
     "Por volta das %@": "Around %@",
     "Ir para quem espera há mais tempo": "Go to whoever has waited longest",
     "Atalhos": "Shortcuts",
+    "Tab: próximo  ·  ↩ ir  ·  R ouvir  ·  M falar  ·  E escrever  ·  Esc fechar": "Tab: next  ·  ↩ go  ·  R hear  ·  M speak  ·  E write  ·  Esc close",
     "Ouvir a pergunta de quem espera": "Hear the question of whoever is waiting",
     "Responder falando (abre o microfone)": "Reply by voice (opens the microphone)",
     "ninguém esperando": "nobody waiting",
