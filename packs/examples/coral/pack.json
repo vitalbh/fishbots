@@ -1,0 +1,33 @@
+{
+  "id": "coral",
+  "name": "Recife de coral",
+  "themes": [
+    {
+      "id": "coral-reef",
+      "name": "Recife de coral",
+      "names": { "en": "Coral reef" },
+      "visualizer": "plankton",
+      "music": "tide",
+      "fauna": ["crab", "turtle", "starfish", "snail"],
+      "water": {
+        "deep": "#04263a", "shallow": "#1f8aa6", "rays": "#a8e6f0", "raysStrength": 0.32,
+        "caustics": "#e0fbff", "causticsStrength": 0.1, "surface": "#5cc4d6", "murk": "#3a3520"
+      },
+      "weeds": { "count": 12, "farCount": 14, "far": "#3a4a6a", "low": "#8a2f4a", "high": "#ff8a7a" },
+      "sand": { "dark": "#b8a27a", "light": "#f2e6c4" }
+    }
+  ],
+  "chords": { "Dm9": [2, 5, 9, 0, 4], "Fmaj9": [5, 9, 0, 4, 7] },
+  "progressions": { "Tide": ["Cmaj7", "Dm9", "Fmaj9", "Cmaj7"] },
+  "styles": [
+    {
+      "id": "tide", "name": "maré", "bpm": [58, 70], "progressions": ["Tide", "Dreamy"], "scale": "major",
+      "lead": ["kalimba", "flute"], "accomp": "arpeggio", "accompTimbre": ["soft"],
+      "notesPerBar": [2, 3], "swing": [0, 0.1], "keys": [0, 2, 5, 7], "energy": 0.3, "rest": 0.4,
+      "visualizer": "plankton"
+    }
+  ],
+  "fish": [
+    { "id": "clownfish", "name": "peixe-palhaço", "metal": "clownfish.metal", "function": "draw_clownfish" }
+  ]
+}

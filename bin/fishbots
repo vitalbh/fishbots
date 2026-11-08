@@ -1,0 +1,43 @@
+#!/bin/sh
+# fishbots: talks to the running Fishbots (127.0.0.1, port FISHBOTS_PORT or 7777). bin/aquario is the old name.
+#
+#   fishbots state <source> <entity> <state> [label]   states: born busy idle waiting ok alert error done end
+#   fishbots tool  <source> <entity> <name>            activity pulse (a short note)
+#   fishbots event <source> <name> [label]             food in the tank (e.g. deploy, commit)
+#   fishbots gauge <source> <name> <value 0..1>        e.g. disk 0.87
+#   fishbots effect <source> <name> [label]            e.g. fireworks, lightning, quake, school (docs/scene.md)
+#   fishbots presence <source> <id> <kind> <state> [label] [detail]   a creature or object (docs/scene.md)
+#   fishbots presence <source> <id> end                takes it out
+#   fishbots show                                      current state as JSON
+URL="http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}"
+
+esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+post() { curl -s -m 2 -H 'Expect:' -H 'Content-Type: application/json' --data-binary "$1" "$URL/event" || { echo "fishbots: is the app running?" >&2; exit 1; }; echo; }
+
+cmd="$1"; [ $# -gt 0 ] && shift
+# the original Portuguese commands still work
+case "$cmd" in
+  estado) cmd=state ;; ferramenta) cmd=tool ;; evento) cmd=event ;; medidor) cmd=gauge ;; ver) cmd=show ;;
+esac
+case "$cmd" in
+  state) [ $# -ge 3 ] || { echo "usage: fishbots state <source> <entity> <state> [label]" >&2; exit 2; }
+         post "{\"source\":\"$(esc "$1")\",\"entity\":\"$(esc "$2")\",\"state\":\"$(esc "$3")\",\"label\":\"$(esc "${4:-}")\"}" ;;
+  tool)  [ $# -ge 3 ] || { echo "usage: fishbots tool <source> <entity> <name>" >&2; exit 2; }
+         post "{\"source\":\"$(esc "$1")\",\"entity\":\"$(esc "$2")\",\"tool\":\"$(esc "$3")\"}" ;;
+  event) [ $# -ge 2 ] || { echo "usage: fishbots event <source> <name> [label]" >&2; exit 2; }
+         post "{\"source\":\"$(esc "$1")\",\"event\":\"$(esc "$2")\",\"label\":\"$(esc "${3:-}")\"}" ;;
+  gauge) [ $# -ge 3 ] || { echo "usage: fishbots gauge <source> <name> <value>" >&2; exit 2; }
+         post "{\"source\":\"$(esc "$1")\",\"gauge\":\"$(esc "$2")\",\"value\":$3}" ;;
+  effect) [ $# -ge 2 ] || { echo "usage: fishbots effect <source> <name> [label]" >&2; exit 2; }
+         post "{\"source\":\"$(esc "$1")\",\"effect\":\"$(esc "$2")\",\"label\":\"$(esc "${3:-}")\"}" ;;
+  presence)
+         if [ "$3" = "end" ]; then post "{\"source\":\"$(esc "$1")\",\"presence\":\"$(esc "$2")\",\"state\":\"end\"}"
+         else
+           [ $# -ge 4 ] || { echo "usage: fishbots presence <source> <id> <kind> <state> [label] [detail]  |  <source> <id> end" >&2; exit 2; }
+           d=""; [ -n "${6:-}" ] && d=",\"detail\":\"$(esc "$6")\""
+           l=""; [ -n "${5:-}" ] && l=",\"label\":\"$(esc "$5")\""
+           post "{\"source\":\"$(esc "$1")\",\"presence\":\"$(esc "$2")\",\"kind\":\"$(esc "$3")\",\"state\":\"$(esc "$4")\"$l$d}"
+         fi ;;
+  show)  curl -s -m 2 "$URL/state" || { echo "fishbots: is the app running?" >&2; exit 1; } ;;
+  *)     sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

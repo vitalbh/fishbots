@@ -1,0 +1,1503 @@
+import Foundation
+import QuartzCore
+import simd
+
+/// Closed vocabulary of protocol states (+ "end", which takes the entity out of the tank).
+enum State: String, CaseIterable {
+    case born, busy, idle, waiting, ok, alert, error, done
+
+    /// The original Portuguese names, still accepted on the wire and in saved settings.
+    static let legacy: [String: State] = [
+        "nasceu": .born, "ocupado": .busy, "ocioso": .idle, "esperando": .waiting,
+        "alerta": .alert, "erro": .error, "terminou": .done,
+    ]
+
+    /// Parses a state from the protocol: the current name or the legacy one.
+    init?(wire s: String) {
+        guard let v = State(rawValue: s) ?? State.legacy[s] else { return nil }
+        self = v
+    }
+
+    /// "end" (or the legacy "fim") takes the entity out of the tank.
+    static func isEnd(_ s: String) -> Bool { s == "end" || s == "fim" }
+
+    var label: String {
+        switch self {
+        case .born: return tr("chegou")
+        case .busy: return tr("trabalhando")
+        case .idle: return tr("parado")
+        case .waiting: return tr("✋ esperando você")
+        case .ok: return "ok"
+        case .alert: return tr("⚠︎ alerta")
+        case .error: return tr("✗ erro")
+        case .done: return tr("✓ terminou")
+        }
+    }
+}
+
+/// What the fish is doing because of a tool.
+enum Action: Equatable {
+    case nibble(SIMD2<Float>)   // Edit/Write: nibbles the seaweed
+    case bubbles                    // Bash: puff of bubbles
+    case forage                     // Read/Grep/Glob: forages in the sand
+    case peek                    // WebFetch/WebSearch: peeks at the surface
+    case mail                   // MCP: goes to meet the seahorse
+
+    func sameKind(_ o: Action) -> Bool {
+        switch (self, o) {
+        case (.nibble, .nibble), (.bubbles, .bubbles), (.forage, .forage), (.peek, .peek), (.mail, .mail): return true
+        default: return false
+        }
+    }
+}
+
+/// What a source's fish are like. Session providers describe their sources (Providers.swift); a source nobody
+/// describes gets a plain fish. The screen saver gets these values from the app's /state instead.
+struct SourceProfile {
+    /// Agent sessions earn pearls, sleep, animate with tools and can be replied to.
+    var isAgent = false
+    var timbre: Timbre?
+    /// Show the conversation name from the log before the live terminal title.
+    var prefersLogTitle = false
+    /// The fish kind's id (see FishKinds), which may depend on where the session runs.
+    var fishKind: (Fish) -> String = { _ in "oval" }
+    /// A singer (the music that's playing): while busy it dances near the top and lets out notes; idle, it fades and sinks.
+    var sings = false
+
+    func apply(to f: Fish) {
+        f.isAgent = isAgent
+        f.sings = sings
+        f.prefersLogTitle = prefersLogTitle
+        f.species = FishKinds.index(of: FishKinds.override(for: f.projectKey) ?? fishKind(f))
+    }
+}
+
+final class Fish {
+    let id: String
+    let source: String
+    var label: String
+    var state: State = .born
+    var since: Double
+    var seen: Double
+    var pos: SIMD2<Float>
+    var vel: SIMD2<Float> = .zero
+    let baseSize: Float
+    var scale: Float = 1
+    let color: SIMD3<Float>
+    let stripes: Bool
+    var motif: Int
+    let timbre: Timbre
+    let phase: Int
+    let decor: Bool
+    var glow: Float = 0
+    var tail: Float = 0
+    var wander: SIMD2<Float> = .zero
+    var wanderAt: Double = 0
+    var leaving = false
+    var intro = true
+    var resolve = false
+    var ticks: [Timbre] = []
+    var tickIdx = 0
+    var lastTick = -1000
+    /// Changed state and hasn't played the cue for it yet.
+    var changed = false
+    var reminder: Double = 0
+    var step = 0
+    var tool: String?
+    var shake: Float = 0
+    /// Where the thing is (terminal, Rex session…), so a click can take you there.
+    var whereabouts: [String: String] = [:]
+    /// Link to open on click (e.g. the build page).
+    var link: String?
+    /// Second line of the label: session, tab or terminal name.
+    var sub: String?
+    /// Terminal title (Claude Code puts the conversation topic there).
+    var title: String?
+    /// From Claude's transcript: conversation title and branch (works for any terminal).
+    var logTitle: String?
+    var branch: String?
+    var transcriptReadAt: Double = 0
+    /// Fry of a subagent: follows its parent.
+    weak var parent: Fish?
+    /// Leaving with a party (merged PR): rises and exits through the surface.
+    var party = false
+    /// A lingering error has already notified (urgent).
+    var escalated = false
+    /// Little spin when it recovers (1 → 0).
+    var spin: Float = 0
+    /// Tools from the last minute (pace).
+    var toolTimes: [Double] = []
+    var inkAt: Double = 0
+    /// Context used by the session (0…1 of the limit), read from the transcript; the fish fattens with it.
+    var context: Float?
+    var fat: Float = 0
+    var action: Action?
+    var actionSince: Double = 0
+    var actionUntil: Double = 0
+    var actionEffectAt: Double = 0
+    var actionSide: Float = 1
+    /// For the dots and the hover card.
+    let createdAt = Date()
+    var history: [(when: Date, name: String)] = []      // latest tools
+    var finished: [(when: Date, title: String)] = []   // finished tasks
+    var lastError: Date?
+    /// Depth (0 near … 1 far): far away is smaller, bluer and behind.
+    var depth: Float = 0
+    /// Pattern (0 plain, 1 stripes, 2 spots, 3 gradient, 4 scales, 5 mask) and cut (0 normal, 1 veil tail,
+    /// 2 tall dorsal, 3 long fins): fixed per project, so each one has its own look.
+    var pattern = 0
+    var cut = 0
+    // animations
+    var jumpPhase = 0                 // 0 none, 1 rising, 2 in the air
+    var jumpT0: Double = 0
+    var jumpX0: Float = 0
+    var jumpDir: Float = 1
+    var workingSince: Double?
+    var toolSinceStart = 0
+    var fearUntil: Double = 0
+    var fearFrom: SIMD2<Float> = .zero
+    var awakeUntil: Double = 0
+    var chattingWith: String?
+    var chatUntil: Double = 0
+    var ringAt: Double = 0
+    /// What just happened, for the minimal label to show for a few seconds.
+    var moment: (text: String, until: Double)?
+    /// The agent's last reply (clean text, no markdown), for the card.
+    var lastReply: String?
+    /// The reply ended with a question for you (the final part).
+    var asked: String?
+    /// TodoWrite: the list becomes pebbles in the sand (the done ones glow in the fish's color).
+    var todos: (total: Int, done: Int)?
+    var todoU: Float?
+    /// Compacting the conversation (from PreCompact until the compact SessionStart).
+    var compactingSince: Double?
+    var zzzAt: Double = 0
+    /// Which way it faces, -1…1: it doesn't flip at once, it turns through 0 (squeezed sideways, as if seen mid-turn).
+    var facingX: Float = 1
+    /// Smoothed tilt (nose up/down), so turns and climbs bend instead of snapping.
+    var lean: Float = 0
+    /// Speed in the last frame (for the push of the tail when it accelerates).
+    var lastSpeed: Float = 0
+    /// The fish kind, as an index into `FishKinds.all` (that's what the shader gets). Set from the source's profile
+    /// (see `SourceProfile`) or the project's choice in the fish menu.
+    var species = 0
+    var kindID: String { FishKinds.id(at: species) }
+
+    /// 0 for a project's first session, 1, 2… for the others (same motif, different hue and size).
+    var variant = 0
+
+    /// Nickname you gave the fish (stored in the app, per session).
+    var nickname: String? {
+        get { (UserDefaults.standard.dictionary(forKey: "nicknames") as? [String: String])?[id] }
+        set {
+            var d = UserDefaults.standard.dictionary(forKey: "nicknames") as? [String: String] ?? [:]
+            d[id] = newValue.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
+            UserDefaults.standard.set(d, forKey: "nicknames")
+        }
+    }
+
+    /// The title to show: the conversation name from the log (e.g. Codex's thread_name) or the live terminal title,
+    /// whichever the source prefers.
+    var displayTitle: String? { fixedTitle ?? (prefersLogTitle ? (logTitle ?? title) : (title ?? logTitle)) }
+    /// The conversation file (Claude Code, Codex), to remember the session across restarts.
+    var transcriptPath: String?
+    var prefersLogTitle = false
+    /// Name given to the conversation (Claude's /rename, the tank's rename): takes precedence over automatic titles.
+    var fixedTitle: String?
+
+    /// Agent session (Claude Code, Codex, demo): earns pearls, sleeps, animates with tools. Set from the source's profile.
+    var isAgent = false
+    /// The music fish (see SourceProfile.sings).
+    var sings = false
+    var noteAt: Double = 0
+
+    /// Sound identity: the motif is stored under this key.
+    var projectKey: String { "\(source):\(label)" }
+
+    init(id: String, source: String, label: String, pos: SIMD2<Float>, size: Float, color: SIMD3<Float>,
+         stripes: Bool, motif: Int, timbre: Timbre, phase: Int, decor: Bool, now: Double) {
+        self.id = id; self.source = source; self.label = label; self.pos = pos; self.baseSize = size
+        self.color = color; self.stripes = stripes; self.motif = motif; self.timbre = timbre
+        self.phase = phase; self.decor = decor; self.since = now; self.seen = now
+    }
+
+    var size: Float { baseSize * scale }
+}
+
+struct Particle {
+    var pos: SIMD2<Float>
+    var vel: SIMD2<Float>
+    var life: Float
+    var maxLife: Float
+    var size: Float
+    var grow: Float
+    var kind: Float   // 1 bubble, 2 ring, 3 food, 4 sparkle, 24 music note
+    var color: SIMD4<Float>
+}
+
+/// The world: fish, particles and gauges. Everything runs on the main thread.
+final class Tank {
+    var size: SIMD2<Float> = [960, 600]
+    private(set) var fish: [Fish] = []
+    private(set) var particles: [Particle] = []
+    private(set) var gauges: [String: Float] = [:]
+    var light: Float = 1
+    var turbidity: Float = 0
+    var jellyGlow: Float = 0
+    var pendingArp = 0
+    /// Called when a fish changes state (or arrives): (fish, previous state).
+    /// Describes each source's fish (set by the app from the session providers).
+    var profile: (String) -> SourceProfile = { _ in SourceProfile() }
+    var onState: ((Fish, State?) -> Void)?
+    /// Called when food drops (event or click), with the location.
+    var onEvent: ((SIMD2<Float>) -> Void)?
+    /// Merged PR / fry leaving with a party (for the journal).
+    var onParty: ((Fish) -> Void)?
+    /// Splash at the surface (jump): for the visualizer to make the wave.
+    var onSplash: ((Float) -> Void)?
+    /// Parallax: where you "look" (-1…1), smoothed.
+    private(set) var gaze: SIMD2<Float> = .zero
+    /// Where the mouse is (the curious ones come close) and when it last moved.
+    var cursor: SIMD2<Float>?
+    var cursorAt: Double = 0
+    private var cursorRestingAt: Double = 0
+    /// Night-time tag: who chases, who runs, until when.
+    private var game: (chaser: String, runner: String, until: Double)?
+    private var nextGame: Double = 0
+    private var nextChat: Double = 0
+    /// Ambient creatures: crabs, turtle, snail, starfish, lanternfish and the whale.
+    let fauna = Fauna()
+    /// What plugins put in the scene: presences (creatures and objects with a state and text) and effects. See docs/scene.md.
+    let scene = Scene()
+    /// The fish under the mouse (or with its card open): swims in a circle in place, so it doesn't escape the hover.
+    var focused: String? {
+        didSet { if focused != oldValue, let f = fish.first(where: { $0.id == focused }) { focusCenter = f.pos } }
+    }
+    private var focusCenter: SIMD2<Float> = .zero
+    /// Summary parade: the highlighted fish comes to the front of the glass.
+    var highlighted: String?
+    private var jellyPos: SIMD2<Float> = [700, 380]
+    private var jellyPhase: Float = 0
+    private var later: [(Double, () -> Void)] = []
+    private var bubblerAt: Double = 0
+    private(set) var time: Double = CACurrentMediaTime()
+
+    /// Pearls of the day: each finished task leaves one on the bottom (they vanish when the day changes).
+    struct Pearl: Codable {
+        var u: Float
+        var color: [Float]
+        var title: String
+        var project: String
+        var hour: Double
+    }
+    private(set) var pearls: [Pearl] = []
+    private var pearlsDay = ""
+    private var bornAt: [Double] = []        // new-pearl glow (this run only)
+    var keepPearls = true                   // the screensaver doesn't save
+    /// For testing: FISHBOTS_FAST=1 shortens the timings (sleeping, fogged glass, lingering error).
+    static let scale: Double = Env.value("FAST") == "1" || ProcessInfo.processInfo.environment["AQUARIO_RAPIDO"] == "1" ? 0.04 : 1
+    /// Mail seahorses (MCP tools): bring a little letter in the server's color.
+    struct Mail {
+        var pos: SIMD2<Float>
+        var goal: String
+        var color: SIMD3<Float>
+        var side: Float
+        var stage = 0           // 0 going, 1 meeting, 2 returning
+        var since: Double
+        var letter = true
+        var phase: Float = 0
+    }
+    private(set) var mails: [Mail] = []
+    /// Current (high CPU), in px/s.
+    private(set) var current: Float = 0
+
+    init() {
+        loadPearls()
+        // school of decorative neons (no sound, no label)
+        for i in 0..<7 {
+            let f = Fish(id: "decor:\(i)", source: "decor", label: "", pos: [Float.random(in: 200...700), Float.random(in: 250...450)],
+                         size: 9, color: [0.35, 0.75, 1.0], stripes: true, motif: 0, timbre: .pluck, phase: i,
+                         decor: true, now: time)
+            f.state = .idle
+            f.pattern = 1
+            f.depth = Float.random(in: 0.25...0.7)
+            fish.append(f)
+        }
+    }
+
+    /// The mouse moved (or left the tank, with nil).
+    func moveCursor(_ p: SIMD2<Float>?) {
+        if let p, let c = cursor, simd_distance(p, c) > 3 { cursorRestingAt = time }
+        cursor = p
+        cursorAt = time
+    }
+
+    /// Click near (but not on) fish: they get scared and flee. Returns true if it scared anyone.
+    @discardableResult
+    func scare(_ p: SIMD2<Float>) -> Bool {
+        var some = false
+        for f in fish where !f.leaving && simd_distance(f.pos, p) < 150 {
+            f.fearUntil = time + 1.1
+            f.fearFrom = p
+            let d = f.pos - p
+            f.vel += (simd_length(d) > 1 ? simd_normalize(d) : [1, 0]) * 260
+            some = true
+        }
+        if some { burst(at: p, n: 5) }
+        return some
+    }
+
+    func splash(at p: SIMD2<Float>) {
+        onSplash?(p.x)
+        for _ in 0..<10 {
+            particles.append(Particle(pos: p, vel: [Float.random(in: -60...60), Float.random(in: 40...120)], life: 0,
+                                      maxLife: Float.random(in: 0.4...0.7), size: Float.random(in: 3...5), grow: 0, kind: 4,
+                                      color: [0.85, 0.95, 1, 1]))
+        }
+        burst(at: [p.x, p.y - 20], n: 6)
+    }
+
+    // MARK: - Protocol
+
+    func id(_ source: String, _ entity: String) -> String { "\(source):\(entity)" }
+
+    func upsert(source: String, entity: String, state: State, label: String?) {
+        let key = id(source, entity)
+        if let f = fish.first(where: { $0.id == key }) {
+            f.seen = time
+            if let r = label, !r.isEmpty { f.label = r }
+            if f.leaving { f.leaving = false }
+            guard f.state != state else { return }
+            let before = f.state
+            if sleeping(f) {                                          // was sleeping: yawns and stretches
+                f.awakeUntil = time + 1.8
+                particles.append(Particle(pos: f.pos + facing(f) * f.size * 0.9, vel: [0, 18], life: 0, maxLife: 2.5, size: 5, grow: 6,
+                                          kind: 2, color: [0.9, 0.95, 1, 1]))
+            }
+            if state == .busy && before != .busy && f.workingSince == nil { f.workingSince = time; f.toolSinceStart = 0 }
+            f.state = state
+            f.changed = true
+            defer { onState?(f, before) }
+            f.since = time
+            f.escalated = false
+            if state == .error { f.lastError = Date() }
+            if state == .done { f.moment = (tr("✓ terminou"), time + 4) }
+            if state == .done {
+                // big task (over 5 min or many tools): jumps out of the water
+                if let t0 = f.workingSince, f.isAgent, time - t0 > 300 || f.toolSinceStart >= 25 {
+                    after(2.2) { [weak self, weak f] in
+                        guard let self, let f, f.jumpPhase == 0, !f.leaving else { return }
+                        f.jumpPhase = 1
+                        f.jumpDir = f.vel.x >= 0 ? 1 : -1
+                        _ = self
+                    }
+                }
+                f.workingSince = nil
+                f.finished.append((Date(), f.displayTitle ?? f.label))
+                if f.finished.count > 30 { f.finished.removeFirst() }
+                f.resolve = true
+                burst(at: f.pos, n: 3)
+                if f.isAgent || f.source == "test" {
+                    pearl(color: f.color, title: f.displayTitle ?? f.label, project: f.label)
+                }
+            }
+            if state == .error {
+                f.shake = 1
+                if f.kindID == "octopus" { ink(at: f.pos, n: 7, color: [0.06, 0.03, 0.1]) }   // the octopus releases ink
+            }
+            if before == .error && state != .error { f.spin = 1 }                       // recovered: does a little spin
+            if state != .busy { f.tool = nil }
+            if state != .waiting { f.asked = nil }
+            return
+        }
+        let name = (label?.isEmpty == false ? label! : entity)
+        let present = Set(fish.filter { !$0.decor }.map(\.motif))
+        let motif = Motifs.motif(for: "\(source):\(name)", present: present)
+        let h = fnv(name)
+        let variant = fish.filter { !$0.decor && !$0.leaving && $0.source == source && $0.label == name }.map(\.variant).max().map { $0 + 1 } ?? 0
+        let hue = Float(h % 360) / 360
+        // siblings (same project): the hue shifts a bit and the color gets lighter or darker
+        let vh = Float(variant) * 0.07
+        let color = hsv((hue + vh).truncatingRemainder(dividingBy: 1), variant % 2 == 1 ? 0.45 : 0.62, variant == 0 ? 0.95 : 0.85)
+        let profile = self.profile(source)
+        let timbre = profile.timbre ?? ((h >> 12) & 1 == 0 ? .pluck : .bell)
+        let start: SIMD2<Float> = [Float.random(in: size.x * 0.2...size.x * 0.8), size.y + 30]
+        let f = Fish(id: key, source: source, label: name, pos: start, size: Float(30 + (h >> 20) % 12) * (variant == 0 ? 1 : 0.82),
+                     color: color, stripes: (h >> 8) & 1 == 1, motif: motif, timbre: timbre,
+                     phase: fish.filter { !$0.decor }.count, decor: false, now: time)
+        f.vel = [0, -120]
+        f.variant = variant
+        profile.apply(to: f)
+        if state == .busy { f.workingSince = time }      // born already working
+        // sessions stay near (readable); PRs and other sources, a bit further back
+        f.depth = f.isAgent ? Float.random(in: 0...0.15) : Float.random(in: 0.15...0.4)
+        f.pattern = Int((h >> 24) % 6)
+        f.cut = Int((h >> 28) % 4)
+        f.state = state
+        f.intro = true
+        fish.append(f)
+        burst(at: [start.x, size.y - 10], n: 12)
+        onState?(f, nil)
+    }
+
+    func fish(source: String, entity: String) -> Fish? {
+        fish.first { $0.id == id(source, entity) }
+    }
+
+    /// The (non-decorative) fish under the point, nearest first.
+    func fish(at p: SIMD2<Float>) -> Fish? {
+        fish.filter { !$0.decor && !$0.leaving && simd_distance($0.pos, p) < max(26, $0.size * 1.3) }
+            .min { simd_distance($0.pos, p) < simd_distance($1.pos, p) }
+    }
+
+    func remove(source: String, entity: String, party: Bool = false) {
+        guard let f = fish.first(where: { $0.id == id(source, entity) }) else { return }
+        if party && !f.leaving { f.party = true; onEvent?(f.pos); onParty?(f) }
+        f.leaving = true
+        for c in fish where c.parent === f { c.leaving = true }
+    }
+
+    // MARK: subagents
+
+    /// Subagent started: a fry is born that follows the session.
+    func fry(source: String, entity: String) {
+        guard let parent = fish(source: source, entity: entity),
+              fish.filter({ $0.parent === parent && !$0.leaving }).count < 6 else { return }
+        let n = fish.count
+        let c = Fish(id: "\(parent.id)#fry\(n)-\(Int(time * 1000) % 100000)", source: "fry", label: "", pos: parent.pos,
+                     size: max(9, parent.baseSize * 0.36), color: mix(parent.color, [1, 1, 1], t: 0.15), stripes: parent.stripes,
+                     motif: parent.motif, timbre: parent.timbre, phase: 1000 + n, decor: true, now: time)
+        c.parent = parent
+        c.depth = parent.depth
+        c.pattern = parent.pattern
+        c.cut = parent.cut
+        c.state = .busy
+        c.vel = parent.vel
+        fish.append(c)
+        sparkle(at: parent.pos, color: parent.color)
+    }
+
+    /// Subagent finished: the oldest fry rises and leaves.
+    func removeFry(source: String, entity: String) {
+        guard let parent = fish(source: source, entity: entity),
+              let c = fish.first(where: { $0.parent === parent && !$0.leaving }) else { return }
+        c.leaving = true
+        c.party = true
+    }
+
+    // MARK: ink and pearls
+
+    func ink(at p: SIMD2<Float>, n: Int, color: SIMD3<Float>) {
+        for _ in 0..<n {
+            let a = Float.random(in: 0...(2 * .pi))
+            particles.append(Particle(pos: p + SIMD2(cosf(a), sinf(a)) * Float.random(in: 0...14),
+                                      vel: SIMD2(cosf(a), sinf(a)) * Float.random(in: 10...30) + [0, 4], life: 0,
+                                      maxLife: Float.random(in: 6...9), size: Float.random(in: 14...24), grow: Float.random(in: 6...12),
+                                      kind: 10, color: SIMD4(color, 1)))
+        }
+    }
+
+    private static let pearlsKey = "pearls"
+    private static func today() -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: Date())
+    }
+
+    private func loadPearls() {
+        pearlsDay = Self.today()
+        guard let d = UserDefaults.standard.data(forKey: Self.pearlsKey),
+              let saved = try? JSONDecoder().decode([String: [Pearl]].self, from: d) else { return }
+        pearls = saved[pearlsDay] ?? []
+        bornAt = pearls.map { _ in 0 }
+    }
+
+    private func savePearls() {
+        guard keepPearls, let d = try? JSONEncoder().encode([pearlsDay: pearls]) else { return }
+        UserDefaults.standard.set(d, forKey: Self.pearlsKey)
+    }
+
+    func pearl(color: SIMD3<Float>, title: String, project: String) {
+        if Self.today() != pearlsDay { pearls = []; bornAt = []; pearlsDay = Self.today() }
+        guard pearls.count < 80 else { return }
+        // scattered over the sand, away from the battery and the bubbler
+        var u = Float.random(in: 0.16...0.74)
+        for _ in 0..<8 where pearls.contains(where: { abs($0.u - u) < 0.012 }) { u = Float.random(in: 0.16...0.74) }
+        pearls.append(Pearl(u: u, color: [color.x, color.y, color.z], title: title, project: project, hour: Date().timeIntervalSince1970))
+        bornAt.append(time)
+        savePearls()
+    }
+
+    /// The pearls of a period light up one after another.
+    func highlightPearls(since: Date, until: Date) {
+        var k = 0
+        for (i, p) in pearls.enumerated() where p.hour >= since.timeIntervalSince1970 && p.hour <= until.timeIntervalSince1970 {
+            let delay = Double(k) * 0.35
+            k += 1
+            after(delay) { [weak self] in
+                guard let self, i < self.bornAt.count else { return }
+                self.bornAt[i] = self.time
+                self.sparkle(at: self.pearlPos(self.pearls[i]) + [0, 6], color: [1, 0.95, 0.8])
+            }
+        }
+    }
+
+    func pearlPos(_ p: Pearl) -> SIMD2<Float> {
+        let x = clearOfScenery(size.x * p.u)
+        return [x, size.y * sand(x / max(1, size.x)) + 4]
+    }
+
+    /// Music notes rising from a singing fish's head.
+    func notes(from f: Fish, n: Int) {
+        for i in 0..<n {
+            let c = mix(f.color, [1, 1, 1], t: 0.35)
+            particles.append(Particle(pos: f.pos + [Float.random(in: -f.size * 0.4...f.size * 0.4), f.size * 0.5 + Float(i) * 6],
+                                      vel: [0, Float.random(in: 20...30)], life: 0, maxLife: Float.random(in: 2.8...4),
+                                      size: Float.random(in: 11...15), grow: 0, kind: 24, color: SIMD4(c, 1)))
+        }
+    }
+
+    /// The chest under the point (clicking it opens the summary of the last hours).
+    func chest(at p: SIMD2<Float>) -> Bool {
+        guard let s = scenery.first(where: { $0.id == "chest" }) else { return false }
+        let (c, sz) = place(s)
+        return abs(p.x - c.x) < sz * 0.95 && p.y > c.y - sz * 0.75 && p.y < c.y + sz * 0.55
+    }
+
+    /// A spot on the sand moved out of the scenery's way (pearls and pebbles would float in front of a rock or the chest).
+    func clearOfScenery(_ x: Float) -> Float {
+        for s in scenery {
+            let (c, sz) = place(s)
+            let half = sz * 1.35 + 8
+            if abs(x - c.x) < half { return c.x + (x < c.x ? -half : half) }
+        }
+        return x
+    }
+
+    /// The pearl under the point (to show its title).
+    func pearl(at q: SIMD2<Float>) -> Pearl? {
+        pearls.min { simd_distance(pearlPos($0), q) < simd_distance(pearlPos($1), q) }
+            .flatMap { simd_distance(pearlPos($0), q) < 12 ? $0 : nil }
+    }
+
+    func tool(source: String, entity: String, name: String) {
+        guard let f = fish.first(where: { $0.id == id(source, entity) }) else { return }
+        f.tool = name
+        f.seen = time
+        f.toolTimes.append(time)
+        f.history.append((Date(), name))
+        f.moment = (ToolBehaviors.of(name).label(name), time + 4)
+        f.toolSinceStart += 1
+        if f.history.count > 12 { f.history.removeFirst() }
+        startAction(f, name)
+        if f.ticks.count < 6 { f.ticks.append(ToolBehaviors.of(name).timbre) }
+    }
+
+    // MARK: MCP, lists and skills
+
+    func mail(source: String, entity: String, server: String) {
+        guard let f = fish(source: source, entity: entity) else { return }
+        if let i = mails.firstIndex(where: { $0.goal == f.id && $0.stage < 2 }) { mails[i].since = time; return }
+        let side: Float = f.pos.x < size.x / 2 ? -1 : 1
+        let color = hsv(Float(fnv(server) % 360) / 360, 0.55, 1)
+        mails.append(Mail(pos: [side < 0 ? -40 : size.x + 40, f.pos.y + Float.random(in: -30...30)], goal: f.id, color: color,
+                                side: side, since: time))
+        f.action = .mail
+        f.actionSince = time
+        f.actionUntil = time + 8
+    }
+
+    func todos(source: String, entity: String, total: Int, done: Int) {
+        guard let f = fish(source: source, entity: entity) else { return }
+        let before = f.todos?.done ?? 0
+        f.todos = total > 0 ? (total, min(total, done)) : nil
+        if f.todoU == nil { f.todoU = max(0.15, min(0.85, f.pos.x / max(1, size.x))) }
+        if done > before, let u = f.todoU { sparkle(at: [size.x * u, size.y * sand(u) + 10], color: f.color) }
+    }
+
+    /// Skill: a ring of sparkles around the fish.
+    func shine(source: String, entity: String) {
+        guard let f = fish(source: source, entity: entity) else { return }
+        for i in 0..<10 {
+            let a = Float(i) / 10 * 2 * .pi
+            particles.append(Particle(pos: f.pos + SIMD2(cosf(a), sinf(a)) * f.size * 1.1, vel: SIMD2(cosf(a), sinf(a)) * 14 + [0, 6],
+                                      life: 0, maxLife: 1.4, size: 8, grow: 2, kind: 4, color: SIMD4(mix(f.color, [1, 1, 0.85], t: 0.5), 1)))
+        }
+    }
+
+    // MARK: per-tool animation
+
+    /// Scenery on the sand that the fish swim around: rocks, a big shell, a chest (the theme picks which).
+    struct SceneryItem {
+        let id: String           // "rock", "shell", "chest"
+        let kind: Float          // sprite kind (21 rock, 22 shell, 23 chest)
+        let u: Float             // x position, 0…1
+        let scale: Float         // size, as a fraction of the height
+        let color: SIMD3<Float>
+        let seed: Float
+    }
+    static let allScenery: [SceneryItem] = [
+        SceneryItem(id: "rock", kind: 21, u: 0.17, scale: 0.075, color: [0.42, 0.4, 0.36], seed: 0.3),
+        SceneryItem(id: "rock", kind: 21, u: 0.235, scale: 0.042, color: [0.36, 0.38, 0.41], seed: 1.7),
+        SceneryItem(id: "chest", kind: 23, u: 0.335, scale: 0.06, color: [0.5, 0.31, 0.16], seed: 0),
+        SceneryItem(id: "shell", kind: 22, u: 0.66, scale: 0.05, color: [0.98, 0.8, 0.74], seed: 0),
+        SceneryItem(id: "rock", kind: 21, u: 0.8, scale: 0.058, color: [0.4, 0.37, 0.35], seed: 2.9),
+    ]
+    /// The scenery the theme wants (nil: all of it).
+    var sceneryKinds: [String]? = nil
+    var scenery: [SceneryItem] { Self.allScenery.filter { sceneryKinds?.contains($0.id) ?? true } }
+    private var chestBubblesAt: Double = 0
+
+    /// Where an item sits and how much room the fish give it.
+    func place(_ s: SceneryItem) -> (center: SIMD2<Float>, size: Float) {
+        let sz = s.scale * size.y
+        return ([s.u * size.x, size.y * sand(s.u) + sz * 0.3], sz)
+    }
+    /// The stretch of sand an item takes (for the crabs, who turn around instead of walking over it).
+    func sceneryBlocks(_ x: Float) -> Bool {
+        scenery.contains { s in let (c, sz) = place(s); return abs(x - c.x) < sz * 1.25 }
+    }
+
+    /// How many seaweeds the theme draws (the shader uses the same formula for their positions).
+    var weedCount = 9 { didSet { weeds = Self.weeds(weedCount) } }
+    private lazy var weeds = Self.weeds(weedCount)
+
+    /// The shader's seaweed (same formula): x position (0…1) and height (fraction of the screen), rising from y = 0.055.
+    private static func weeds(_ n: Int) -> [(x: Float, h: Float)] { (0..<n).map { k in
+        let fk = Float(k)
+        let fr: (Float) -> Float = { $0 - floorf($0) }
+        return (fr(sinf(fk * 91.7) * 437.1) * 0.9 + 0.05, 0.16 + fr(sinf(fk * 13.1) * 91.3) * 0.28)
+    } }
+
+    private func nearestWeed(_ p: SIMD2<Float>) -> SIMD2<Float> {
+        let pts = weeds.map { a -> SIMD2<Float> in
+            [a.x * size.x, size.y * (0.055 + a.h * Float.random(in: 0.35...0.75))]
+        }
+        return pts.min { simd_distance($0, p) < simd_distance($1, p) } ?? p
+    }
+
+    private func startAction(_ f: Fish, _ name: String) {
+        guard f.isAgent else { return }
+        let new: Action
+        switch ToolBehaviors.of(name).animation {
+        case .nibble: new = .nibble(nearestWeed(f.pos))
+        case .bubbles: new = .bubbles
+        case .forage: new = .forage
+        case .peek: new = .peek
+        case .none: return
+        }
+        // the same tool again only extends; another one only switches after 1.5 s
+        if let a = f.action, time < f.actionUntil, a.sameKind(new) { f.actionUntil = time + (new == .bubbles ? 1.5 : 6); return }
+        if f.action != nil && time < f.actionUntil && time - f.actionSince < 1.5 { return }
+        f.action = new
+        f.actionSince = time
+        f.actionUntil = time + (new == .bubbles ? 1.5 : 6)
+        if case .nibble(let goal) = new { f.actionSide = f.pos.x < goal.x ? -1 : 1 }
+        if new == .bubbles {
+            // puff: the bubbles come out of the mouth one after another
+            for i in 0..<11 {
+                after(Double(i) * 0.05) { [weak self, weak f] in
+                    guard let self, let f else { return }
+                    let mouth = f.pos + self.facing(f) * f.size * 0.95
+                    self.bubble(at: mouth + SIMD2(Float.random(in: -3...3), Float.random(in: -2...4)), size: Float.random(in: 1.6...3.6))
+                }
+            }
+        }
+    }
+
+    /// A tool's short text, for the minimal label.
+    func event(source: String, name: String, label: String?) {
+        let x = Float.random(in: size.x * 0.2...size.x * 0.8)
+        for i in 0..<10 {
+            particles.append(Particle(pos: [x + Float.random(in: -40...40), size.y + Float(i) * 6], vel: [0, -28],
+                                      life: 0, maxLife: 14, size: 3.2, grow: 0, kind: 3,
+                                      color: [0.75, 0.5, 0.28, 1]))
+        }
+        pendingArp += 1
+        notice = (label ?? name, time)
+        noticeIcon = "🍤"
+        onEvent?([x, size.y - 40])
+    }
+
+    /// Last event, to show for a few seconds. Setting it clears the icon; whoever wants one sets `noticeIcon` after.
+    var notice: (String, Double)? { didSet { noticeIcon = nil } }
+    var noticeIcon: String?
+
+    /// Gauge names from older plugins, in Portuguese.
+    private static let legacyGauges = ["disco": "disk", "bateria": "battery", "carregando": "charging"]
+
+    func gauge(source: String, name: String, value: Float) {
+        gauges["\(source):\(Self.legacyGauges[name] ?? name)"] = max(0, min(1, value))
+    }
+
+    func feed(at p: SIMD2<Float>) {
+        for _ in 0..<8 {
+            particles.append(Particle(pos: [p.x + Float.random(in: -25...25), p.y + Float.random(in: -8...8)], vel: [0, -26],
+                                      life: 0, maxLife: 12, size: 3.2, grow: 0, kind: 3,
+                                      color: [0.75, 0.5, 0.28, 1]))
+        }
+        pendingArp += 1
+        onEvent?(p)
+    }
+
+    // MARK: - Visual effects synced with the sound
+
+    func after(_ delay: Double, _ fn: @escaping () -> Void) {
+        later.append((time + max(0, delay), fn))
+        if later.count > 2000 { later.removeFirst(later.count - 2000) }
+    }
+
+    /// For the scene (Scene.swift), which lives in another file.
+    func addParticle(_ p: Particle) { particles.append(p) }
+
+    func ring(at p: SIMD2<Float>, color: SIMD3<Float>, size: Float = 14, grow: Float = 70, life: Float = 0.9) {
+        particles.append(Particle(pos: p, vel: [0, 12], life: 0, maxLife: life, size: size, grow: grow, kind: 2,
+                                  color: SIMD4(color, 1)))
+    }
+
+    func bubble(at p: SIMD2<Float>, size s: Float) {
+        particles.append(Particle(pos: p, vel: [Float.random(in: -6...6), Float.random(in: 40...70)], life: 0,
+                                  maxLife: 30, size: s, grow: 0, kind: 1, color: [0.8, 0.95, 1, 1]))
+    }
+
+    func burst(at p: SIMD2<Float>, n: Int) {
+        for _ in 0..<n { bubble(at: p + SIMD2(Float.random(in: -14...14), Float.random(in: -8...8)), size: Float.random(in: 2.5...6)) }
+    }
+
+    func sparkle(at p: SIMD2<Float>, color: SIMD3<Float>) {
+        particles.append(Particle(pos: p, vel: [0, 18], life: 0, maxLife: 0.7, size: 10, grow: 6, kind: 4,
+                                  color: SIMD4(color, 1)))
+    }
+
+    var bubblerX: Float { size.x * 0.1 }
+
+    /// Old battery in the sand (only shows up if some plugin sends the "battery" gauge).
+    var battery: Float? { gauges["mac:battery"] }
+    var pluggedIn: Bool { (gauges["mac:charging"] ?? 0) > 0.5 }
+    private let batteryU: Float = 0.8
+    func sand(_ u: Float) -> Float { 0.075 + 0.018 * sinf(u * 7 + 1.3) + 0.008 * sinf(u * 23) }
+    /// Resting on the terrain (same sand curve as the shader), about 40% buried.
+    var batteryPos: SIMD2<Float> { [size.x * batteryU, size.y * sand(batteryU) + 2] }
+    /// Slope of the sand at that point, plus a slight tilt.
+    var batteryAngle: Float {
+        let u = batteryU
+        let deriv = 0.018 * 7 * cosf(u * 7 + 1.3) + 0.008 * 23 * cosf(u * 23)
+        return atanf(deriv * size.y / max(1, size.x)) - 0.08
+    }
+    private var batteryBubbleAt: Double = 0
+
+    // MARK: - Simulation
+
+    /// The last frame's dt (for smoothing done while drawing).
+    private var frameDt: Float = 1 / 60
+
+    func update(dt rawDt: Float) {
+        let dt = min(rawDt, 0.05)
+        frameDt = dt
+        time = CACurrentMediaTime()
+        // the chest lets out a few bubbles now and then
+        if time > chestBubblesAt, let chest = scenery.first(where: { $0.id == "chest" }) {
+            chestBubblesAt = time + Double.random(in: 7...16)
+            let (c, sz) = place(chest)
+            for i in 0..<Int.random(in: 3...6) {
+                after(Double(i) * 0.12) { [weak self] in
+                    self?.bubble(at: c + [Float.random(in: -sz * 0.4...sz * 0.4), sz * 0.15], size: Float.random(in: 1.5...3))
+                }
+            }
+        }
+
+        // scheduled effects
+        if !later.isEmpty {
+            var keep: [(Double, () -> Void)] = []
+            keep.reserveCapacity(later.count)
+            for item in later {
+                if item.0 <= time { item.1() } else { keep.append(item) }
+            }
+            later = keep
+        }
+
+        // bubbler bubbles
+        if time > bubblerAt {
+            bubble(at: [bubblerX + Float.random(in: -4...4), 50], size: Float.random(in: 1.5...3.5))
+            bubblerAt = time + Double.random(in: 0.08...0.25)
+        }
+
+        scene.update(self, dt: dt)
+
+        // current: high CPU gently pushes everything to one side
+        let cpu = gauges["mac:cpu"] ?? 0
+        let currentTarget = smoothstep(0.55, 0.95, cpu) * 26 * (0.7 + 0.3 * sinf(Float(time) * 0.05))
+        current += (currentTarget - current) * min(1, dt * 0.3)
+
+        for f in fish where !f.decor {
+            f.toolTimes.removeAll { time - $0 > 60 }
+            if f.spin > 0 { f.spin = max(0, f.spin - dt * 1.1) }
+            if f.action != nil && time > f.actionUntil { f.action = nil }
+            if let a = f.action, time > f.actionEffectAt {
+                let mouth = f.pos + facing(f) * f.size * 0.95
+                switch a {
+                case .nibble(let goal) where simd_distance(mouth, goal) < f.size * 0.9:
+                    // bits of seaweed
+                    f.actionEffectAt = time + 0.22
+                    particles.append(Particle(pos: goal + SIMD2(Float.random(in: -4...4), Float.random(in: -4...4)),
+                                              vel: [Float.random(in: -8...8), Float.random(in: -10...4)], life: 0,
+                                              maxLife: Float.random(in: 1...1.8), size: Float.random(in: 3...5), grow: 0, kind: 4,
+                                              color: [0.35, 0.75, 0.35, 1]))
+                case .forage where f.pos.y - size.y * sand(f.pos.x / max(1, size.x)) < f.size * 1.4:
+                    // puff of sand dust
+                    f.actionEffectAt = time + 0.35
+                    particles.append(Particle(pos: mouth + [0, -4], vel: [Float.random(in: -10...10), Float.random(in: 4...12)], life: 0,
+                                              maxLife: 2, size: 9, grow: 9, kind: 10, color: [0.5, 0.43, 0.3, 1]))
+                case .peek where f.pos.y > size.y * 0.9:
+                    f.actionEffectAt = time + 0.9
+                    ring(at: [f.pos.x + facing(f).x * f.size * 0.8, size.y * 0.965], color: [0.85, 0.95, 1], size: 6, grow: 50, life: 0.9)
+                default:
+                    break
+                }
+            }
+            if let c0 = f.compactingSince {
+                // compacting: slowly shrinks and releases a trail of bubbles
+                if time - c0 > 240 { f.compactingSince = nil }
+                f.fat = max(0, f.fat - dt * 0.04)
+                if Float.random(in: 0...1) < dt * 6 {
+                    bubble(at: f.pos + facing(f) * f.size * 0.4 + [Float.random(in: -6...6), f.size * 0.3], size: Float.random(in: 1.5...3.5))
+                }
+            } else if let c = f.context {
+                f.fat += (c - f.fat) * min(1, dt * 0.25)
+            }
+            // lingering error: the water around gets murky
+            if f.state == .error && time - f.since > 720 * Self.scale && time > f.inkAt {
+                f.inkAt = time + 1.4
+                ink(at: f.pos, n: 1, color: [0.12, 0.14, 0.08])
+            }
+            // fast pace: trail of bubbles
+            if f.state == .busy && f.toolTimes.count > 8 && Float.random(in: 0...1) < dt * Float(f.toolTimes.count) * 0.08 {
+                bubble(at: f.pos - facing(f) * f.size * 0.9, size: Float.random(in: 1.2...2.4))
+            }
+            // sleeping: zzz
+            if sleeping(f) && time > f.zzzAt {
+                f.zzzAt = time + Double.random(in: 1.6...3)
+                bubble(at: f.pos + facing(f) * f.size * 0.5 + [0, 6], size: Float.random(in: 1.5...2.5))
+            }
+        }
+        if Int(time) % 60 == 0 && Self.today() != pearlsDay { pearls = []; bornAt = []; pearlsDay = Self.today() }
+
+        fauna.update(self, dt: dt)
+        // parallax: slowly follows the mouse; without a mouse, returns to center
+        let gazeTarget: SIMD2<Float> = cursor.map { c in time - cursorAt < 6 ? (c / SIMD2(max(1, size.x), max(1, size.y))) * 2 - 1 : .zero } ?? .zero
+        gaze += (gazeTarget - gaze) * min(1, dt * 1.5)
+
+        // chats: two fish from the same project, idle and awake, meet snout to snout
+        if time > nextChat {
+            nextChat = time + Double.random(in: 25...50)
+            let freeSlots = fish.filter { !$0.decor && !$0.leaving && $0.isAgent && ($0.state == .idle || $0.state == .ok) && !sleeping($0) && $0.chattingWith == nil }
+            for a in freeSlots {
+                if let b = freeSlots.first(where: { $0 !== a && $0.label == a.label && $0.source == a.source && $0.chattingWith == nil }) {
+                    a.chattingWith = b.id; b.chattingWith = a.id
+                    a.chatUntil = time + 6; b.chatUntil = time + 6
+                    break
+                }
+            }
+        }
+        for f in fish where f.chattingWith != nil && time > f.chatUntil { f.chattingWith = nil }
+
+        // night-time tag among those idle and awake
+        if let b = game, time > b.until { game = nil }
+        if game == nil && light < 0.75 && time > nextGame {
+            nextGame = time + Double.random(in: 70...140)
+            let freeSlots = fish.filter { !$0.leaving && !sleeping($0) && ($0.decor ? $0.parent == nil && $0.phase != 0 : ($0.state == .idle || $0.state == .ok)) }
+            if freeSlots.count >= 2 {
+                let stopFn = freeSlots.shuffled().prefix(2)
+                game = (stopFn.first!.id, stopFn.last!.id, time + 18)
+            }
+        }
+        if let b = game, let p = fish.first(where: { $0.id == b.chaser }), let q = fish.first(where: { $0.id == b.runner }),
+           simd_distance(p.pos, q.pos) < (p.size + q.size) * 0.7 {
+            sparkle(at: (p.pos + q.pos) / 2, color: [1, 1, 0.8])
+            game = (b.runner, b.chaser, b.until)          // tagged! swap
+        }
+
+        // bubble ring from the idle ones
+        for f in fish where !f.decor && !f.leaving && (f.state == .idle || f.state == .ok) && !sleeping(f) && time > f.ringAt {
+            if f.ringAt > 0 && Float.random(in: 0...1) < 0.6 {
+                particles.append(Particle(pos: f.pos + facing(f) * f.size * 0.9, vel: [0, 22], life: 0, maxLife: 3.2, size: 4, grow: 7,
+                                          kind: 2, color: [0.85, 0.95, 1, 1]))
+            }
+            f.ringAt = time + Double.random(in: 18...45)
+        }
+
+        // mail seahorses
+        for i in mails.indices {
+            mails[i].phase += dt
+            let goal = fish.first { $0.id == mails[i].goal && !$0.leaving }
+            switch mails[i].stage {
+            case 0:
+                guard let f = goal else { mails[i].stage = 2; break }
+                let d = f.pos - mails[i].pos
+                if simd_length(d) < f.size * 1.7 { mails[i].stage = 1; mails[i].since = time }
+                else { mails[i].pos += simd_normalize(d) * 120 * dt }
+            case 1:
+                if mails[i].letter && time - mails[i].since > 0.5 {
+                    mails[i].letter = false
+                    if let f = goal { sparkle(at: (f.pos + mails[i].pos) / 2, color: mails[i].color); f.glow = 0.7 }
+                }
+                if time - mails[i].since > 1.4 { mails[i].stage = 2 }
+            default:
+                mails[i].pos.x += mails[i].side * 100 * dt
+            }
+            mails[i].pos.y += sinf(mails[i].phase * 2.2) * 6 * dt
+        }
+        mails.removeAll { $0.stage == 2 && ($0.pos.x < -60 || $0.pos.x > size.x + 60) }
+
+        // forgotten sessions leave on their own after 2 h without news
+        for f in fish where !f.decor && !f.leaving && time - f.seen > 7200 { f.leaving = true }
+
+        let food = particles.indices.filter { particles[$0].kind == 3 }
+        // queue at the glass in order of arrival
+        let waiting = fish.filter { $0.state == .waiting && !$0.leaving && !$0.decor }.sorted { $0.since < $1.since }
+
+        for f in fish { steer(f, dt: dt, food: food, waiting: waiting) }
+
+        // separation
+        for i in fish.indices {
+            for j in fish.indices where j > i {
+                let a = fish[i], b = fish[j]
+                let d = a.pos - b.pos
+                let minD = (a.decor || b.decor) ? (a.size + b.size) * 0.9 : (a.size + b.size) * 1.6
+                let l = simd_length(d)
+                if l < minD && l > 0.01 {
+                    let push = d / l * (minD - l) * 0.5 * min(1, dt * 8)
+                    a.pos += push; b.pos -= push
+                }
+            }
+        }
+
+        // eating
+        if !food.isEmpty {
+            var eaten = Set<Int>()
+            for f in fish where !f.decor {
+                for idx in food where !eaten.contains(idx) {
+                    if simd_distance(particles[idx].pos, f.pos + facing(f) * f.size * 0.6) < f.size * 0.5 {
+                        eaten.insert(idx)
+                        sparkle(at: particles[idx].pos, color: f.color)
+                        f.glow = max(f.glow, 0.6)
+                    }
+                }
+            }
+            if !eaten.isEmpty {
+                particles = particles.enumerated().filter { !eaten.contains($0.offset) }.map(\.element)
+            }
+        }
+
+        fish.removeAll { f in
+            f.leaving && (f.pos.x < -80 || f.pos.x > size.x + 80 || f.pos.y > size.y + 70)
+        }
+
+        // particles
+        for i in particles.indices {
+            particles[i].life += dt
+            var p = particles[i]
+            switch p.kind {
+            case 1:
+                p.vel.x += Float.random(in: -30...30) * dt
+                p.vel.x *= 0.98
+            case 3:
+                p.vel.x = sinf(Float(time) * 1.3 + p.pos.y * 0.05) * 8
+                if p.pos.y < 46 { p.vel = .zero }
+            case 10:
+                p.vel *= expf(-dt * 0.7)
+            case 24:
+                p.vel.x = sinf(Float(time) * 2.2 + p.pos.y * 0.04) * 12      // notes sway as they rise
+            default: break
+            }
+            p.pos += p.vel * dt
+            if p.kind == 1 || p.kind == 10 { p.pos.x += current * dt * 0.6 }
+            p.size += p.grow * dt
+            particles[i] = p
+        }
+        particles.removeAll { $0.life > $0.maxLife || ($0.kind == 1 && $0.pos.y > size.y + 10) }
+        if particles.count > 3000 { particles.removeFirst(particles.count - 3000) }
+
+        // plugged-in battery releases little bubbles
+        if battery != nil && pluggedIn && time > batteryBubbleAt {
+            bubble(at: batteryPos + SIMD2(Float.random(in: -10...10), 6), size: Float.random(in: 1...2))
+            batteryBubbleAt = time + Double.random(in: 0.3...0.9)
+        }
+
+        // jellyfish
+        jellyPhase += dt
+        jellyPos = [size.x * 0.72 + sinf(jellyPhase * 0.11) * size.x * 0.12,
+                    size.y * 0.62 + sinf(jellyPhase * 0.23) * size.y * 0.1]
+        jellyGlow *= expf(-dt * 0.8)
+
+        // turbidity from the disk (or any "disk" gauge)
+        let disk = gauges.filter { $0.key.hasSuffix(":disk") }.values.max() ?? 0
+        let goal = smoothstep(0.85, 0.97, disk)
+        turbidity += (goal - turbidity) * min(1, dt * 0.5)
+    }
+
+    /// Idle for more than 10 min: lies on the sand and sleeps.
+    func sleeping(_ f: Fish) -> Bool {
+        !f.decor && !f.leaving && (f.state == .idle || f.state == .done || f.state == .ok)
+            && (f.isAgent || f.source == "test") && time - f.since > 600 * Self.scale
+    }
+
+    private func facing(_ f: Fish) -> SIMD2<Float> {
+        let l = simd_length(f.vel)
+        return l > 0.01 ? f.vel / l : [1, 0]
+    }
+
+    private func steer(_ f: Fish, dt: Float, food: [Int], waiting: [Fish]) {
+        let w = size.x, h = size.y
+        var target: SIMD2<Float>
+        var speed: Float
+        var scaleTarget: Float = 1
+
+        // jump: rises to the surface and arcs through the air, splashing on the way out and back
+        if f.jumpPhase > 0 && !f.leaving && !f.decor {
+            let surf = h * 0.965
+            if f.jumpPhase == 1 {
+                let goal: SIMD2<Float> = [f.pos.x + f.jumpDir * 40, surf]
+                let d = goal - f.pos, l = simd_length(d)
+                f.vel += ((l > 1 ? d / l * 430 : .zero) - f.vel) * min(1, dt * 6)
+                f.pos += f.vel * dt
+                if f.pos.y > surf - 28 { f.jumpPhase = 2; f.jumpT0 = time; f.jumpX0 = f.pos.x; splash(at: [f.pos.x, surf]) }
+            } else {
+                let u = Float(time - f.jumpT0) / 0.95
+                if u >= 1 {
+                    f.jumpPhase = 0
+                    splash(at: [f.pos.x, surf])
+                    f.vel = [f.jumpDir * 60, -170]
+                } else {
+                    let new: SIMD2<Float> = [f.jumpX0 + f.jumpDir * 120 * u, surf - 8 + 80 * sinf(.pi * u)]
+                    f.vel = (new - f.pos) / max(dt, 0.001)
+                    f.pos = new
+                }
+            }
+            f.tail += dt * 16
+            f.glow *= expf(-dt * 2.5)
+            return
+        }
+
+        // in focus (mouse over it or card open): small circle in place
+        if f.id == focused && !f.leaving && f.jumpPhase == 0 {
+            let ang = Float(time) * 1.6
+            let goal = focusCenter + SIMD2(cosf(ang), sinf(ang) * 0.6) * 14
+            let d = goal - f.pos
+            f.vel += ((simd_length(d) > 0.5 ? d * 3 : .zero) - f.vel) * min(1, dt * 4)
+            f.pos += f.vel * dt
+            f.scale += (1.08 - f.scale) * min(1, dt * 3)
+            f.tail += dt * (4 + simd_length(f.vel) * 0.1)
+            f.glow = max(f.glow * expf(-dt * 2.5), 0.25)
+            return
+        }
+
+        // scare: flees from the click
+        let curious = !f.leaving && f.action == nil && !sleeping(f) && time - cursorAt < 8 && time - cursorRestingAt > 0.8
+            && (f.decor ? f.parent == nil : (f.state == .idle || f.state == .ok || f.state == .done))
+        if time < f.fearUntil && !f.leaving {
+            let d = f.pos - f.fearFrom
+            target = f.pos + (simd_length(d) > 1 ? simd_normalize(d) : [1, 0]) * 220
+            speed = 280
+        } else if let b = game, b.chaser == f.id || b.runner == f.id,
+                  let other = fish.first(where: { $0.id == (b.chaser == f.id ? b.runner : b.chaser) }) {
+            // tag
+            if b.chaser == f.id { target = other.pos; speed = 115 }
+            else {
+                let d = f.pos - other.pos
+                var escape = f.pos + (simd_length(d) > 1 ? simd_normalize(d) : [1, 0]) * 160
+                escape = [max(w * 0.08, min(w * 0.92, escape.x)), max(h * 0.15, min(h * 0.85, escape.y))]
+                target = escape; speed = 125
+            }
+        } else if let c = cursor, curious, simd_distance(c, f.pos) < 360 {
+            // the curious ones come close to the mouse, around it
+            let ang = Float(f.phase) * 1.7 + Float(time) * 0.4
+            target = c + SIMD2(cosf(ang), sinf(ang) * 0.6) * (f.size * 2 + 20)
+            speed = 60
+        } else if let id = f.chattingWith, time < f.chatUntil, let o = fish.first(where: { $0.id == id }) {
+            // chat: they meet snout to snout halfway
+            let middle = (f.pos + o.pos) / 2
+            target = middle + [f.pos.x < o.pos.x ? -f.size * 0.95 : f.size * 0.95, 0]
+            speed = 50
+        } else if f.id == highlighted && !f.leaving {
+            // parade: comes to the middle, in front, glowing
+            target = [w * 0.5, h * 0.5]
+            speed = 220
+            scaleTarget = 1.7
+            f.glow = max(f.glow, 0.6)
+        } else if f.leaving && f.party {
+            // party: rises and exits through the surface
+            target = [f.pos.x + sinf(Float(time) * 3) * 30, h + 200]
+            speed = 120
+        } else if f.leaving {
+            target = [f.pos.x < w / 2 ? -200 : w + 200, f.pos.y]
+            speed = 140
+        } else if let parent = f.parent {
+            // fry: swims behind the parent, around it
+            if parent.leaving || !fish.contains(where: { $0 === parent }) { f.leaving = true }
+            let ang = Float(f.phase) * 2.1 + Float(time) * 1.4
+            let behind = parent.pos - (simd_length(parent.vel) > 1 ? simd_normalize(parent.vel) : [1, 0]) * parent.size * 1.2
+            target = behind + SIMD2(cosf(ang), sinf(ang)) * parent.size * 0.7
+            speed = 160
+        } else if f.sings {
+            if f.state == .busy {
+                // playing: it dances up high, bobbing to a beat, and lets out notes now and then
+                target = wanderPoint(f, yRange: (h * 0.58, h * 0.8), every: 3...6)
+                target.y += sinf(Float(time) * 4.2) * 14
+                speed = 55
+                scaleTarget = 1.55                     // the special fish: bigger
+                if time > f.noteAt {
+                    f.noteAt = time + Double.random(in: 0.5...1.1)
+                    notes(from: f, n: 1)
+                }
+            } else {
+                // paused: it sinks slowly and rests
+                target = [f.pos.x, h * 0.3]
+                speed = 12
+                scaleTarget = 1.3
+            }
+        } else if f.decor {
+            // the school follows the neons' center, wandering
+            if f.phase == 0 && (time > f.wanderAt || simd_distance(f.pos, f.wander) < 30) {
+                f.wander = [Float.random(in: w * 0.15...w * 0.85), Float.random(in: h * 0.3...h * 0.85)]
+                f.wanderAt = time + Double.random(in: 4...9)
+            }
+            let leader = fish.first { $0.decor && $0.phase == 0 && $0.parent == nil }!
+            if f.phase == 0 {
+                target = f.wander
+            } else {
+                let ang = Float(f.phase) * 1.1 + Float(time) * 0.3
+                target = leader.pos + SIMD2(cosf(ang), sinf(ang)) * Float(14 + f.phase * 4)
+            }
+            speed = f.phase == 0 ? 45 : 70
+            // a real school: they part around a big fish passing through and close up again behind it,
+            // and keep a little room between each other
+            var away: SIMD2<Float> = .zero
+            for o in fish where !o.decor && !o.leaving && o.parent == nil {
+                let d = f.pos - o.pos, r = o.size * 2.4, l = simd_length(d)
+                if l < r && l > 0.1 { away += d / l * (r - l) / r }
+            }
+            for o in fish where o.decor && o !== f && o.parent == nil {
+                let d = f.pos - o.pos, l = simd_length(d)
+                if l < 12 && l > 0.1 { away += d / l * (12 - l) / 12 * 0.6 }
+            }
+            if simd_length(away) > 0.01 {
+                target = f.pos + simd_normalize(away) * 90 + (target - f.pos) * 0.3
+                speed = 120
+            }
+        } else {
+            switch f.state {
+            case .waiting:
+                // queue at the glass: whoever arrived first stays in the middle; whoever waits longer gets bigger
+                let i = Float(waiting.firstIndex { $0 === f } ?? 0)
+                let n = Float(waiting.count)
+                target = [w * 0.5 + (i - (n - 1) / 2) * 130, h * 0.42 + sinf(Float(time) * 2 + i) * 6]
+                speed = 120
+                scaleTarget = 1.55 + min(0.35, Float(time - f.since) / 60 * 0.06)
+            case .busy where f.action != nil:
+                switch f.action! {
+                case .nibble(let goal):
+                    // puts its snout against the seaweed and takes little nibbles
+                    target = goal + [f.actionSide * (f.size * 0.85 + sinf(Float(time) * 10) * 3), 0]
+                    speed = simd_distance(f.pos, goal) > f.size * 3 ? 200 : 90
+                case .forage:
+                    target = [f.pos.x + sinf(Float(time) * 0.8 + Float(f.phase)) * 25, size.y * sand(f.pos.x / max(1, w)) + f.size * 0.85]
+                    speed = 170
+                case .peek:
+                    target = [f.pos.x, h * 0.93]
+                    speed = 190
+                case .bubbles:
+                    target = f.pos + [f.vel.x >= 0 ? 4 : -4, 0]   // stops to release the bubbles
+                    speed = 10
+                case .mail:
+                    // goes to meet the seahorse
+                    if let c = mails.first(where: { $0.goal == f.id && $0.stage < 2 }) {
+                        target = c.pos + [-c.side * f.size * 1.2, 0]
+                        speed = 110
+                    } else {
+                        target = f.pos
+                        speed = 20
+                    }
+                }
+            case .busy:
+                target = wanderPoint(f, yRange: (h * 0.4, h * 0.85), every: 2.5...5)
+                speed = 75 * (1 + min(1, Float(f.toolTimes.count) / 15)) * (1 - f.fat * 0.35)   // pace; a fat fish swims slowly
+            case .error:
+                // sick: sinks slowly, almost still
+                let background = size.y * sand(f.pos.x / max(1, w)) + f.size * 1.9   // near the bottom, with room for the label
+                target = [f.pos.x + sinf(Float(time) * 0.4 + Float(f.phase)) * 10, max(background, f.pos.y - 18)]
+                speed = 10
+            case .alert:
+                target = wanderPoint(f, yRange: (h * 0.25, h * 0.8), every: 1.5...3)
+                speed = 55
+            case .done where time - f.since < 2.5:
+                // comes a bit closer to the glass to knock: almost stops in place and grows a tiny bit
+                target = f.pos + [f.vel.x >= 0 ? 6 : -6, 0]
+                speed = 12
+                scaleTarget = 1.25
+            default: // idle, ok, born, done (after rising)
+                if sleeping(f) {
+                    // lies on the sand
+                    target = [f.pos.x, size.y * sand(f.pos.x / max(1, w)) + f.size * 1.7]
+                    speed = 8
+                } else {
+                    target = wanderPoint(f, yRange: (h * 0.14, h * 0.36), every: 5...10)
+                    speed = 24
+                }
+            }
+            // those from the same project go take care of the sick one
+            if f.state != .error && f.state != .waiting,
+               let sick = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && $0.state == .error && $0.source == f.source && $0.label == f.label }) {
+                let ang = Float(time) * 0.8 + Float(f.phase)
+                target = sick.pos + SIMD2(cosf(ang), sinf(ang) * 0.6) * (sick.size * 2.2)
+                speed = 60
+            }
+            // food attracts
+            if f.state != .waiting, let idx = food.min(by: { simd_distance(particles[$0].pos, f.pos) < simd_distance(particles[$1].pos, f.pos) }),
+               simd_distance(particles[idx].pos, f.pos) < 380 {
+                target = particles[idx].pos
+                speed = 150
+            }
+        }
+
+        // the scenery: they go around it instead of through it
+        if !f.leaving && f.jumpPhase == 0 {
+            for s in scenery {
+                let (c, sz) = place(s)
+                let r = sz * 1.15 + f.size * 0.5
+                let away = f.pos - c, la = simd_length(away)
+                if la < r {
+                    target = c + (la > 0.1 ? away / la : [0, 1]) * (r + 24)
+                    speed = max(speed, 70)
+                } else {
+                    let to = target - c, lt = simd_length(to)
+                    if lt < r { target = c + (lt > 0.1 ? to / lt : [0, 1]) * r }
+                }
+            }
+        }
+
+        let d = target - f.pos
+        let l = simd_length(d)
+        var desired: SIMD2<Float> = l > 1 ? d / l * min(speed, l * 2.2) : .zero
+        if f.state == .waiting && l < 12 { desired = [f.vel.x > 0 ? 6 : -6, 0] } // faces forward, swimming in place
+        f.vel += (desired - f.vel) * min(1, dt * (f.decor ? 3 : f.action != nil ? 3 : 1.8))
+        if f.shake > 0 {
+            f.vel += SIMD2(Float.random(in: -1...1), Float.random(in: -1...1)) * 220 * f.shake * dt
+            f.shake = max(0, f.shake - dt * 0.6)
+        }
+        if f.state == .error && Float.random(in: 0...1) < dt * 0.15 { f.shake = 0.25 }
+        f.pos += f.vel * dt
+        f.pos.x += current * dt * (f.decor ? 0.9 : 0.5)
+        if !f.leaving && f.pos.y < h + 40 {
+            f.pos.y = max(40 + f.size * 0.3, min(h - 20, f.pos.y))
+            f.pos.x = max(10, min(w - 10, f.pos.x))
+        }
+        f.scale += (scaleTarget - f.scale) * min(1, dt * 2)
+        // the tail beats with speed, and harder while accelerating (a push)
+        let speedNow = simd_length(f.vel)
+        let push = max(0, (speedNow - f.lastSpeed) / max(dt, 0.001))
+        f.lastSpeed = speedNow
+        f.tail += dt * (4 + speedNow * 0.1 + min(push * 0.04, 10))
+        f.glow *= expf(-dt * 2.5)
+    }
+
+    private func wanderPoint(_ f: Fish, yRange: (Float, Float), every: ClosedRange<Double>) -> SIMD2<Float> {
+        let away = f.wander.y < yRange.0 - 10 || f.wander.y > yRange.1 + 10
+        if time > f.wanderAt || simd_distance(f.pos, f.wander) < 25 || away {
+            f.wander = [Float.random(in: size.x * 0.08...size.x * 0.92), Float.random(in: yRange.0...yRange.1)]
+            f.wanderAt = time + Double.random(in: every)
+        }
+        return f.wander
+    }
+
+    // MARK: - For the renderer
+
+    func sprites() -> [Sprite] {
+        var out: [Sprite] = []
+        out.reserveCapacity(fish.count + particles.count + 1)
+
+        // the whale in the distance, behind everything
+        out += fauna.background(self)
+        // jellyfish (pad)
+        out.append(Sprite(pos: jellyPos, dir: [1, 0], size: 30, kind: 5, glow: 0.25 + jellyGlow,
+                          phase: jellyPhase, color: [0.85, 0.55, 1.0, 0.75], extra: [1, 0, 0, 0]))
+
+        if let b = battery {
+            let a = batteryAngle
+            out.append(Sprite(pos: batteryPos, dir: [cosf(a), sinf(a)], size: 17, kind: 6, glow: b,
+                              phase: jellyPhase, color: [1, 1, 1, 1], extra: [1, pluggedIn ? 1 : 0, 0, 0]))
+        }
+
+        // the scenery: behind the pearls, the creatures and the fish, softened a little by the water
+        let lit = 0.45 + 0.55 * light
+        let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
+        for s in scenery {
+            let (c, sz) = place(s)
+            let color = mix(s.color * lit, water, t: 0.15)
+            out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 : 0,
+                              phase: s.id == "chest" ? Float(time) : s.seed, color: SIMD4(color, 1), extra: [1, 0, 0, 0]))
+        }
+        // pearls of the day, on the sand
+        for (i, p) in pearls.enumerated() {
+            let new = i < bornAt.count && bornAt[i] > 0 ? max(0, 1 - Float(time - bornAt[i]) / 3) : 0
+            out.append(Sprite(pos: pearlPos(p), dir: [1, 0], size: 6, kind: 12, glow: new, phase: Float(i),
+                              color: [p.color[0], p.color[1], p.color[2], 1], extra: [1, 0, 0, 0]))
+        }
+        // list pebbles (TodoWrite): the done ones glow in the fish's color
+        for f in fish where !f.decor && !f.leaving {
+            guard let t = f.todos, let u = f.todoU else { continue }
+            let n = min(t.total, 12)
+            for i in 0..<n {
+                let x = clearOfScenery(size.x * u + (Float(i) - Float(n - 1) / 2) * 11)
+                let pu = x / max(1, size.x)
+                let isDone = i < t.done
+                out.append(Sprite(pos: [x, size.y * sand(pu) + 3], dir: [1, 0], size: isDone ? 4.5 : 4, kind: 12,
+                                  glow: isDone ? 0.45 : 0, phase: Float(i) * 1.7,
+                                  color: isDone ? SIMD4(f.color, 1) : [0.45, 0.42, 0.38, 1], extra: [1, 0, 0, 0]))
+            }
+        }
+        // starfish, crabs, turtle and lanternfish
+        out += fauna.middle(self)
+        // what plugins put in the tank (the ones waiting for you come after the fish)
+        out += scene.sprites(self, front: false)
+        // ink and murky water (behind the fish)
+        for p in particles where p.kind == 10 {
+            let k = 1 - p.life / p.maxLife
+            out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size, kind: 10, glow: min(1, p.life * 2) * k, phase: 0,
+                              color: p.color, extra: [1, 0, 0, 0]))
+        }
+
+        for p in particles where p.kind == 3 || p.kind == 1 {
+            let a = p.kind == 3 ? min(1, (p.maxLife - p.life) / 2) : 1
+            out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size, kind: p.kind, glow: a, phase: 0,
+                              color: p.color, extra: [1, 0, 0, 0]))
+        }
+
+        // far ones first (they stay behind)
+        for f in fish.sorted(by: { $0.depth > $1.depth }) {
+            let l = simd_length(f.vel)
+            var dx = l > 0.01 ? f.vel.x / l : 1
+            var dy = l > 0.01 ? f.vel.y / l : 0
+            // during the action, the body follows what it's doing, not just the velocity
+            if let a = f.action, f.state == .busy {
+                switch a {
+                case .nibble(let goal) where simd_distance(f.pos, goal) < f.size * 2.2:
+                    dx = -f.actionSide; dy = 0
+                case .forage where f.pos.y - size.y * sand(f.pos.x / max(1, size.x)) < f.size * 1.6:
+                    dx = dx >= 0 ? 0.8 : -0.8; dy = -0.6
+                case .peek where f.pos.y > size.y * 0.86:
+                    dx = dx >= 0 ? 0.8 : -0.8; dy = 0.6
+                default: break
+                }
+            }
+            let octopus = f.kindID == "octopus"      // the octopus doesn't tilt or mirror: always stays upright
+            let asleep = sleeping(f)
+            var tilt = octopus ? 0 : max(-0.5, min(0.5, atan2f(dy, abs(dx))))
+            if f.state == .error && !octopus && !f.decor { tilt = -0.6 + 0.08 * sinf(Float(time) * 0.7) }   // sick: nose down
+            if asleep && !octopus { tilt = 0 }
+            // chatting: facing each other
+            if let id = f.chattingWith, time < f.chatUntil, let o = fish.first(where: { $0.id == id }),
+               simd_distance(f.pos, o.pos) < (f.size + o.size) * 1.6 {
+                dx = o.pos.x > f.pos.x ? 1 : -1; tilt = 0
+            }
+            // natural turns: the facing glides through 0 instead of flipping, and the tilt eases in
+            let wantFacing: Float = octopus ? 1 : (dx >= 0 ? 1 : -1)
+            if abs(wantFacing - f.facingX) > 0.001 {
+                let turnRate: Float = f.decor ? 9 : 5.5                       // about a quarter of a second
+                f.facingX += (wantFacing > f.facingX ? 1 : -1) * min(abs(wantFacing - f.facingX), turnRate * frameDt)
+            }
+            f.lean += (tilt - f.lean) * min(1, frameDt * 5)
+            // mid-turn it arcs: the nose rises a little
+            tilt = f.lean + (octopus ? 0 : 0.22 * (1 - abs(f.facingX)))
+            tilt += f.spin * f.spin * 2 * .pi                                                          // little spin when it recovers
+            let theta = f.facingX >= 0 ? tilt : Float.pi - tilt
+            var c = f.color
+            var alpha: Float = 1
+            switch f.state {
+            case .error:
+                // sick: fades, pulled toward a grayish green
+                let gray = (c.x + c.y + c.z) / 3
+                c = mix(SIMD3(repeating: gray), [0.55, 0.62, 0.5], t: 0.4) * 0.85
+                if octopus { c = mix(f.color, [1, 0.18, 0.15], t: 0.6) }
+            case .alert: c = mix(c, [1, 0.75, 0.2], t: 0.5)
+            case .idle, .ok:
+                if f.sings { c = mix(SIMD3(repeating: (c.x + c.y + c.z) / 3), c, t: 0.25) * 0.6 }   // paused: almost gray
+                else { c *= 0.75 }
+            case .done: if time - f.since > 3 { c *= 0.75 }
+            default: break
+            }
+            if f.decor { alpha = 0.85 }
+            if asleep { c *= 0.8 }
+            var glow = f.glow
+            if f.state == .waiting { glow = max(glow, 0.35 + 0.35 * sinf(Float(time) * 4)) }
+            // waking up: stretches (grows and shrinks back)
+            var len = f.size * (1 - 0.35 * f.depth)
+            let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
+            c = mix(c, water, t: f.depth * 0.55)
+            if time < f.awakeUntil { len *= 1 + 0.16 * sinf(Float(1 - (f.awakeUntil - time) / 1.8) * .pi) }
+            out.append(Sprite(pos: f.pos, dir: [cosf(theta), sinf(theta)], size: len, kind: 0,
+                              glow: glow, phase: f.tail, color: SIMD4(c, alpha),
+                              extra: [f.facingX >= 0 ? max(abs(f.facingX), 0.12) : -max(abs(f.facingX), 0.12),
+                                      Float(f.pattern + f.cut * 8), Float(f.species), min(0.99, f.fat) + (asleep ? 2 : 0)]))
+        }
+
+        out += scene.sprites(self, front: true)
+        // the snail on the glass
+        out += fauna.front(self)
+        // mail seahorses (facing the way they're going)
+        for c in mails {
+            let looks: Float = c.stage == 2 ? c.side : -c.side
+            out.append(Sprite(pos: c.pos, dir: [looks >= 0 ? 1 : -1, 0], size: 20, kind: 13, glow: 0.2, phase: c.phase,
+                              color: SIMD4(mix(c.color, [1, 0.85, 0.5], t: 0.5), 1), extra: [looks >= 0 ? 1 : -1, c.letter ? 1 : 0, 0, 0]))
+        }
+
+        // glass fogging up in front of whoever has been waiting more than 3 min
+        for f in fish where f.state == .waiting && !f.leaving && !f.decor && time - f.since > 180 * Self.scale {
+            let t = Float(time - f.since - 180 * Self.scale) / Float(Self.scale)
+            out.append(Sprite(pos: f.pos + [0, -4], dir: [1, 0], size: f.size * (1.4 + min(1.4, t / 120)), kind: 11,
+                              glow: min(1, t / 40), phase: Float(f.phase), color: [0.85, 0.9, 0.95, 1], extra: [1, 0, 0, 0]))
+        }
+
+        for p in particles where p.kind == 24 {
+            let k = min(1, p.life / 0.4) * (1 - p.life / p.maxLife)
+            out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size, kind: 24, glow: k, phase: 0, color: p.color, extra: [1, 0, 0, 0]))
+        }
+        for p in particles where p.kind == 2 || p.kind == 4 {
+            let k = 1 - p.life / p.maxLife
+            out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size, kind: p.kind, glow: k, phase: 0,
+                              color: p.color, extra: [1, 0, 0, 0]))
+        }
+        // foreground: dark, blurred seaweed tufts in the corners, moving more with the parallax
+        let shift = gaze * -14
+        let tuft = size.y * 0.32
+        out.append(Sprite(pos: [size.x * 0.03 + shift.x, tuft * 0.62 + shift.y * 0.3], dir: [1, 0], size: tuft, kind: 20, glow: 0.92,
+                          phase: Float(time), color: SIMD4(SIMD3<Float>(0.02, 0.07, 0.06) * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
+        out.append(Sprite(pos: [size.x * 0.97 + shift.x, tuft * 0.5 + shift.y * 0.3], dir: [1, 0], size: tuft * 0.85, kind: 20, glow: 0.92,
+                          phase: Float(time) + 3, color: SIMD4(SIMD3<Float>(0.03, 0.06, 0.07) * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
+
+        // quake: everything shakes together
+        if scene.shakeOffset != .zero { for i in out.indices { out[i].pos += scene.shakeOffset } }
+        return out
+    }
+}
+
+// MARK: - utilities
+
+func hsv(_ h: Float, _ s: Float, _ v: Float) -> SIMD3<Float> {
+    let i = floorf(h * 6)
+    let f = h * 6 - i
+    let p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s)
+    switch Int(i) % 6 {
+    case 0: return [v, t, p]
+    case 1: return [q, v, p]
+    case 2: return [p, v, t]
+    case 3: return [p, q, v]
+    case 4: return [t, p, v]
+    default: return [v, p, q]
+    }
+}
+
+func mix(_ a: SIMD3<Float>, _ b: SIMD3<Float>, t: Float) -> SIMD3<Float> { a + (b - a) * t }
+
+func smoothstep(_ e0: Float, _ e1: Float, _ x: Float) -> Float {
+    let t = max(0, min(1, (x - e0) / (e1 - e0)))
+    return t * t * (3 - 2 * t)
+}

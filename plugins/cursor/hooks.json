@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "afterAgentResponse": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "preCompact": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ],
+    "stop": [
+      {
+        "command": "~/Dev/fishbots/plugins/cursor/hook.sh"
+      }
+    ]
+  }
+}
