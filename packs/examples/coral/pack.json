@@ -4,7 +4,7 @@
   "names": {
     "en": "Coral reef"
   },
-  "version": "2.0",
+  "version": "2.1",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -59,7 +59,8 @@
         "sponge"
       ],
       "looks": {
-        "oval": "clownfish"
+        "oval": "clownfish",
+        "helm": "shellwheel"
       },
       "background": {
         "metal": "reef.metal",
@@ -251,6 +252,25 @@
         120
       ],
       "color": "#2a5af0"
+    }
+  ],
+  "presences": [
+    {
+      "id": "shellwheel",
+      "name": "roda de conchas",
+      "names": {
+        "en": "shell wheel"
+      },
+      "metal": "presences.metal",
+      "function": "draw_coral_shellwheel",
+      "motion": "sit",
+      "size": 34,
+      "extent": [
+        1.0,
+        1.0
+      ],
+      "color": "#ffb040",
+      "sound": "kalimba"
     }
   ]
 }

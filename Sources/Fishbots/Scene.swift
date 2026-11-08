@@ -658,6 +658,10 @@ final class Scene {
             if p.kind.id == "flag" {
                 if let s = color(of: p.state) { c = s } else if p.state == .idle { c = [0.5, 0.52, 0.55] }
             }
+            // a helm dressed by the theme: its drawing's color is the hub's (the state's), as the helm's own
+            if p.kind.id == "helm", dress != nil {
+                c = color(of: p.state) ?? (p.state == .idle ? [0.5, 0.52, 0.55] : p.state == .busy ? [0.45, 0.75, 1] : [0.35, 0.85, 0.5])
+            }
             c *= lit
             let a = p.alpha
             let shake = p.shakeOffset
