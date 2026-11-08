@@ -596,7 +596,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let list = journal.between(since, until)
         card?.removeFromSuperview()
         let c = SummaryView(title: title, lines: journal.text(list))
-        c.close = { [weak self] in self?.card?.removeFromSuperview(); self?.card = nil; self?.tank.highlighted = nil }
+        c.close = { [weak self] in self?.card?.removeFromSuperview(); self?.card = nil; self?.tank.highlighted = nil; self?.tank.chestOpen = false }
         c.translatesAutoresizingMaskIntoConstraints = false
         window.contentView!.addSubview(c)
         NSLayoutConstraint.activate([
@@ -605,6 +605,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ])
         card = c
         show()
+        tank.chestOpen = true          // the treasure chest opens while the summary is open
 
         tank.highlightPearls(since: since, until: until)
         // parade: each fish that did something comes to the front, one at a time

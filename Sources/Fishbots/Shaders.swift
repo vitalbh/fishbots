@@ -679,10 +679,12 @@ float4 draw_shell(float2 c, float phase, float4 col) {
     return float4(base * a, a);
 }
 
-float4 draw_chest(float2 c, float phase, float glow, float4 col) {
+// `open` (0…1): the lid rises and tips back, showing a heap of gold coins inside
+float4 draw_chest(float2 c, float phase, float glow, float4 col, float open) {
     float2 p = c;
     float body = sd_box(p - float2(0.0, -0.33), float2(0.78, 0.37), 0.04);
-    float2 q = p - float2(0.0, 0.11);
+    float2 q = p - float2(0.0, 0.11 + open * 0.34);
+    q.y /= 1.0 - open * 0.5;                                                // tipping back: seen from the front, it gets shorter
     float lid = max((length(q / float2(0.82, 0.42)) - 1.0) * 0.35, -q.y);   // rounded lid, a bit open
     float d = min(body, lid);
     float aa = fwidth(d) + 1e-4;
@@ -700,6 +702,23 @@ float4 draw_chest(float2 c, float phase, float glow, float4 col) {
     float3 gold = float3(1.0, 0.8, 0.35);
     float a = max(inside, (gap + halo) * pulse);
     float3 outc = c3 * inside + gold * (gap * 1.2 + halo) * pulse;
+    if (open > 0.01) {
+        // the inside: the dark back wall between the rim and the raised lid
+        float back = step(abs(p.x), 0.76) * step(0.0, p.y) * step(p.y, 0.1 + open * 0.34) * (1.0 - inside);
+        outc = mix(outc, col.rgb * 0.3 * (0.8 + 0.2 * step(fract(p.x * 6.0), 0.9)), back);
+        a = max(a, back);
+        // the treasure: a heap of coins over the rim, glittering, and the light pouring out of it
+        float heapTop = 0.04 + open * 0.27 * (1.0 - pow(p.x / 0.74, 2.0));
+        float heap = step(abs(p.x), 0.74) * step(p.y, heapTop) * step(-0.02, p.y) * step(body, 0.02);
+        float2 cg = p * float2(14.0, 18.0);
+        float coin = 1.0 - smoothstep(0.25, 0.42, length(fract(cg + float2(floor(cg.y) * 0.5, 0.0)) - 0.5));
+        float twinkle = pow(max(0.0, sin(phase * 3.0 + floor(cg.x) * 1.7 + floor(cg.y) * 2.3)), 8.0);
+        float3 goldC = mix(float3(0.85, 0.6, 0.18), float3(1.0, 0.88, 0.45), coin) + float3(1.0) * twinkle * 0.6;
+        outc = mix(outc, goldC, heap * (1.0 - step(lid, 0.0)));
+        float shine = exp(-max(p.y - heapTop, 0.0) * 5.0) * step(heapTop, p.y) * step(abs(p.x), 0.8) * (1.0 - step(lid, 0.0)) * open * 0.55;
+        outc += float3(1.0, 0.8, 0.4) * shine;
+        a = max(a, max(heap, shine));
+    }
     return float4(outc, min(a, 1.0));
 }
 
@@ -1054,7 +1073,7 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
     } else if (k > 23.5) {             // a music note rising from the music fish
         outc = draw_note(c, in.glow, in.color);
     } else if (k > 22.5) {             // scenery: chest
-        outc = draw_chest(c, in.phase, in.glow, in.color);
+        outc = draw_chest(c, in.phase, in.glow, in.color, in.extra.y);
     } else if (k > 21.5) {             // scenery: big shell
         outc = draw_shell(c, in.phase, in.color);
     } else if (k > 20.5) {             // scenery: rock

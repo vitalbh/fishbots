@@ -641,7 +641,7 @@ final class Scene {
             case 23:     // chest: glows when done or waiting
                 let open: Float = p.state == .done || p.state == .waiting ? 1 : 0.25
                 out.append(Sprite(pos: pos + [0, p.kind.size * 0.55], dir: [1, 0], size: p.kind.size, kind: 23, glow: open, phase: Float(t.time),
-                                  color: SIMD4(c, a), extra: [1, 0, 0, 0]))
+                                  color: SIMD4(c, a), extra: [1, open > 0.5 ? 1 : 0, 0, 0]))
             default:
                 // the presences' own drawings (25–30) and the static ones (starfish)
                 let up: Float = p.kind.motion.grounded ? [27: 0.3, 28: 0.85, 29: 0.85, 30: 1.0, 17: 0.15][p.kind.sprite] ?? 0 : 0

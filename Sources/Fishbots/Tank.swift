@@ -698,6 +698,25 @@ final class Tank {
     private var oxygenAt: Double = 0
     private var pearlGlintAt: Double = 0
 
+    /// The treasure chest opens while the summary is open (the app sets it); the lid follows with a little spring.
+    var chestOpen = false
+    private(set) var chestLid: Float = 0
+    private var chestLidVel: Float = 0
+    private var chestSparkAt: Double = 0
+
+    private func updateChest(dt: Float) {
+        let goal: Float = chestOpen ? 1 : 0
+        chestLidVel += ((goal - chestLid) * 40 - chestLidVel * 7) * dt
+        chestLid = max(0, min(1.08, chestLid + chestLidVel * dt))
+        guard chestLid > 0.5, time > chestSparkAt, let s = scenery.first(where: { $0.id == "chest" }) else { return }
+        chestSparkAt = time + Double.random(in: 0.12...0.3)
+        let (c, sz) = place(s)
+        let p = c + [Float.random(in: -sz * 0.5...sz * 0.5), sz * 0.25]
+        particles.append(Particle(pos: p, vel: [Float.random(in: -8...8), Float.random(in: 18...34)], life: 0, maxLife: Float.random(in: 1...1.8),
+                                  size: Float.random(in: 4...7), grow: 1, kind: 4, color: [1, 0.82, 0.4, 1]))
+        if Float.random(in: 0...1) < 0.3 { bubble(at: p, size: Float.random(in: 1.5...2.6)) }
+    }
+
     /// Fish swim in bursts and glides: a few strong strokes, then coasting. Averages 1, so the pace stays the same.
     private func burst(_ f: Fish) -> Float {
         let s = 0.5 + 0.5 * sinf(Float(time) * (0.8 + Float(f.phase % 5) * 0.07) + Float(f.phase) * 1.7)
@@ -1104,6 +1123,7 @@ final class Tank {
         updateWeeds(dt: dt)
         if Int(time * 10) % 50 == 0 { expireGauges() }
         breathe(dt: dt)
+        updateChest(dt: dt)
         rainOnSurface()
         updateMotes(dt: dt)
 
@@ -1656,8 +1676,9 @@ final class Tank {
         for s in scenery {
             let (c, sz) = place(s)
             let color = mix(s.color * lit, water, t: 0.15)
-            out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 : 0,
-                              phase: s.id == "chest" ? Float(time) : s.seed, color: SIMD4(color, 1), extra: [1, 0, 0, 0]))
+            out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 + chestLid * 0.6 : 0,
+                              phase: s.id == "chest" ? Float(time) : s.seed, color: SIMD4(color, 1),
+                              extra: [1, s.id == "chest" ? min(1, chestLid) : 0, 0, 0]))
         }
         // pebbles and little shells on the sand
         for p in pebbles {
