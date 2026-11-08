@@ -30,6 +30,8 @@ final class Fauna {
     /// The whale showed up: the app plays its song.
     var onWhale: (() -> Void)? { didSet { whale?.onWhale = onWhale } }
     private var whale: WhaleSwimmer? { creatures.first { $0 is WhaleSwimmer } as? WhaleSwimmer }
+    /// Where the whale is passing (nil: it isn't).
+    var whalePosition: SIMD2<Float>? { whale?.position }
 
     /// Only these creatures (a theme's list; nil: all of them).
     func select(_ ids: [String]?) {
@@ -127,7 +129,7 @@ final class Starfish: Creature {
 /// A turtle that swims across now and then.
 final class TurtleSwimmer: Creature {
     let id = "turtle"
-    private struct Turtle { var pos: SIMD2<Float>; var dir: Float; var phase: Float = 0; var y0: Float }
+    private struct Turtle { var pos: SIMD2<Float>; var dir: Float; var phase: Float = 0; var y0: Float; var breathes = false; var breathed = false }
     private var turtle: Turtle?
     private var next: Double?
 
@@ -137,12 +139,16 @@ final class TurtleSwimmer: Creature {
         if turtle == nil, let n = next, t.time > n {
             let dir: Float = Bool.random() ? 1 : -1
             let y0 = h * Float.random(in: 0.35...0.7)
-            turtle = Turtle(pos: [dir > 0 ? -60 : w + 60, y0], dir: dir, y0: y0)
+            turtle = Turtle(pos: [dir > 0 ? -60 : w + 60, y0], dir: dir, y0: y0, breathes: Float.random(in: 0...1) < 0.5)
         }
         if var tt = turtle {
             tt.phase += dt
             tt.pos.x += tt.dir * 26 * dt
-            tt.pos.y = tt.y0 + sinf(tt.phase * 0.5) * 18
+            // halfway across, now and then it goes up for a breath, then back down
+            let k = tt.dir > 0 ? tt.pos.x / max(1, w) : 1 - tt.pos.x / max(1, w)
+            let up = tt.breathes ? smoothstep(0.3, 0.5, k) * (1 - smoothstep(0.55, 0.75, k)) : 0
+            tt.pos.y = (tt.y0 + sinf(tt.phase * 0.5) * 18) * (1 - up) + (h * 0.94) * up
+            if up > 0.97 && !tt.breathed { tt.breathed = true; t.splash(at: [tt.pos.x + tt.dir * 20, h * 0.965]) }
             turtle = tt
             if tt.pos.x < -90 || tt.pos.x > w + 90 { turtle = nil; next = t.time + Double.random(in: 240...480) }
         }
@@ -241,6 +247,8 @@ final class WhaleSwimmer: Creature {
     private var next: Double?
     private var today = ""
     var onWhale: (() -> Void)?
+    /// Where the whale is now (x, y), for the seaweed to feel it pass.
+    var position: SIMD2<Float>? { whale.map { [$0.x, $0.y] } }
 
     func maybe(_ t: Tank, tasksToday: Int) {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"

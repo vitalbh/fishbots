@@ -359,6 +359,13 @@ final class Tank {
             f.fearFrom = p
             let d = f.pos - p
             f.vel += (simd_length(d) > 1 ? simd_normalize(d) : [1, 0]) * 260
+            // was asleep: wakes with a start (jumps up, a burst of bubbles) and stays awake a while
+            if sleeping(f) {
+                f.vel += [0, 220]
+                f.since = time - 60
+                f.awakeUntil = time + 1.8
+                burst(at: f.pos, n: 8)
+            }
             some = true
         }
         if some { burst(at: p, n: 5) }
@@ -735,6 +742,11 @@ final class Tank {
                 guard abs(dx) < r * 2.5 else { continue }
                 // away from it, more the closer it is; the push is in widths (the shader's unit)
                 target += (dx >= 0 ? 1 : -1) * expf(-(dx * dx) / (r * r)) * r0 * 0.9 / max(1, size.x)
+            }
+            // the whale passing in the distance: a slow pressure wave sways the seaweed it goes by
+            if let wp = fauna.whalePosition {
+                let dx = x - wp.x, r = size.x * 0.25
+                target += (dx >= 0 ? 1 : -1) * expf(-(dx * dx) / (r * r)) * 0.022 * sinf(Float(time) * 0.9)
             }
             target = max(-0.05, min(0.05, target))
             weedBendVel[k] += ((target - weedBend[k]) * 30 - weedBendVel[k] * 5) * dt
@@ -1532,6 +1544,13 @@ final class Tank {
                 } else {
                     target = wanderPoint(f, yRange: (h * 0.14, h * 0.36), every: 5...10)
                     speed = 24 * burst(f)
+                    // a sibling from the same project also idle: they swim side by side (the newer one alongside the older)
+                    if let mate = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && $0.projectKey == f.projectKey
+                                                      && ($0.state == .idle || $0.state == .ok) && $0.variant < f.variant }) {
+                        let side: Float = f.variant % 2 == 0 ? 1 : -1
+                        target = mate.pos + [-(mate.vel.x >= 0 ? 1 : -1) * mate.size * 1.4, side * mate.size * 1.1]
+                        speed = 40
+                    }
                 }
             }
             // those from the same project go take care of the sick one
