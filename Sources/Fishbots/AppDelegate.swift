@@ -92,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private let banner = CATextLayer()
     private let batteryText = CATextLayer()
     private let calmText = CATextLayer()
-    private var hotkey: Hotkey?
+    private var hotkeys: [HotkeyAction: Hotkey] = [:]
     private var activity: NSObjectProtocol?
     private var port: UInt16 = 7777
     private let notifier = Notifier()
@@ -274,8 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         nowPlaying = NowPlaying(tank: tank)
         setupStatusItem()
         // ⌃⌥F from any app: the session that has been waiting the longest (or the aquarium, if nobody is)
-        hotkey = Hotkey.waitingLongest { [unowned self] in self.goToLongestWaiting() }
-        if hotkey == nil { FileHandle.standardError.write("fishbots: couldn't register the ⌃⌥F shortcut (another app has it?)\n".data(using: .utf8)!) }
+        registerHotkey()
         if UserDefaults.standard.bool(forKey: "menuBarOnly") { NSApp.setActivationPolicy(.accessory) }
 
         window.makeKeyAndOrderFront(nil)
@@ -293,7 +292,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         return true
     }
 
-    /// The session waiting for you the longest: its terminal comes forward (the hot key ⌃⌥F).
+    /// (Re)registers the global shortcuts from the settings; `paused` lets the preferences record a new one.
+    private func registerHotkey(paused: Bool = false) {
+        hotkeys = [:]
+        guard !paused else { return }
+        for a in HotkeyAction.allCases {
+            let run: () -> Void
+            switch a {
+            case .go: run = { [unowned self] in self.goToLongestWaiting() }
+            case .read: run = { [unowned self] in self.readLongestWaiting() }
+            case .mic: run = { [unowned self] in self.replyByVoice() }
+            }
+            if let h = Hotkey(a.shortcut, id: a.id, action: run) { hotkeys[a] = h }
+            else { FileHandle.standardError.write("fishbots: couldn't register \(a.shortcut.display) (another app has it?)\n".data(using: .utf8)!) }
+        }
+    }
+
+    private var longestWaiting: Fish? {
+        tank.fish.filter { !$0.decor && !$0.leaving && $0.state == .waiting }.min { $0.since < $1.since }
+    }
+
+    /// Reads aloud the question (or the last reply) of whoever has waited longest.
+    @objc func readLongestWaiting() {
+        guard let f = longestWaiting else { Speaker.shared.speak(tr("ninguém esperando")); return }
+        if Speaker.shared.speaking { Speaker.shared.stop(); return }
+        let name = f.nickname ?? f.displayTitle ?? f.label
+        if let q = f.asked { Speaker.shared.speak(tr("%@ pergunta: %@", name, q)) }
+        else if let r = f.lastReply { Speaker.shared.speak(name + ". " + r) }
+        else { Speaker.shared.speak(tr("%@ está esperando você", name)) }
+    }
+
+    /// Opens the card of whoever has waited longest with the microphone on: speak, then Enter sends.
+    @objc func replyByVoice() {
+        guard let f = longestWaiting else { show(); tank.notice = (tr("✓ ninguém esperando"), tank.time); return }
+        show()
+        guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return }
+        hoverId = f.id
+        hoverSince = Date(timeIntervalSinceNow: -1)
+        showCard(f)
+        (hoverCard?.contentViewController as? FishCard)?.startDictation()
+    }
+
+    /// The session waiting for you the longest: its terminal comes forward (the global shortcut, ⌃⌥F by default).
     @objc func goToLongestWaiting() {
         let waiting = tank.fish.filter { !$0.decor && !$0.leaving && $0.state == .waiting }.sorted { $0.since < $1.since }
         if let f = waiting.first, Whereabouts.go(f) {
@@ -1357,6 +1397,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         toggleFloat: { [unowned self] in self.toggleFloat() },
         soundOn: { [unowned self] in !self.synth.muted.load(ordering: .relaxed) },
         toggleMute: { [unowned self] in self.toggleMute() },
+        setShortcut: { [unowned self] action, s in action.shortcut = s ?? action.standard; self.registerHotkey() },
+        pauseShortcut: { [unowned self] paused in self.registerHotkey(paused: paused) },
         volume: { [unowned self] in Double(self.volume) },
         setVolume: { [unowned self] in self.volume = Float($0) },
         applyTheme: { [unowned self] in self.applyTheme() },
@@ -1563,7 +1605,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         add("Som ligado/desligado", #selector(toggleMute), "m")
         add("Flutuar sobre as janelas", #selector(toggleFloat), "t")
         add("Modo widget (janelinha no canto)", #selector(toggleWidget), "w")
-        add("Ir para quem espera há mais tempo (⌃⌥F)", #selector(goToLongestWaiting), "")
+        add("Ir para quem espera há mais tempo", #selector(goToLongestWaiting), "")
+        add("Ouvir a pergunta de quem espera", #selector(readLongestWaiting), "")
+        add("Responder falando (abre o microfone)", #selector(replyByVoice), "")
         aq.addItem(.separator())
         add("Música ambiente (tocar o tempo todo)", #selector(toggleAmbientMusic), "a")
         add("Modo foco (só o que pede atenção)", #selector(toggleFocus), "s")

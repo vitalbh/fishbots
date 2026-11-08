@@ -13,6 +13,9 @@ final class Prefs: ObservableObject {
         var toggleFloat: () -> Void
         var soundOn: () -> Bool
         var toggleMute: () -> Void
+        /// A global shortcut (nil: back to its default); all paused while a new one is being recorded.
+        var setShortcut: (HotkeyAction, Shortcut?) -> Void
+        var pauseShortcut: (Bool) -> Void
         var volume: () -> Double
         var setVolume: (Double) -> Void
         var applyTheme: () -> Void
@@ -51,6 +54,50 @@ struct PrefsView: View {
     }
 }
 
+/// Records a global shortcut: click Gravar, press the keys.
+struct ShortcutRecorder: View {
+    @ObservedObject var prefs: Prefs
+    let action: HotkeyAction
+    // (SwiftUI.State: the app has its own State, the fish's)
+    @SwiftUI.State var recording = false
+    @SwiftUI.State var monitor: Any?
+
+    var body: some View {
+        HStack {
+            Text(action.title)
+            Spacer()
+            Text(recording ? tr("aperte o atalho…") : action.shortcut.display)
+                .font(.system(.body, design: .rounded).weight(.medium))
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(recording ? 0.25 : 0.12)))
+            Button(recording ? tr("Cancelar") : tr("Gravar")) { recording ? stop() : start() }
+            Button(tr("Padrão")) { stop(); prefs.a.setShortcut(action, nil); prefs.refresh() }
+                .disabled(action.shortcut == action.standard)
+        }
+        .onDisappear { stop() }
+    }
+
+    private func start() {
+        recording = true
+        prefs.a.pauseShortcut(true)
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            if e.keyCode == 53 { stop(); return nil }                       // Esc: cancel
+            guard let s = Shortcut(event: e) else { NSSound.beep(); return nil }
+            prefs.a.setShortcut(action, s)
+            stop()
+            prefs.refresh()
+            return nil
+        }
+    }
+
+    private func stop() {
+        guard recording || monitor != nil else { return }
+        if let m = monitor { NSEvent.removeMonitor(m) }
+        monitor = nil
+        if recording { recording = false; prefs.a.pauseShortcut(false) }
+    }
+}
+
 // MARK: - tabs
 
 private struct GeneralTab: View {
@@ -71,6 +118,11 @@ private struct GeneralTab: View {
                 Toggle(tr("Abrir no login"), isOn: prefs.bind(a.openAtLogin, { _ in a.toggleLogin() }))
                 Toggle(tr("Só na barra de menus (sem ícone no Dock)"), isOn: prefs.bind(a.menuBarOnly, { _ in a.toggleMenuBarOnly() }))
                 Toggle(tr("Flutuar sobre as janelas"), isOn: prefs.bind(a.floating, { _ in a.toggleFloat() }))
+            }
+            Section(tr("Atalhos")) {
+                ForEach(HotkeyAction.allCases, id: \.self) { ShortcutRecorder(prefs: prefs, action: $0) }
+                Text(tr("Funcionam em qualquer app, sempre com quem espera por você há mais tempo. Use ao menos uma tecla modificadora (⌃ ⌥ ⇧ ⌘); Esc cancela a gravação. No campo de resposta, Enter envia."))
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section(tr("Som")) {
                 Toggle(tr("Som ligado"), isOn: prefs.bind(a.soundOn, { _ in a.toggleMute() }))

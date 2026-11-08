@@ -392,6 +392,13 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         }
     }
 
+    /// Starts the microphone (the global shortcut "reply by voice").
+    func startDictation() {
+        guard field != nil, !Dictation.shared.listening else { return }
+        cursorAtEnd()
+        speak()
+    }
+
     @objc private func speak() {
         if Dictation.shared.listening {
             Dictation.shared.stop()        // the end handler (below) restores the button and puts the cursor at the end
