@@ -1046,9 +1046,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         updateLabels()
         renderer.weeds = tank.weedUniforms()
         tank.shaderTime = renderer.shaderTime
+        // look settings (Preferências → Aparência); FISHBOTS_BLOOM wins
+        let d = UserDefaults.standard
+        renderer.bloom = Env.value("BLOOM").flatMap(Float.init) ?? Float(d.object(forKey: "bloom") as? Double ?? 1.1)
+        tank.showMotes = d.object(forKey: "marineSnow") as? Bool ?? true
+        let hourColors = d.object(forKey: "hourColors") as? Bool ?? true
         // the quake also moves the background (the sprites move in Tank.sprites)
         let u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
-                         gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: Tank.grade(hour: hourNow()))
+                         gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? Tank.grade(hour: hourNow()) : [1, 1, 1, 0],
+                         scene: [tank.sceneGauge("waves") ?? 0, tank.sceneGauge("rain") ?? 0,
+                                 tank.sceneGauge("temperature") ?? 0.5, tank.sceneGauge("fog") ?? 0],
+                         sky: Tank.sky(hour: hourNow()))
         visual.size = tank.size
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))

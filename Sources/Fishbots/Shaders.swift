@@ -14,7 +14,18 @@ struct Uniforms {
     float2 gaze;      // parallax (mouse), -1…1
     float flash;      // lightning (Scene.swift), 0…1
     float4 grade;     // the hour's color (rgb) and moonlight (w)
+    float4 scene;     // continuous controls from gauges: waves, rain, temperature (0.5 neutral), fog
+    float4 sky;       // the sun or moon through the surface: x, strength, warmth
 };
+
+// Water temperature and fog, applied to everything (background and sprites).
+float3 scene_tint(float3 c, float a, constant Uniforms& u) {
+    float warm = clamp((u.scene.z - 0.5) * 2.0, 0.0, 1.0), cold = clamp((0.5 - u.scene.z) * 2.0, 0.0, 1.0);
+    c = mix(c, c * float3(1.1, 1.0, 0.76) + float3(0.025, 0.015, 0.0) * a, warm * 0.6);
+    c = mix(c, c * float3(0.8, 0.95, 1.15), cold * 0.6);
+    float3 fogC = float3(0.33, 0.44, 0.5) * (0.4 + 0.6 * u.light);
+    return mix(c, fogC * a, u.scene.w * 0.4);
+}
 
 // The scene's colors (ThemeUniforms in Theme.swift).
 struct Theme {
@@ -88,6 +99,9 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float3 col = mix(deep, shallow, pow(uv.y, 1.3)) * (0.5 + 0.5 * L);
 
     float2 q = float2(uv.x * aspect, uv.y);
+    // refraction: near the surface the light wobbles, as if through little waves (more with the waves gauge)
+    q += float2(sin(uv.y * 70.0 + t * 2.1 + uv.x * 9.0), cos(uv.x * 55.0 * aspect - t * 1.7))
+         * 0.0035 * (1.0 + 2.0 * u.scene.x) * smoothstep(0.7, 0.96, uv.y);
 
     // light rays coming from the surface
     float r1 = sin((q.x + q.y * 0.35) * 9.0 + t * 0.25) * 0.5 + 0.5;
@@ -99,15 +113,47 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float3 rayC = mix(th.rays.rgb, float3(0.55, 0.7, 1.0), u.grade.w);      // at night, moonlight
     col += rayC * rays * th.params.z * max(L, u.grade.w * 0.8);
 
+    // the sun (or the moon) seen through the surface: a soft bright spot just under it, with a halo
+    {
+        float2 sd = float2((uv.x - u.sky.x) * aspect, (uv.y - 0.93) * 2.2);
+        float spot = exp(-dot(sd, sd) * 160.0) + exp(-dot(sd, sd) * 18.0) * 0.35;
+        float3 sunC = mix(float3(0.65, 0.78, 1.0), float3(1.0, 0.82, 0.55), u.sky.z);
+        col += sunC * spot * u.sky.y;
+    }
+
     // caustics
     float c = clamp(caustic(float2(q.x, q.y * 1.5) * 5.0 - 250.0, t * 0.35), 0.0, 1.0);
     col += th.caustics.rgb * c * th.params.w * (0.3 + uv.y) * L;
 
     // water surface
-    float surf = 0.965 + 0.006 * sin(uv.x * 30.0 + t * 1.5) + 0.004 * sin(uv.x * 71.0 - t * 2.3);
+    float waves = u.scene.x;
+    float surf = 0.965 + (0.006 * sin(uv.x * 30.0 + t * 1.5) + 0.004 * sin(uv.x * 71.0 - t * 2.3)) * (1.0 + 2.5 * waves)
+               + 0.007 * waves * sin(uv.x * 13.0 - t * 3.1) - 0.004 * waves;
     if (uv.y > surf) {
         col = mix(col, th.surface.rgb * (0.4 + 0.6 * L), 0.55);
+        // the sky above the water: orange with a low sun, dark blue with stars at night
+        col = mix(col, float3(1.0, 0.58, 0.32) * 0.55, u.sky.z * u.sky.y * 1.4);
+        if (u.grade.w > 0.05) {
+            col = mix(col, float3(0.04, 0.06, 0.16), u.grade.w * 0.5);
+            float2 sc = floor(float2(uv.x * aspect * 260.0, uv.y * 140.0));
+            float star = step(0.993, hash21(sc)) * (0.55 + 0.45 * sin(t * (1.5 + hash21(sc + 3.1) * 3.0) + hash21(sc) * 40.0));
+            col += float3(0.85, 0.9, 1.0) * star * u.grade.w * 0.8;
+        }
+        // rain: short falling streaks in the air above the water
+        float rain = u.scene.y;
+        if (rain > 0.01) {
+            // thin slanted streaks: columns of cells, each with a short dash that falls through it
+            float2 rp = float2((uv.x + uv.y * 0.12) * aspect * 220.0, uv.y * 26.0);
+            float colId = floor(rp.x);
+            float hcol = hash21(float2(colId, 3.7));
+            float y = rp.y + t * (10.0 + hcol * 5.0) + hcol * 40.0;
+            float on = step(1.0 - rain * 0.16, hash21(float2(colId, floor(y))));
+            float thin = 1.0 - smoothstep(0.06, 0.16, abs(fract(rp.x) - 0.5));
+            float dash = smoothstep(0.0, 0.15, fract(y)) * (1.0 - smoothstep(0.45, 0.6, fract(y)));
+            col += float3(0.75, 0.85, 0.9) * on * thin * dash * 0.45 * (0.5 + 0.5 * L);
+        }
     }
+    col *= 1.0 - u.scene.y * 0.18;                                       // a rainy day is a darker day
     float surfLine = (1.0 - smoothstep(0.0, 0.004, abs(uv.y - surf))) * 0.35 * L;
     // glints running along the underside of the surface
     float glint = pow(max(0.0, sin(uv.x * 140.0 + t * 1.7) * sin(uv.x * 57.0 - t * 1.1)), 12.0)
@@ -116,6 +162,10 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     col += float3(0.6, 0.85, 0.9) * surfLine;
     // what glows in the background: the sun rays (a little) and the bright line of the surface
     float3 glowBg = rayC * rays * th.params.z * L * 0.5 + float3(0.6, 0.85, 0.9) * surfLine * 0.6;
+    {
+        float2 sd = float2((uv.x - u.sky.x) * aspect, (uv.y - 0.93) * 2.2);
+        glowBg += mix(float3(0.65, 0.78, 1.0), float3(1.0, 0.82, 0.55), u.sky.z) * exp(-dot(sd, sd) * 160.0) * u.sky.y * 0.8;
+    }
 
     // in the distance: rocks and seaweed faded by the water (barely move with parallax)
     float3 fog = mix(deep, shallow, 0.35) * (0.55 + 0.45 * L);
@@ -126,6 +176,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     for (int k = 0; k < farCount; k++) {
         float fk = float(k) + 20.0;
         float x0 = fract(sin(fk * 57.3) * 913.7) * 0.96 + 0.02;
+        if (abs(ux - x0) > 0.03) continue;                       // far from this blade: skip it (most pixels)
         float hgt = 0.12 + fract(sin(fk * 7.7) * 61.3) * 0.2;
         float base = 0.075 + 0.018 * sin(x0 * 7.0 + 1.3) + 0.008 * sin(x0 * 23.0) - 0.012;   // starts inside the sand
         float yy = uv.y - base;
@@ -144,6 +195,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     for (int k = 0; k < weedCount; k++) {
         float fk = float(k);
         float x0 = weeds[k].x;
+        if (abs(uv.x + u.gaze.x * 0.012 - x0) > 0.045 + abs(weeds[k].z)) continue;   // far from this blade: skip it
         float hgt = weeds[k].y;
         float yy = uv.y - (0.075 + 0.018 * sin(x0 * 7.0 + 1.3) + 0.008 * sin(x0 * 23.0) - 0.015);
         if (yy > 0.0 && yy < hgt) {
@@ -153,6 +205,9 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
             float dx = (uv.x + u.gaze.x * 0.012 - x0 - sway) * aspect;
             int kind = int(weeds[k].w + 0.5);
             float3 green = mix(th.weedLow.rgb, th.weedHigh.rgb, k01) * (0.45 + 0.55 * L);
+            // each blade its own shade: a little yellower, bluer or darker than the theme's
+            float hv = fract(sin(fk * 17.31) * 4375.85);
+            green *= mix(float3(1.08, 1.05, 0.82), float3(0.86, 1.0, 1.12), hv) * (0.85 + 0.3 * fract(hv * 7.3));
             float blade;
             if (kind == 1) {
                 // kelp: a wide ribbon with rippling edges and a darker midrib, a little browner
@@ -187,6 +242,9 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
         float g = vnoise(in.position.xy * 0.35) * 0.6 + vnoise(in.position.xy * 0.05) * 0.4;
         float3 sand = mix(th.sandDark.rgb, th.sandLight.rgb, g) * (0.4 + 0.6 * L);
         sand *= mix(0.6, 1.0, uv.y / sandH);
+        // ripples shaped by the current: soft parallel ridges, bent a little by noise
+        float rip = sin(uv.x * aspect * 70.0 + uv.y * 180.0 + vnoise(in.position.xy * 0.006) * 8.0);
+        sand *= 0.88 + 0.12 * smoothstep(-0.3, 0.9, rip) + 0.04 * (1.0 - smoothstep(0.85, 1.0, rip));
         sand += float3(0.6, 0.7, 0.6) * c * 0.12 * L;
         float edge = smoothstep(sandH - 0.004, sandH, uv.y);
         col = mix(sand, col, edge);
@@ -204,6 +262,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     // lightning: a cold flash, stronger near the surface
     col += float3(0.55, 0.65, 0.85) * u.flash * (0.45 + 0.55 * uv.y);
 
+    col = scene_tint(col, 1.0, u);
     Frag2 o;
     o.color = float4(col * u.grade.rgb, 1.0);
     o.glow = float4(glowBg * u.grade.rgb * (1.0 - u.turbidity * 0.7), 1.0);
@@ -480,6 +539,11 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
         float breath = 0.5 + 0.5 * sin(phase * 0.45);
         float gill = (1.0 - smoothstep(0.008, 0.016 + breath * 0.008, abs(p.x - gx))) * step(abs(p.y), ry * 0.6);
         c3 *= 1.0 - gill * (0.18 + 0.14 * breath);
+    }
+    // rim light: the edge of the back catches the light from the surface
+    if (body < 0.0) {
+        float edge = 1.0 - smoothstep(0.0, 0.035, -body);
+        c3 += float3(0.75, 0.9, 1.0) * edge * smoothstep(-0.1, 0.8, p.y / ry) * 0.32;
     }
     if (pect < 0.0 && body >= -0.01) c3 = base * 0.85 + 0.12;     // the fin outside the body
     else if (pect < 0.0) c3 = mix(c3, base * 0.8 + 0.2, 0.45);      // over the body: lighter, see-through
@@ -1168,7 +1232,7 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
     }
     // murky water fades what is far away
     outc *= 1.0 - u.turbidity * 0.35;
-    outc.rgb *= u.grade.rgb;                                         // the hour's color
+    outc.rgb = scene_tint(outc.rgb, outc.a, u) * u.grade.rgb;      // water temperature, fog and the hour's color
     Frag2 o;
     o.color = outc;
     o.glow = float4(outc.rgb * emissive(k, in.glow), outc.a);       // opaque things also cover the glow behind them

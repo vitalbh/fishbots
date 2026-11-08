@@ -145,8 +145,24 @@ Atenção, or `config.json`), like the fish: a source set to `ambient` for error
 
 To hear everything: `scripts/scene-demo.sh` (or `scripts/scene-demo.sh effects`).
 
+## Continuous controls (gauges)
+
+Some gauge names change the whole scene, whatever the source (the highest value wins when several send it):
+
+```json
+{"source":"weather","gauge":"rain","value":0.6}
+```
+
+| Gauge | 0 … 1 |
+|---|---|
+| `rain` | thin slanted streaks in the air above the water, drops ringing on the surface, a darker day |
+| `waves` | a calm surface … a rough one (floating bottles ride it) |
+| `temperature` | cold (bluer water) … 0.5 neutral … warm (amber, greener water) |
+| `fog` | a haze over everything |
+
+The older ones still work: `disk` (murky water), `mac:cpu` (current), `mac:battery` / `mac:charging` (the battery on the sand).
+Send `0` (or `0.5` for temperature) to turn one off.
+
 ## Not yet
 
-- Continuous scene controls (`rain`, `waves`, `temperature`, `fog`…) driven by gauges (see the list in the
-  conversation that started this; next step).
 - Presences from packs (new kinds with their own `.metal`, like pack fish).

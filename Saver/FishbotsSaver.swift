@@ -147,6 +147,19 @@ final class FishbotsSaverView: ScreenSaverView {
             let parts = k.split(separator: ":", maxSplits: 1).map(String.init)
             if parts.count == 2 { tank.gauge(source: parts[0], name: parts[1], value: v.floatValue) }
         }
+        // the presences (docs/scene.md): the same creatures and objects, silent
+        var present = Set<String>()
+        for p in obj["presences"] as? [[String: Any]] ?? [] {
+            guard let source = p["source"] as? String, let id = p["presence"] as? String, let kind = p["kind"] as? String else { continue }
+            present.insert("\(source):\(id)")
+            let value = (p["value"] as? NSNumber)?.floatValue
+            _ = tank.scene.upsert(tank, source: source, id: id, kind: kind, state: (p["state"] as? String).flatMap(State.init(rawValue:)),
+                                  label: p["label"] as? String, detail: p["detail"] as? String, link: nil,
+                                  value: value.flatMap { $0 >= 0 ? $0 : nil }, color: nil, x: nil, sound: "none")
+        }
+        for p in tank.scene.presences where !present.contains(p.id) {
+            tank.scene.remove(source: p.source, id: String(p.id.dropFirst(p.source.count + 1)), party: false, tank)
+        }
     }
 
     // MARK: frame
@@ -163,7 +176,10 @@ final class FishbotsSaverView: ScreenSaverView {
         if !isPreview { updateLabels() }
         renderer?.weeds = tank.weedUniforms()
         if let r = renderer { tank.shaderTime = r.shaderTime }
-        return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Tank.grade(hour: h)),
+        return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Tank.grade(hour: h),
+                         scene: [tank.sceneGauge("waves") ?? 0, tank.sceneGauge("rain") ?? 0,
+                                 tank.sceneGauge("temperature") ?? 0.5, tank.sceneGauge("fog") ?? 0],
+                         sky: Tank.sky(hour: h)),
                 visual.sprites() + tank.sprites())
     }
 

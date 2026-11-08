@@ -75,7 +75,15 @@ final class Crabs: Creature {
             if t.time > c.until {
                 let r = Float.random(in: 0...1)
                 if c.buried > 0.5 { c.buried = 0; c.walking = true; c.until = t.time + Double.random(in: 4...9) }
-                else if r < 0.15 { c.buried = 1; c.walking = false; c.until = t.time + Double.random(in: 20...45) }
+                else if r < 0.15 {
+                    c.buried = 1; c.walking = false; c.until = t.time + Double.random(in: 20...45)
+                    // digs in: a little cloud of sand
+                    let y = t.size.y * t.sand(c.x / max(1, t.size.x)) + 4
+                    for _ in 0..<4 {
+                        t.addParticle(Particle(pos: [c.x + Float.random(in: -8...8), y], vel: [Float.random(in: -14...14), Float.random(in: 4...14)],
+                                               life: 0, maxLife: 1.8, size: 9, grow: 8, kind: 10, color: [0.75, 0.65, 0.48, 1]))
+                    }
+                }
                 else if r < 0.45 { c.walking = false; c.until = t.time + Double.random(in: 2...6) }
                 else { c.walking = true; if Bool.random() { c.dir = -c.dir }; c.until = t.time + Double.random(in: 3...8) }
             }

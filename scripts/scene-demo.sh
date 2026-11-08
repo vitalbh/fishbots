@@ -24,6 +24,14 @@ if [ "$1" != "effects" ]; then
   post '{"source":"demo-scene","presence":"bellshark","state":"end"}'
 fi
 
+if [ "$1" != "effects" ]; then
+  say "weather: rain and waves, then warm water, then cold water with fog (scene controls, docs/scene.md)"
+  post '[{"source":"demo-scene","gauge":"rain","value":0.9},{"source":"demo-scene","gauge":"waves","value":0.8}]'; nap 6
+  post '[{"source":"demo-scene","gauge":"rain","value":0},{"source":"demo-scene","gauge":"waves","value":0.2},{"source":"demo-scene","gauge":"temperature","value":0.95}]'; nap 5
+  post '[{"source":"demo-scene","gauge":"temperature","value":0.05},{"source":"demo-scene","gauge":"fog","value":0.8}]'; nap 5
+  post '[{"source":"demo-scene","gauge":"waves","value":0},{"source":"demo-scene","gauge":"temperature","value":0.5},{"source":"demo-scene","gauge":"fog","value":0}]'
+fi
+
 for e in food fireworks whale splash ink bubbles sparkle ring scare pearl lightning quake school shooting-star; do
   say "effect: $e"
   post "{\"source\":\"demo-scene\",\"effect\":\"$e\",\"label\":\"$e\"}"; nap 3

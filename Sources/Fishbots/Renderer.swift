@@ -14,6 +14,10 @@ struct Uniforms {
     var flash: Float = 0
     /// The hour's color (Tank.grade): rgb multiplies the image, w is how much moonlight (the rays turn blue).
     var grade: SIMD4<Float> = [1, 1, 1, 0]
+    /// The scene's continuous controls, from gauges (docs/scene.md): waves, rain, water temperature (0.5 neutral), fog.
+    var scene: SIMD4<Float> = [0, 0, 0.5, 0]
+    /// The sun or moon seen through the surface (Tank.sky): x (0…1), how strong, and its warmth (0 cold moon … 1 low sun).
+    var sky: SIMD4<Float> = [0.5, 0, 0, 0]
 }
 
 struct Sprite {
@@ -42,7 +46,12 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var quarterB: MTLTexture?
     private static let glowFormat = MTLPixelFormat.rgba16Float
     /// How strong the bloom is (0: off).
-    var bloom: Float = 1.1
+    var bloom: Float = Env.value("BLOOM").flatMap(Float.init) ?? 1.1
+    /// FISHBOTS_GPUSTATS=1: prints the average GPU time per frame every 5 s (to measure the shaders).
+    private let gpuStats = ProcessInfo.processInfo.environment["FISHBOTS_GPUSTATS"] == "1"
+    private var gpuSum: Double = 0
+    private var gpuFrames = 0
+    private var gpuSince = CACurrentMediaTime()
     private let maxSprites = 4096
     private var buffers: [MTLBuffer] = []
     private var bufIdx = 0
@@ -64,7 +73,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     init?(view: MTKView) {
         guard let device = view.device ?? MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
         precondition(MemoryLayout<Sprite>.stride == 64, "Sprite must be 64 bytes")
-        precondition(MemoryLayout<Uniforms>.stride == 64, "Uniforms must be 64 bytes")
+        precondition(MemoryLayout<Uniforms>.stride == 96, "Uniforms must be 96 bytes")
         precondition(MemoryLayout<ThemeUniforms>.stride == 192, "ThemeUniforms must be 192 bytes")
         self.device = device
         self.queue = queue
@@ -245,7 +254,21 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
         cmd.present(drawable)
         let without = inflight
-        cmd.addCompletedHandler { _ in without.signal() }
+        let stats = gpuStats
+        cmd.addCompletedHandler { [weak self] c in
+            without.signal()
+            guard stats else { return }
+            let ms = (c.gpuEndTime - c.gpuStartTime) * 1000
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.gpuSum += ms; self.gpuFrames += 1
+                if CACurrentMediaTime() - self.gpuSince > 5 {
+                    let line = String(format: "fishbots gpu: %.2f ms/frame (%d frames)\n", self.gpuSum / Double(max(1, self.gpuFrames)), self.gpuFrames)
+                    FileHandle.standardError.write(Data(line.utf8))
+                    self.gpuSum = 0; self.gpuFrames = 0; self.gpuSince = CACurrentMediaTime()
+                }
+            }
+        }
         cmd.commit()
     }
 }

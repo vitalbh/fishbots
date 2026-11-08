@@ -484,7 +484,8 @@ final class Scene {
             case .float:
                 // bobs with the waves and drifts a little around its spot; in error it sinks halfway
                 let sunk: Float = p.state == .error ? 0.03 : 0
-                p.pos.y += (h * (0.955 - sunk) + sinf(p.phase * 1.3) * 3 - p.pos.y) * min(1, dt * 3)
+                // rides the actual surface (waves included), a little under it
+                p.pos.y += (t.surfaceY(p.pos.x) - h * (0.01 + sunk) + sinf(p.phase * 1.3) * 2 - p.pos.y) * min(1, dt * 4)
                 p.pos.x += ((w * p.u + sinf(p.phase * 0.11) * 30) - p.pos.x) * min(1, dt * 0.6)
             case .walk:
                 let home = w * p.u

@@ -104,6 +104,15 @@ private struct LookTab: View {
                     ForEach(Themes.all, id: \.id) { Text($0.displayName).tag($0.id) }
                 }
                 Toggle(tr("Aurora de fundo"), isOn: prefs.flag("auroraBackground", default: true))
+                Picker(tr("Brilho (bloom)"), selection: prefs.bind({ UserDefaults.standard.object(forKey: "bloom") as? Double ?? 1.1 },
+                                                               { UserDefaults.standard.set($0, forKey: "bloom") })) {
+                    Text(tr("Desligado")).tag(0.0)
+                    Text(tr("Suave")).tag(0.7)
+                    Text(tr("Normal")).tag(1.1)
+                    Text(tr("Forte")).tag(1.6)
+                }
+                Toggle(tr("Cores da hora (amanhecer, fim de tarde, noite)"), isOn: prefs.flag("hourColors", default: true))
+                Toggle(tr("Neve marinha"), isOn: prefs.flag("marineSnow", default: true))
             }
             Section(tr("Visualizador")) {
                 Picker(tr("Visualizador"), selection: prefs.bind({ UserDefaults.standard.string(forKey: "visual") ?? "auto" },

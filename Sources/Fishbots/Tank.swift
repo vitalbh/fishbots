@@ -687,6 +687,13 @@ final class Tank {
     static func weedKind(_ k: Int) -> Int { [0, 1, 2, 0, 2, 1, 0, 2, 1, 0, 1, 2, 0, 2, 0, 1][k % 16] }
 
     private var oxygenAt: Double = 0
+    private var pearlGlintAt: Double = 0
+
+    /// Fish swim in bursts and glides: a few strong strokes, then coasting. Averages 1, so the pace stays the same.
+    private func burst(_ f: Fish) -> Float {
+        let s = 0.5 + 0.5 * sinf(Float(time) * (0.8 + Float(f.phase % 5) * 0.07) + Float(f.phase) * 1.7)
+        return (0.55 + 0.9 * s * s * s) * 1.2
+    }
 
     /// By day, the seaweed lets out little oxygen bubbles now and then; still fish breathe out a bubble.
     private func breathe(dt: Float) {
@@ -700,6 +707,11 @@ final class Tank {
                     self.bubble(at: [wd.x * self.size.x + Float.random(in: -4...4), y], size: Float.random(in: 1.1...2.2))
                 }
             }
+        }
+        // by day a pearl on the sand catches the light now and then
+        if light > 0.8, time > pearlGlintAt, let p = pearls.randomElement() {
+            pearlGlintAt = time + Double.random(in: 2.5...6)
+            sparkle(at: pearlPos(p) + [1.5, 3], color: [1, 0.97, 0.9])
         }
         for f in fish where !f.decor && !f.leaving && (f.state == .idle || f.state == .ok) && !sleeping(f)
             && simd_length(f.vel) < 25 && Float.random(in: 0...1) < dt * 0.06 {
@@ -731,13 +743,26 @@ final class Tank {
     /// Marine snow: specks drifting down at different depths (far ones behind the fish, near ones in front).
     private struct Mote { var pos: SIMD2<Float>; var depth: Float; var size: Float; var phase: Float; var speed: Float; var vel: SIMD2<Float> = .zero }
 
-    /// Pushes the marine snow away from a point (a click, the mouse, a quake).
+    /// Pushes the marine snow away from a point (a click, the mouse, a quake). At night the plankton lights up.
     func stir(at p: SIMD2<Float>, radius r: Float, strength: Float) {
+        var lit = 0
         for i in motes.indices {
             let d = motes[i].pos - p, l = simd_length(d)
             guard l < r, l > 0.1 else { continue }
             motes[i].vel += d / l * strength * (1 - l / r) * (1.2 - motes[i].depth)
+            if isNight && lit < 14 && Float.random(in: 0...1) < 0.5 { glowPlankton(at: motes[i].pos); lit += 1 }
         }
+        if isNight { for _ in 0..<Int(strength / 12) { glowPlankton(at: p + SIMD2(Float.random(in: -r...r), Float.random(in: -r...r)) * 0.5) } }
+    }
+
+    /// Night: the water is dark enough for the plankton to show (bioluminescence).
+    var isNight: Bool { light < 0.75 }
+
+    /// A blue-green spark where the plankton was disturbed.
+    private func glowPlankton(at p: SIMD2<Float>) {
+        particles.append(Particle(pos: p, vel: [Float.random(in: -6...6), Float.random(in: 2...10)], life: 0,
+                                  maxLife: Float.random(in: 0.9...1.8), size: Float.random(in: 4...7), grow: 1.5, kind: 4,
+                                  color: SIMD4(mix([0.25, 0.85, 1], [0.4, 1, 0.75], t: Float.random(in: 0...1)), 1)))
     }
     private var motes: [Mote] = []
     private var motesFor: SIMD2<Float> = .zero
@@ -760,7 +785,11 @@ final class Tank {
             m.phase += dt
             for f in movers {
                 let d = m.pos - f.pos, l = simd_length(d), r = f.size * 1.6
-                if l < r && l > 0.1 { m.vel += (d / l * 40 + f.vel * 0.5) * (1 - l / r) * dt * (1.2 - m.depth) }
+                if l < r && l > 0.1 {
+                    m.vel += (d / l * 40 + f.vel * 0.5) * (1 - l / r) * dt * (1.2 - m.depth)
+                    // at night, a fish swimming fast leaves a glowing wake
+                    if isNight && simd_length(f.vel) > 60 && Float.random(in: 0...1) < dt * 3 { glowPlankton(at: m.pos) }
+                }
             }
             m.pos += m.vel * dt
             m.vel *= expf(-dt * 1.6)
@@ -787,6 +816,25 @@ final class Tank {
         return (powf(r1 * r2, 3) * smoothstep(0.1, 1, uv.y) + broad * 0.45) * rayStrength
     }
 
+    /// The sun by day and the moon by night, seen through the surface: (x 0…1, strength, warmth, unused).
+    /// The sun crosses from left (morning) to right (evening), warmer when low; the moon crosses at night.
+    static func sky(hour h: Float) -> SIMD4<Float> {
+        if h >= 6 && h <= 18.5 {
+            let k = (h - 6) / 12.5
+            let low = 1 - sinf(k * .pi)                                         // 1 at sunrise and sunset
+            return [0.1 + 0.8 * k, 0.36 - 0.06 * low, min(1, low * 1.3), 0]
+        }
+        let n = (h > 18.5 ? h - 18.5 : h + 5.5) / 11.5                           // 18:30 → 6:00
+        let fade = smoothstep(0, 0.08, n) * (1 - smoothstep(0.92, 1, n))
+        return [0.1 + 0.8 * n, 0.32 * fade, 0, 0]
+    }
+
+    /// Pebbles and tiny shells scattered on the sand (fixed places, away from the big scenery).
+    private lazy var pebbles: [(u: Float, size: Float, shell: Bool, tone: Float, seed: Float)] = (0..<26).map { i in
+        let r = { (k: Float) -> Float in let v = sinf(Float(i) * 12.9898 + k * 78.233) * 43758.547; return v - floorf(v) }
+        return (0.03 + r(1) * 0.94, 3.8 + r(2) * 4.6, r(3) < 0.22, r(4), r(5) * 6)
+    }
+
     /// The color of the hour: warm at dawn, neutral by day, golden late afternoon, violet at dusk, blue at night.
     /// rgb multiplies the image; w is moonlight (0…1).
     static func grade(hour h: Float) -> SIMD4<Float> {
@@ -803,8 +851,12 @@ final class Tank {
         return keys[0].1
     }
 
+    /// Marine snow on or off (Preferências → Aparência).
+    var showMotes = true
+
     /// `front`: the near ones (in front of the fish). They move more with the parallax, and light up inside the sun rays.
     private func moteSprites(front: Bool) -> [Sprite] {
+        guard showMotes else { return [] }
         let tint: SIMD3<Float> = SIMD3<Float>(0.78, 0.9, 0.95) * (0.55 + 0.45 * light)
         return motes.filter { ($0.depth < 0.3) == front }.map { m in
             let shift = gaze * (-12 * (1 - m.depth))
@@ -890,6 +942,31 @@ final class Tank {
 
     /// Gauge names from older plugins, in Portuguese.
     private static let legacyGauges = ["disco": "disk", "bateria": "battery", "carregando": "charging"]
+
+    /// A scene control (docs/scene.md): the highest value among gauges with this name, from any source ("weather:rain").
+    func sceneGauge(_ name: String) -> Float? {
+        gauges.filter { $0.key.hasSuffix(":" + name) }.map(\.value).max()
+    }
+
+    private var rainAt: Double = 0
+
+    /// The water's surface height at x, as the background shader draws it (waves included).
+    func surfaceY(_ x: Float) -> Float {
+        let u = x / max(1, size.x), t = shaderTime, waves = sceneGauge("waves") ?? 0
+        let s = 0.965 + (0.006 * sinf(u * 30 + t * 1.5) + 0.004 * sinf(u * 71 - t * 2.3)) * (1 + 2.5 * waves)
+              + 0.007 * waves * sinf(u * 13 - t * 3.1) - 0.004 * waves
+        return size.y * s
+    }
+
+    /// Rain: drops hitting the surface (little rings) and, once in a while, a bubble pushed under.
+    private func rainOnSurface() {
+        guard let rain = sceneGauge("rain"), rain > 0.01, time > rainAt else { return }
+        rainAt = time + Double(0.5 / (1 + rain * 30))
+        let x = Float.random(in: 0...size.x), surf = surfaceY(x)
+        particles.append(Particle(pos: [x, surf], vel: .zero, life: 0, maxLife: 0.8, size: 2, grow: 18 + rain * 14, kind: 8,
+                                  color: [0.8, 0.92, 1, 1]))
+        if Float.random(in: 0...1) < 0.2 { bubble(at: [x, surf - Float.random(in: 4...20)], size: Float.random(in: 1...1.8)) }
+    }
 
     func gauge(source: String, name: String, value: Float) {
         gauges["\(source):\(Self.legacyGauges[name] ?? name)"] = max(0, min(1, value))
@@ -991,6 +1068,7 @@ final class Tank {
         scene.update(self, dt: dt)
         updateWeeds(dt: dt)
         breathe(dt: dt)
+        rainOnSurface()
         updateMotes(dt: dt)
 
         // current: high CPU gently pushes everything to one side
@@ -1150,6 +1228,9 @@ final class Tank {
                         eaten.insert(idx)
                         sparkle(at: particles[idx].pos, color: f.color)
                         f.glow = max(f.glow, 0.6)
+                        // a gulp: swells for a moment and lets out a little bubble
+                        f.scale = max(f.scale, 1.16)
+                        bubble(at: f.pos + facing(f) * f.size * 0.8, size: 1.6)
                     }
                 }
             }
@@ -1170,6 +1251,7 @@ final class Tank {
             case 1:
                 p.vel.x += Float.random(in: -30...30) * dt
                 p.vel.x *= 0.98
+                if p.size < 7 { p.size += dt * 0.18 }          // the pressure drops as it rises: it grows a little
             case 3:
                 p.vel.x = sinf(Float(time) * 1.3 + p.pos.y * 0.05) * 8
                 if p.pos.y < 46 { p.vel = .zero }
@@ -1185,11 +1267,10 @@ final class Tank {
             particles[i] = p
         }
         // a bubble reaching the surface pops: a little ring spreads on the water
-        let surf = size.y * 0.965
         var pops: [SIMD2<Float>] = []
         particles.removeAll { p in
-            guard p.kind == 1, p.pos.y > surf - 2 else { return p.life > p.maxLife }
-            if p.size > 2.2 && pops.count < 6 && Float.random(in: 0...1) < 0.6 { pops.append([p.pos.x, surf]) }
+            guard p.kind == 1, p.pos.y > surfaceY(p.pos.x) - 2 else { return p.life > p.maxLife }
+            if p.size > 2.2 && pops.count < 6 && Float.random(in: 0...1) < 0.6 { pops.append([p.pos.x, surfaceY(p.pos.x)]) }
             return true
         }
         for p in pops {
@@ -1360,6 +1441,11 @@ final class Tank {
                 let d = f.pos - o.pos, r = o.size * 2.4, l = simd_length(d)
                 if l < r && l > 0.1 { away += d / l * (r - l) / r }
             }
+            // a shark (a presence) going by: the school scatters, and comes back together after
+            for p in scene.presences where p.kind.id == "shark" && !p.leaving {
+                let d = f.pos - p.pos, r = p.kind.size * 3.2, l = simd_length(d)
+                if l < r && l > 0.1 { away += d / l * (r - l) / r * 2.2 }
+            }
             for o in fish where o.decor && o !== f && o.parent == nil {
                 let d = f.pos - o.pos, l = simd_length(d)
                 if l < 16 && l > 0.1 { away += d / l * (16 - l) / 16 * 0.6 }
@@ -1405,6 +1491,7 @@ final class Tank {
             case .busy:
                 target = wanderPoint(f, yRange: (h * 0.4, h * 0.85), every: 2.5...5)
                 speed = 75 * (1 + min(1, Float(f.toolTimes.count) / 15)) * (1 - f.fat * 0.35)   // pace; a fat fish swims slowly
+                speed *= burst(f)
             case .error:
                 // sick: sinks slowly, almost still
                 let background = size.y * sand(f.pos.x / max(1, w)) + f.size * 1.9   // near the bottom, with room for the label
@@ -1425,7 +1512,7 @@ final class Tank {
                     speed = 8
                 } else {
                     target = wanderPoint(f, yRange: (h * 0.14, h * 0.36), every: 5...10)
-                    speed = 24
+                    speed = 24 * burst(f)
                 }
             }
             // those from the same project go take care of the sick one
@@ -1502,7 +1589,7 @@ final class Tank {
         // the whale in the distance, behind everything
         out += fauna.background(self)
         // jellyfish (pad)
-        out.append(Sprite(pos: jellyPos, dir: [1, 0], size: 30, kind: 5, glow: 0.25 + jellyGlow,
+        out.append(Sprite(pos: jellyPos, dir: [1, 0], size: 30, kind: 5, glow: 0.25 + jellyGlow + (isNight ? 0.35 : 0),
                           phase: jellyPhase, color: [0.85, 0.55, 1.0, 0.75], extra: [1, 0, 0, 0]))
 
         if let b = battery {
@@ -1528,6 +1615,14 @@ final class Tank {
             let color = mix(s.color * lit, water, t: 0.15)
             out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 : 0,
                               phase: s.id == "chest" ? Float(time) : s.seed, color: SIMD4(color, 1), extra: [1, 0, 0, 0]))
+        }
+        // pebbles and little shells on the sand
+        for p in pebbles {
+            let x = clearOfScenery(size.x * p.u)
+            let y = size.y * sand(x / max(1, size.x)) + p.size * 0.25
+            let base: SIMD3<Float> = p.shell ? [0.95, 0.82, 0.74] : mix([0.36, 0.33, 0.3], [0.58, 0.52, 0.44], t: p.tone)
+            out.append(Sprite(pos: [x, y], dir: [1, 0], size: p.size * (p.shell ? 1.1 : 1), kind: p.shell ? 22 : 21, glow: 0,
+                              phase: p.seed, color: SIMD4(mix(base * lit, water, t: 0.2), 1), extra: [1, 0, 0, 0]))
         }
         // pearls of the day, on the sand
         for (i, p) in pearls.enumerated() {
@@ -1639,9 +1734,16 @@ final class Tank {
             let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
             c = mix(c, water, t: f.depth * 0.55)
             if time < f.awakeUntil { len *= 1 + 0.16 * sinf(Float(1 - (f.awakeUntil - time) / 1.8) * .pi) }
+            // the octopus moves by jets: its body squeezes and stretches in pulses, more the faster it goes
+            var squeeze: Float = 1
+            if octopus {
+                let pace = min(1, l / 80), pulse = max(0, sinf(f.tail * 0.35))
+                squeeze = 1 - 0.14 * pace * pulse
+                len *= 1 + 0.09 * pace * pulse
+            }
             out.append(Sprite(pos: f.pos, dir: [cosf(theta), sinf(theta)], size: len, kind: 0,
                               glow: glow, phase: f.tail, color: SIMD4(c, alpha),
-                              extra: [f.facingX >= 0 ? max(abs(f.facingX), 0.12) : -max(abs(f.facingX), 0.12),
+                              extra: [(f.facingX >= 0 ? max(abs(f.facingX), 0.12) : -max(abs(f.facingX), 0.12)) * squeeze,
                                       Float(f.pattern + f.cut * 8), Float(f.species), min(0.99, f.fat) + (asleep ? 2 : 0)]))
         }
 

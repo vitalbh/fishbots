@@ -11,6 +11,8 @@ The code, protocol, CLI, scripts and file names are in English. The interface is
 ```sh
 swift run -c release            # or: scripts/app.sh  →  build/Fishbots.app
 FISHBOTS_DEMO=1 swift run -c release   # opens straight into demo mode
+open --env FISHBOTS_HOUR=18.5 build/Fishbots.app   # see another hour's colors (dawn, late afternoon, night)
+open --env FISHBOTS_GPUSTATS=1 build/Fishbots.app  # prints the GPU time per frame every 5 s (FISHBOTS_BLOOM=0 turns the glow off)
 ```
 
 Keys and shortcuts:
@@ -49,6 +51,8 @@ To see it all in action: `open --env FISHBOTS_FAST=1 build/Fishbots.app` (shorte
 ## Life in the aquarium
 
 **Each project has its own look.** Besides color and species (which tell the application), each project gets a pattern (plain, stripes, spots, gradient, scales or eye mask) and a fin cut (normal, veil tail, tall dorsal or long fins), always the same for it.
+
+**Water, light and time:** the water is drawn in Metal and lives on its own. Marine snow drifts at three depths (stirred by clicks, the mouse and passing fish); sun rays sweep through it and light it up; everything that swims casts a soft shadow on the sand; the seaweed (thin blades, kelp ribbons and leafy stems) parts around whoever swims through and lets out oxygen bubbles by day; bubbles pop in little rings on the surface, and fish near it show upside down on its underside. The colors follow the hour: an orange dawn, neutral day, golden late afternoon, violet dusk and a blue night with moonlight; the sun (or moon) shines through the surface, crossing it during the day. At night, disturbed plankton glows. Things that glow (sparks, fireworks, notes, the chest, the presences' halos) get a soft bloom. The fish breathe (gills), keep their pectoral fins fluttering, undulate as they swim, and the neons swim as a real school. Preferências → Aparência: glow (off, soft, normal, strong), colors of the hour, marine snow.
 
 **Depth:** plants and rocks in the distance, faded by the water; dark, blurred tufts of plants in the foreground; distant fish smaller and bluer (sessions always stay close and readable); and parallax: moving the mouse shifts the foreground more than the background.
 
@@ -238,6 +242,7 @@ The **Plugins** menu shows each one's state. Examples in `plugins/examples/`:
 - **mac:** CPU and battery. The battery becomes an old battery lying in the sand, with its charge in bars, glowing when plugged in.
 - **k8s:** every kubectl context becomes a ship's wheel on the sand (docs/scene.md), its hub in the state's color: green when healthy, turning while Flux reconciles, amber with pods in CrashLoopBackOff/ImagePullBackOff, red when a Kustomization or HelmRelease fails, gray when it can't be reached. A shark patrols while some cluster is broken; a cluster that recovers sets off fireworks, one that breaks a lightning. Read-only (`kubectl get`); `FISHBOTS_K8S_CONTEXTS` picks the clusters and `FISHBOTS_K8S_TRIM` shortens their names.
 - **uptime:** wraps a StatusCake SwiftBar/xbar plugin (`FISHBOTS_UPTIME_CMD`; it doesn't hold an API key itself): a flag with ▲ up ▼ down, a bottle for each test that is down (click: the test), a shark while a Critical test is down, lightning when a test goes down and fireworks when it comes back.
+- **weather:** the real weather drives the scene (Open-Meteo, no key): rain, wind as waves, warm or cold water, fog; a jellyfish shows the temperature and the sky, and a thunderstorm sends lightning. Set `FISHBOTS_WEATHER_CITY` (or `_LAT`/`_LON`) in `plugins.env`.
 
 Personal settings for the plugins (paths, cluster lists, anything with your names in it) go in `~/Library/Application Support/Fishbots/plugins.env`, a shell file the plugins read if it exists (the app doesn't run it: it isn't executable). It stays out of the repository.
 - **example:** a template.
