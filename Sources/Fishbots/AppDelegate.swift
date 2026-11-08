@@ -621,6 +621,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             tank.ring(at: q, color: [1, 1, 1], size: p.kind.size * 0.4, grow: 120, life: 0.6)
             if let l = p.link, let u = URL(string: l) { NSWorkspace.shared.open(u) }
             else { tank.notice = (p.detail.map { "\(p.label): \($0)" } ?? p.label, tank.time) }
+        } else if let pearl = tank.pearl(at: q) {
+            // a pearl of the day: what was done around that time
+            let at = Date(timeIntervalSince1970: pearl.hour)
+            let hour = DateFormatter.localizedString(from: at, dateStyle: .none, timeStyle: .short)
+            summary(since: at.addingTimeInterval(-1800), until: at.addingTimeInterval(1800), title: tr("Por volta das %@", hour))
         } else if tank.chest(at: q) {
             recentSummary()         // the treasure chest keeps the last hours
         } else if !tank.scare(q) {

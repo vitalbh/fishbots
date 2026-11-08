@@ -586,9 +586,34 @@ final class Tank {
         }
     }
 
+    /// The day's pearls are a timeline on the sand: from the left (the first one, or 8:00) to the right (now),
+    /// sliding left slowly as the day goes on. Pearls close in time pile up a little.
     func pearlPos(_ p: Pearl) -> SIMD2<Float> {
-        let x = clearOfScenery(size.x * p.u)
-        return [x, size.y * sand(x / max(1, size.x)) + 4]
+        if let i = pearls.firstIndex(where: { $0.hour == p.hour && $0.title == p.title }), i < timeline.count { return timeline[i] }
+        return [size.x * p.u, size.y * sand(p.u) + 4]
+    }
+
+    private var timeline: [SIMD2<Float>] = []
+
+    private func layoutTimeline() {
+        let now = Date().timeIntervalSince1970
+        let eight = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date())?.timeIntervalSince1970 ?? now - 4 * 3600
+        let t0 = min(pearls.map(\.hour).min() ?? eight, eight)
+        let t1 = max(now, t0 + 4 * 3600)
+        var out = [SIMD2<Float>](repeating: .zero, count: pearls.count)
+        var lastX: Float = -100, pile = 0
+        for i in pearls.indices.sorted(by: { pearls[$0].hour < pearls[$1].hour }) {
+            var x = size.x * (0.06 + 0.88 * Float((pearls[i].hour - t0) / (t1 - t0)))
+            // close in time: on top of the previous one (a little pile of up to three), then just beside it
+            if x - lastX < 9 {
+                pile += 1
+                if pile < 3 { x = lastX } else { pile = 0; x = lastX + 9 }
+            } else { pile = 0 }
+            lastX = x
+            let y = size.y * sand(x / max(1, size.x)) + 4 + Float(pile) * 7
+            out[i] = [x + (pile % 2 == 1 ? 3.5 : 0), y]
+        }
+        timeline = out
     }
 
     /// Music notes rising from a singing fish's head.
@@ -1263,6 +1288,7 @@ final class Tank {
         if Int(time * 10) % 50 == 0 { expireGauges() }
         breathe(dt: dt)
         updateChest(dt: dt)
+        layoutTimeline()
         rainOnSurface()
         updateMotes(dt: dt)
 
