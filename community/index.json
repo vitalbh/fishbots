@@ -41,12 +41,12 @@
     {
       "id": "coral",
       "name": "Recife de coral",
-      "version": "1.0",
+      "version": "2.0",
       "author": "Fishbots",
       "license": "MIT",
-      "description": "Um recife de coral: água turquesa, algas coloridas, um peixe-palhaço, a baleia ao longe e uma música de maré.",
+      "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
       "descriptions": {
-        "en": "A coral reef: turquoise water, colorful seaweed, a clownfish, the whale in the distance and a tide-like music."
+        "en": "A coral reef: clownfish in three varieties, anemones and sponges, schools of chromis, a blue tang passing by, the reef wall in the distance and a tide-like music with marimba."
       },
       "names": {
         "en": "Coral reef"
@@ -55,13 +55,19 @@
       "files": [
         "clownfish.metal",
         "cover.png",
-        "pack.json"
+        "creatures.metal",
+        "marimba.wav",
+        "pack.json",
+        "reef.metal"
       ],
       "cover": "cover.png",
       "contents": {
         "themes": 1,
         "styles": 1,
-        "fish": 1
+        "fish": 1,
+        "scenery": 2,
+        "fauna": 2,
+        "sounds": 1
       }
     }
   ]

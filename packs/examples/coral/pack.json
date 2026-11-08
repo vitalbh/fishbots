@@ -1,39 +1,256 @@
 {
   "id": "coral",
   "name": "Recife de coral",
-  "names": {"en": "Coral reef"},
-  "version": "1.0",
+  "names": {
+    "en": "Coral reef"
+  },
+  "version": "2.0",
   "author": "Fishbots",
   "license": "MIT",
-  "description": "Um recife de coral: água turquesa, algas coloridas, um peixe-palhaço, a baleia ao longe e uma música de maré.",
-  "descriptions": {"en": "A coral reef: turquoise water, colorful seaweed, a clownfish, the whale in the distance and a tide-like music."},
+  "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
+  "descriptions": {
+    "en": "A coral reef: clownfish in three varieties, anemones and sponges, schools of chromis, a blue tang passing by, the reef wall in the distance and a tide-like music with marimba."
+  },
   "themes": [
     {
       "id": "coral-reef",
       "name": "Recife de coral",
-      "names": { "en": "Coral reef" },
+      "names": {
+        "en": "Coral reef"
+      },
       "visualizer": "plankton",
       "music": "tide",
-      "fauna": ["crab", "turtle", "starfish", "snail", "whale"],
+      "fauna": [
+        "crab",
+        "turtle",
+        "starfish",
+        "snail",
+        "whale",
+        "chromis",
+        "tang"
+      ],
       "water": {
-        "deep": "#04263a", "shallow": "#1f8aa6", "rays": "#a8e6f0", "raysStrength": 0.32,
-        "caustics": "#e0fbff", "causticsStrength": 0.1, "surface": "#5cc4d6", "murk": "#3a3520"
+        "deep": "#04263a",
+        "shallow": "#1f8aa6",
+        "rays": "#a8e6f0",
+        "raysStrength": 0.32,
+        "caustics": "#e0fbff",
+        "causticsStrength": 0.1,
+        "surface": "#5cc4d6",
+        "murk": "#3a3520"
       },
-      "weeds": { "count": 12, "farCount": 14, "far": "#3a4a6a", "low": "#8a2f4a", "high": "#ff8a7a" },
-      "sand": { "dark": "#b8a27a", "light": "#f2e6c4" }
+      "weeds": {
+        "count": 12,
+        "farCount": 14,
+        "far": "#3a4a6a",
+        "low": "#8a2f4a",
+        "high": "#ff8a7a"
+      },
+      "sand": {
+        "dark": "#b8a27a",
+        "light": "#f2e6c4"
+      },
+      "scenery": [
+        "rock",
+        "shell",
+        "coral",
+        "chest",
+        "anemone",
+        "sponge"
+      ],
+      "looks": {
+        "oval": "clownfish"
+      },
+      "background": {
+        "metal": "reef.metal",
+        "function": "draw_coral_background",
+        "replaceReef": true
+      }
     }
   ],
-  "chords": { "Dm9": [2, 5, 9, 0, 4], "Fmaj9": [5, 9, 0, 4, 7] },
-  "progressions": { "Tide": ["Cmaj7", "Dm9", "Fmaj9", "Cmaj7"] },
+  "chords": {
+    "Dm9": [
+      2,
+      5,
+      9,
+      0,
+      4
+    ],
+    "Fmaj9": [
+      5,
+      9,
+      0,
+      4,
+      7
+    ]
+  },
+  "progressions": {
+    "Tide": [
+      "Cmaj7",
+      "Dm9",
+      "Fmaj9",
+      "Cmaj7"
+    ]
+  },
   "styles": [
     {
-      "id": "tide", "name": "maré", "names": {"en": "tide"}, "bpm": [58, 70], "progressions": ["Tide", "Dreamy"], "scale": "major",
-      "lead": ["kalimba", "flute"], "accomp": "arpeggio", "accompTimbre": ["soft"],
-      "notesPerBar": [2, 3], "swing": [0, 0.1], "keys": [0, 2, 5, 7], "energy": 0.3, "rest": 0.4,
+      "id": "tide",
+      "name": "maré",
+      "names": {
+        "en": "tide"
+      },
+      "bpm": [
+        58,
+        70
+      ],
+      "progressions": [
+        "Tide",
+        "Dreamy"
+      ],
+      "scale": "major",
+      "lead": [
+        "marimba",
+        "marimba",
+        "kalimba",
+        "flute"
+      ],
+      "accomp": "arpeggio",
+      "accompTimbre": [
+        "soft"
+      ],
+      "notesPerBar": [
+        2,
+        3
+      ],
+      "swing": [
+        0,
+        0.1
+      ],
+      "keys": [
+        0,
+        2,
+        5,
+        7
+      ],
+      "energy": 0.3,
+      "rest": 0.4,
       "visualizer": "plankton"
     }
   ],
   "fish": [
-    { "id": "clownfish", "name": "peixe-palhaço", "names": {"en": "clownfish"}, "metal": "clownfish.metal", "function": "draw_clownfish" }
+    {
+      "id": "clownfish",
+      "name": "peixe-palhaço",
+      "names": {
+        "en": "clownfish"
+      },
+      "metal": "clownfish.metal",
+      "function": "draw_clownfish"
+    }
+  ],
+  "sounds": [
+    {
+      "id": "marimba",
+      "name": "marimba",
+      "file": "marimba.wav",
+      "root": "C4",
+      "gain": 0.9
+    }
+  ],
+  "scenery": [
+    {
+      "id": "anemone",
+      "name": "anêmona",
+      "names": {
+        "en": "anemone"
+      },
+      "metal": "reef.metal",
+      "function": "draw_coral_anemone",
+      "anchor": "sand",
+      "size": 0.055,
+      "extent": [
+        1.0,
+        1.0
+      ],
+      "at": [
+        0.42,
+        0.62
+      ],
+      "color": "#e86a8e"
+    },
+    {
+      "id": "sponge",
+      "name": "esponjas",
+      "names": {
+        "en": "tube sponges"
+      },
+      "metal": "reef.metal",
+      "function": "draw_coral_sponge",
+      "anchor": "sand",
+      "size": 0.075,
+      "extent": [
+        0.8,
+        1.0
+      ],
+      "at": [
+        0.08,
+        0.95
+      ],
+      "color": "#8a5cc4"
+    }
+  ],
+  "fauna": [
+    {
+      "id": "chromis",
+      "name": "chromis",
+      "names": {
+        "en": "chromis"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_coral_chromis",
+      "behavior": "school",
+      "size": 6,
+      "extent": [
+        1.6,
+        1.0
+      ],
+      "count": [
+        8,
+        12
+      ],
+      "speed": 22,
+      "height": [
+        0.35,
+        0.7
+      ],
+      "color": "#5fd6c8",
+      "shy": true
+    },
+    {
+      "id": "tang",
+      "name": "cirurgião-patela",
+      "names": {
+        "en": "blue tang"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_coral_tang",
+      "behavior": "cross",
+      "size": 20,
+      "extent": [
+        1.4,
+        1.0
+      ],
+      "count": 1,
+      "speed": 40,
+      "height": [
+        0.35,
+        0.65
+      ],
+      "every": [
+        40,
+        120
+      ],
+      "color": "#2a5af0"
+    }
   ]
 }
