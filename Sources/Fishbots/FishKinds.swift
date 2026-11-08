@@ -41,19 +41,28 @@ enum FishKinds {
 
     /// The shader with only the built-in kinds and this one, and no pack scenery (to find which pack fish breaks it).
     static func shaderSource(testing k: FishKind) -> String {
-        let keep = all, keepScenery = SceneryKinds.all
+        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all
         all = all.filter { $0.pack == nil } + [k]
-        SceneryKinds.all = []
-        defer { all = keep; SceneryKinds.all = keepScenery }
+        SceneryKinds.all = []; FaunaKinds.all = []
+        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna }
         return shaderSource()
     }
 
     /// The shader with the built-in fish and only this pack scenery (to find which one breaks it).
     static func shaderSource(testing k: SceneryKind) -> String {
-        let keep = all, keepScenery = SceneryKinds.all
+        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all
         all = all.filter { $0.pack == nil }
-        SceneryKinds.all = [k]
-        defer { all = keep; SceneryKinds.all = keepScenery }
+        SceneryKinds.all = [k]; FaunaKinds.all = []
+        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna }
+        return shaderSource()
+    }
+
+    /// The shader with the built-in fish and only this pack creature (to find which one breaks it).
+    static func shaderSource(testing k: FaunaKind) -> String {
+        let keep = all, keepScenery = SceneryKinds.all, keepFauna = FaunaKinds.all
+        all = all.filter { $0.pack == nil }
+        SceneryKinds.all = []; FaunaKinds.all = [k]
+        defer { all = keep; SceneryKinds.all = keepScenery; FaunaKinds.all = keepFauna }
         return shaderSource()
     }
 
@@ -85,6 +94,11 @@ enum FishKinds {
         gen += SceneryKinds.all.map(\.source).filter { seen.insert($0).inserted }.joined(separator: "\n\n")
         gen += "\n\nfloat4 draw_scenery_pack(int k, float2 c, float t, float glow, float4 col, float4 extra) {\n    switch (k) {\n"
         for (i, k) in SceneryKinds.all.enumerated() { gen += "    case \(i): return \(k.function)(c, t, glow, col, extra);\n" }
+        gen += "    default: return float4(0.0);\n    }\n}\n"
+        // the packs' creatures, the same way (extra.z: the index)
+        gen += "\n" + FaunaKinds.all.map(\.source).filter { seen.insert($0).inserted }.joined(separator: "\n\n")
+        gen += "\n\nfloat4 draw_fauna_pack(int k, float2 c, float phase, float glow, float4 col, float4 extra) {\n    switch (k) {\n"
+        for (i, k) in FaunaKinds.all.enumerated() { gen += "    case \(i): return \(k.function)(c, phase, glow, col, extra);\n" }
         gen += "    default: return float4(0.0);\n    }\n}\n"
         // the lanternfish's quad is bigger, so its light fades out before the edge instead of ending in a straight line
         return "#define LANTERN_KIND \(index(of: "lanternfish"))\n#define LANTERN_ROOM 1.6\n"

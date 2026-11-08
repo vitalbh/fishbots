@@ -153,8 +153,55 @@ tests" → a new action), with glob patterns for tool names.
 voices). Timbres stay in Swift for now (`Synth.render` is real-time audio code).
 
 ### 7. Fauna
-Each creature (crab, turtle, whale, snail, lanternfish) becomes a `Creature` with `update`, sprites per layer
+Each creature (crab, turtle, whale, snail, lanternfish) is a `Creature` with `update`, sprites per layer
 (background, middle, front) and a rule for when it shows up. A theme lists which creatures it uses.
+
+#### Creatures from packs
+A pack can't bring code, so a creature from a pack is its drawing (a Metal function) plus one of the app's ready-made
+behaviors, with parameters. Only themes that list it get it.
+
+```json
+"fauna": [
+  { "id": "dragonfly", "name": "libélula", "metal": "dragonfly.metal", "function": "draw_dragonfly",
+    "behavior": "skim", "size": 14, "count": [1, 2], "when": "day", "color": "#4fb0c0" },
+  { "id": "frog", "name": "sapo", "metal": "frog.metal", "function": "draw_frog",
+    "behavior": "perch", "on": "lilypad", "size": 16, "count": 2 }
+]
+```
+
+| `behavior` | How it moves | Like |
+|---|---|---|
+| `cross` | swims across the tank now and then, at `height`, every `every` seconds | the turtle |
+| `pass` | rare, far away in the background, faded by the water | the whale |
+| `crawl` | walks on the sand, stops, turns around at the edges and the scenery | the crab |
+| `rest` | stays on the sand, barely moving | the starfish |
+| `glass` | climbs up and down the glass (its drawing's +x points the way it goes) | the snail |
+| `drift` | floats, rising and sinking slowly, at `height` | a jellyfish |
+| `school` | a little group wandering together | the decorative schools |
+| `skim` | just under the surface, darting and stopping | — |
+| `perch` | sits on a piece of scenery (`on`: its id), hopping to another copy now and then | — |
+
+| Field | |
+|---|---|
+| `size` | in points, like the fish (default 16) |
+| `extent` | the quad's width and height, relative to `size` (default `[1, 1]`) |
+| `count` | how many (a number or `[min, max]`) |
+| `speed` | points per second (default 20) |
+| `height` | `[lo, hi]`, 0…1 from the bottom, for the ones that swim (default `[0.2, 0.7]`) |
+| `every` | `[lo, hi]` seconds between visits, for `cross` and `pass` |
+| `when` | `any`, `day` or `night` (it fades in and out with the light) |
+| `shy` | swims away from the mouse |
+| `front` | drawn in front of the fish (default: behind them) |
+| `color` | `"#rrggbb"` or `[r, g, b]`: what the function gets as `col`, lit by the hour |
+
+```metal
+// c: -1…1 over the quad, y up, facing +x (the app mirrors it). phase: runs while it moves (legs, fins, wings).
+// extra.y: a seed (different for each one), extra.w: 1 while it moves, 0 while it rests. Returns premultiplied rgba.
+float4 draw_frog(float2 c, float phase, float glow, float4 col, float4 extra) { … }
+```
+
+An id that's already a built-in creature is refused; a function that doesn't compile is dropped and reported in the
+menu.
 
 ### 8. Outputs (sinks)
 The opposite of providers: `EventSink` receives what happens in the tank (state changes, done, error, permission

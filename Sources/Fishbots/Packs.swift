@@ -12,7 +12,9 @@ import Foundation
 ///    "chords": {"Dm9": [2, 5, 9, 0, 4]}, "progressions": {"Lagoon": ["Cmaj7", "Dm9"]},
 ///    "fish": [ {"id": "clownfish", "name": "palhaço", "metal": "clownfish.metal", "function": "draw_clownfish"} ],
 ///    "scenery": [ {"id": "lantern", "metal": "lantern.metal", "function": "draw_lantern", "anchor": "sand" | "surface" | "float",
-///                  "size": 0.08, "extent": [0.6, 1], "at": [0.3] or "count": 3, "glowAtNight": true, …} ]}
+///                  "size": 0.08, "extent": [0.6, 1], "at": [0.3] or "count": 3, "glowAtNight": true, …} ],
+///    "fauna": [ {"id": "frog", "metal": "frog.metal", "function": "draw_frog", "behavior": "perch", "on": "lilypad",
+///                "size": 16, "count": [1, 2], "when": "any" | "day" | "night", …} ]}
 enum Packs {
     struct Loaded {
         let id: String
@@ -105,7 +107,45 @@ enum Packs {
                 drift: sc["drift"] as? Bool ?? (anchor == .surface), solid: sc["solid"] as? Bool ?? (anchor != .surface)))
             pack.contents.append(tr("cenário %@", sc["name"] as? String ?? id))
         }
+        for fa in json["fauna"] as? [[String: Any]] ?? [] {
+            guard let id = fa["id"] as? String, let file = fa["metal"] as? String, let fn = fa["function"] as? String,
+                  fn.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil,
+                  !file.contains("/"), let src = try? String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8),
+                  let behavior = FaunaKind.Behavior(rawValue: fa["behavior"] as? String ?? "") else {
+                problems.append(tr("%@: criatura incompleta (%@)", name, fa["id"] as? String ?? "?"))
+                continue
+            }
+            guard !Fauna.kinds.contains(where: { $0.id == id }) || FaunaKinds.all.contains(where: { $0.id == id }) else {
+                problems.append(tr("%@: a criatura %@ já existe", name, id))
+                continue
+            }
+            func num(_ k: String, _ def: Float) -> Float { (fa[k] as? NSNumber)?.floatValue ?? def }
+            func vec(_ k: String) -> [Float]? { (fa[k] as? [NSNumber])?.map(\.floatValue) }
+            let cnt = vec("count").flatMap { $0.count == 2 ? Int($0[0])...max(Int($0[0]), Int($0[1])) : nil }
+                ?? (fa["count"] as? NSNumber).map { $0.intValue...$0.intValue } ?? 1...1
+            let hgt = vec("height").flatMap { $0.count == 2 && $0[0] <= $0[1] ? $0[0]...$0[1] : nil } ?? 0.2...0.7
+            let every = vec("every").flatMap { $0.count == 2 && $0[0] <= $0[1] ? Double($0[0])...Double($0[1]) : nil }
+                ?? (behavior == .pass ? 900...2700 : 60...180)
+            let ext = vec("extent")
+            FaunaKinds.register(FaunaKind(
+                id: id, name: fa["name"] as? String ?? id, source: src, function: fn, pack: pack.id, behavior: behavior,
+                size: max(4, min(400, num("size", 16))), count: max(1, cnt.lowerBound)...min(30, max(1, cnt.upperBound)),
+                speed: max(1, min(400, num("speed", 20))), height: max(0.05, hgt.lowerBound)...min(0.95, hgt.upperBound),
+                when: FaunaKind.When(rawValue: fa["when"] as? String ?? "any") ?? .any,
+                color: Theme.color(fa["color"]).map { SIMD3($0.x, $0.y, $0.z) } ?? [0.6, 0.6, 0.6],
+                extent: ext.flatMap { $0.count == 2 ? SIMD2($0[0], $0[1]) : nil } ?? [1, 1],
+                every: max(5, every.lowerBound)...max(5, every.upperBound), shy: fa["shy"] as? Bool ?? false,
+                on: fa["on"] as? String, front: fa["front"] as? Bool ?? false))
+            pack.contents.append(tr("criatura %@", fa["name"] as? String ?? id))
+        }
         loaded.append(pack)
+    }
+
+    /// The renderer couldn't compile a pack's creature: it's dropped and reported.
+    static func faunaFailed(_ kind: FaunaKind, _ error: String) {
+        let line = error.split(separator: "\n").first { $0.contains("error") } ?? Substring(error)
+        problems.append(tr("%@: a criatura %@ não compilou (%@)", kind.pack, kind.name, String(line.prefix(140))))
+        if let i = loaded.firstIndex(where: { $0.id == kind.pack }) { loaded[i].contents.removeAll { $0 == tr("criatura %@", kind.name) } }
     }
 
     /// The renderer couldn't compile a pack's scenery: it's dropped and reported.

@@ -25,8 +25,12 @@ final class Fauna {
         kinds.removeAll { $0.id == id }
         kinds.append((id, make))
     }
+    static func unregister(_ id: String) { kinds.removeAll { $0.id == id } }
 
-    private(set) var creatures: [Creature] = Fauna.kinds.map { $0.make() }
+    /// The built-in creatures (what a theme without a list gets; a pack's creatures only live where a theme lists them).
+    private static let builtIn: Set<String> = ["crab", "starfish", "turtle", "snail", "lanternfish", "whale", "grouper"]
+
+    private(set) var creatures: [Creature] = Fauna.kinds.filter { Fauna.builtIn.contains($0.id) }.map { $0.make() }
     /// The whale showed up: the app plays its song.
     var onWhale: (() -> Void)? { didSet { whale?.onWhale = onWhale } }
     private var whale: WhaleSwimmer? { creatures.first { $0 is WhaleSwimmer } as? WhaleSwimmer }
@@ -35,7 +39,7 @@ final class Fauna {
 
     /// Only these creatures (a theme's list; nil: all of them).
     func select(_ ids: [String]?) {
-        let wanted = ids ?? Fauna.kinds.map(\.id)
+        let wanted = ids ?? Fauna.kinds.map(\.id).filter { Fauna.builtIn.contains($0) }
         creatures.removeAll { !wanted.contains($0.id) }
         for k in Fauna.kinds where wanted.contains(k.id) && !creatures.contains(where: { $0.id == k.id }) {
             creatures.append(k.make())
