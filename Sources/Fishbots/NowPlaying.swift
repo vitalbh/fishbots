@@ -18,6 +18,10 @@ final class NowPlaying {
     unowned let tank: Tank
     private var current: Track?
     private var leaveTimer: Timer?
+    /// Where the song is: the position read at the last change, counted forward by the clock while it plays.
+    private var clock: (pos: Double, at: CFTimeInterval, dur: Double, running: Bool)?
+    /// Listens to the player so the visualizers dance with it (opt-in, SongEars.swift).
+    let ears: SongEars
 
     static let source = "music"
     private static let entity = "now-playing"
@@ -32,7 +36,13 @@ final class NowPlaying {
 
     init(tank: Tank) {
         self.tank = tank
+        ears = SongEars(tank: tank, source: Self.source, entity: Self.entity)
+        ears.remaining = { [weak self] in self?.progress.map { $0.dur - $0.pos } }
         Self.shared = self
+        SongEars.onToggle = { [weak self] on in
+            guard let self else { return }
+            self.ears.follow(on && Self.playing ? self.current?.player : nil)
+        }
         let dnc = DistributedNotificationCenter.default()
         dnc.addObserver(forName: .init("com.spotify.client.PlaybackStateChanged"), object: nil, queue: .main) { [weak self] n in
             self?.heard("Spotify", n.userInfo)
@@ -52,6 +62,7 @@ final class NowPlaying {
     private func heard(_ player: String, _ info: [AnyHashable: Any]?) {
         guard Self.enabled, let info else { return }
         let state = (info["Player State"] as? String ?? "").lowercased()
+        if state == "playing" || state == "paused" { syncClock(player, running: state == "playing") }
         switch state {
         case "playing":
             let t = Track(player: player, title: info["Name"] as? String ?? "", artist: info["Artist"] as? String ?? "",
@@ -75,7 +86,9 @@ final class NowPlaying {
                 let parts = Self.ask(name).components(separatedBy: "\t")
                 if parts.first == "playing", parts.count >= 4 { found = Track(player: name, title: parts[1], artist: parts[2], id: parts[3]); break }
             }
-            DispatchQueue.main.async { if let found { self.update(found, paused: false) } }
+            DispatchQueue.main.async {
+                if let found { self.update(found, paused: false); self.syncClock(found.player, running: true) }
+            }
         }
     }
 
@@ -87,6 +100,7 @@ final class NowPlaying {
             let changed = t != current
             let wasPlaying = current != nil
             current = t
+            ears.follow(t.player)
             let name = t.title + (t.artist.isEmpty ? "" : " — " + t.artist)
             tank.upsert(source: Self.source, entity: Self.entity, state: .busy, label: "♪ " + String(name.prefix(48)))
             guard let f = tank.fish(source: Self.source, entity: Self.entity) else { return }
@@ -94,6 +108,8 @@ final class NowPlaying {
             // clicking it brings the player forward (the track itself, on Spotify)
             f.link = t.player == "Spotify" ? (t.id.hasPrefix("spotify:") ? t.id : "spotify:") : "music://"
             f.moment = nil
+            f.mood = ears.mood
+            f.progress = { [weak self] in self?.progress }
             if changed {
                 // a new song: a glow, a ring of light and a burst of notes
                 f.glow = 1
@@ -108,8 +124,10 @@ final class NowPlaying {
         } else if paused, current != nil, let f = tank.fish(source: Self.source, entity: Self.entity) {
             // paused: it loses its color and sinks; after a few minutes it leaves
             Self.playing = false
+            ears.follow(nil)
             tank.upsert(source: Self.source, entity: Self.entity, state: .idle, label: nil)
-            f.moment = (tr("⏸ pausado"), tank.time + 1_000_000)
+            f.moment = nil
+            f.mood = tr("⏸ pausado")
             leaveTimer?.invalidate()
             leaveTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: false) { [weak self] _ in self?.clear() }
         }
@@ -117,11 +135,42 @@ final class NowPlaying {
 
     private func clear() {
         Self.playing = false
+        clock = nil
+        ears.follow(nil)
         leaveTimer?.invalidate()
         leaveTimer = nil
         guard current != nil else { return }
         current = nil
         tank.remove(source: Self.source, entity: Self.entity)
+    }
+
+    // MARK: the song's progress
+
+    /// Seconds into the song and its length (nil: not known yet).
+    var progress: (pos: Double, dur: Double, playing: Bool)? {
+        guard let c = clock, c.dur > 0 else { return nil }
+        let pos = c.running ? c.pos + (CACurrentMediaTime() - c.at) : c.pos
+        return (min(c.dur, max(0, pos)), c.dur, c.running)
+    }
+
+    /// Asks the player where it is (once per change: play, pause, a new track, a jump), off the main thread.
+    private func syncClock(_ player: String, running: Bool) {
+        if var c = clock {    // meanwhile, the clock stops or goes on at once
+            if !running, c.running { c.pos += CACurrentMediaTime() - c.at }
+            c.at = CACurrentMediaTime(); c.running = running
+            clock = c
+        }
+        let script = player == "Spotify"
+            ? "tell application \"Spotify\" to return (((player position * 1000) as integer) as string) & tab & ((duration of current track) as string)"
+            : "tell application \"Music\" to return (((player position * 1000) as integer) as string) & tab & ((((duration of current track) * 1000) as integer) as string)"
+        DispatchQueue.global(qos: .utility).async {
+            let asked = CACurrentMediaTime()
+            let parts = Self.run(script).components(separatedBy: "\t").compactMap(Double.init)
+            guard parts.count == 2 else { return }
+            DispatchQueue.main.async {
+                self.clock = (parts[0] / 1000, asked, parts[1] / 1000, running)
+            }
+        }
     }
 
     /// "playing\ttitle\tartist\tid", "paused" or "stopped".
@@ -136,6 +185,10 @@ final class NowPlaying {
           end if
         end tell
         """
+        return run(script)
+    }
+
+    private static func run(_ script: String) -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         p.arguments = ["-e", script]

@@ -20,6 +20,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     private var listenButton: NSButton?
     /// Keeps 🔊 and 🎙 showing what's on (■ while reading aloud or listening), however it started or ended.
     private var stateTimer: Timer?
+    private var songBar: SongBar?
     private var replySummary: NSTextField?
     private var showAllButton: NSButton?
     private var fullReply = ""
@@ -185,7 +186,8 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         leftCol.spacing = 2
 
         var right: [NSView] = []
-        var state = f.state.label + " · " + Self.ha(Date(timeIntervalSinceNow: -(CACurrentMediaTime() - f.since)))
+        // a mood says it all (the music fish); a state says since when
+        var state = f.mood ?? (f.stateLabel + " · " + Self.ha(Date(timeIntervalSinceNow: -(CACurrentMediaTime() - f.since))))
         if f.compactingSince != nil { state = tr("🫧 compactando…") }
         let stateColor: NSColor = f.state == .error ? .systemRed : f.state == .waiting ? .systemOrange
             : f.state == .busy ? .systemTeal : .secondaryLabelColor
@@ -230,6 +232,14 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             let r = NSStackView(views: places)
             r.spacing = 12
             v.append(r)
+        }
+
+        // how far along the song is (the music fish)
+        if let p = f.progress, p() != nil {
+            let bar = SongBar(progress: p)
+            bar.widthAnchor.constraint(equalToConstant: width).isActive = true
+            songBar = bar
+            v.append(bar)
         }
 
         // ── what it says: the question, highlighted; then the last reply
@@ -578,6 +588,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             if self.listenButton?.title != reading { self.listenButton?.title = reading }
             let mic = Self.micTitle(Dictation.shared.listening)
             if let m = self.microphone, m.title != mic { m.title = mic }
+            self.songBar?.refresh()
         }
     }
 
@@ -586,6 +597,57 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         stateTimer = nil
         super.viewWillDisappear()
         if Dictation.shared.listening { Dictation.shared.stop() }
+    }
+}
+
+/// The song's progress: elapsed time, a thin bar, the length ("1:12 ━━━━──── 5:15"); the bar dims while paused.
+final class SongBar: NSStackView {
+    private let progress: () -> (pos: Double, dur: Double, playing: Bool)?
+    private let elapsed = NSTextField(labelWithString: "")
+    private let total = NSTextField(labelWithString: "")
+    private let track = NSView(), fill = NSView()
+    private var fillWidth: NSLayoutConstraint!
+
+    init(progress: @escaping () -> (pos: Double, dur: Double, playing: Bool)?) {
+        self.progress = progress
+        super.init(frame: .zero)
+        spacing = 8
+        for l in [elapsed, total] {
+            l.font = .monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
+            l.textColor = .secondaryLabelColor
+        }
+        track.wantsLayer = true
+        track.layer?.cornerRadius = 2
+        track.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.25).cgColor
+        fill.wantsLayer = true
+        fill.layer?.cornerRadius = 2
+        fill.translatesAutoresizingMaskIntoConstraints = false
+        track.addSubview(fill)
+        fillWidth = fill.widthAnchor.constraint(equalToConstant: 0)
+        NSLayoutConstraint.activate([
+            track.heightAnchor.constraint(equalToConstant: 4),
+            fill.leadingAnchor.constraint(equalTo: track.leadingAnchor),
+            fill.topAnchor.constraint(equalTo: track.topAnchor),
+            fill.bottomAnchor.constraint(equalTo: track.bottomAnchor),
+            fillWidth,
+        ])
+        addArrangedSubview(elapsed)
+        addArrangedSubview(track)
+        addArrangedSubview(total)
+        refresh()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    private static func time(_ s: Double) -> String { String(format: "%d:%02d", Int(s) / 60, Int(s) % 60) }
+
+    override func layout() { super.layout(); refresh() }
+
+    func refresh() {
+        guard let p = progress() else { return }
+        elapsed.stringValue = Self.time(p.pos)
+        total.stringValue = Self.time(p.dur)
+        fillWidth.constant = track.bounds.width * CGFloat(p.pos / max(1, p.dur))
+        fill.layer?.backgroundColor = (p.playing ? NSColor.systemTeal : NSColor.secondaryLabelColor).cgColor
     }
 }
 

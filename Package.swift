@@ -12,6 +12,8 @@ let package = Package(
                 .linkedFramework("Metal"),
                 .linkedFramework("MetalKit"),
                 .linkedFramework("AVFoundation"),
+                .linkedFramework("CoreAudio"),
+                .linkedFramework("Accelerate"),
                 .linkedFramework("Network"),
                 .linkedFramework("Speech"),
             ]

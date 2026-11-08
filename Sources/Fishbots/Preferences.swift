@@ -137,6 +137,19 @@ private struct GeneralTab: View {
                 Toggle(tr("Peixe da música que está tocando (Spotify, Música)"), isOn: prefs.bind({ NowPlaying.enabled }, { NowPlaying.enabled = $0 }))
                 Text(tr("Mostra a faixa e o artista, brilha quando a música muda e pausa a música ambiente enquanto toca."))
                     .font(.footnote).foregroundStyle(.secondary)
+                Toggle(tr("Visualizadores dançam com essa música"), isOn: prefs.bind({ SongEars.enabled }, { SongEars.enabled = $0 }))
+                    .disabled(!NowPlaying.enabled)
+                Text(tr("Escuta só o som do Spotify ou do Música, enquanto toca, para as notas e acordes virarem luz no aquário. Nada é gravado nem sai do Mac. Ao ligar, o macOS pede a permissão de Gravação de Áudio do Sistema."))
+                    .font(.footnote).foregroundStyle(.secondary)
+                switch SongEars.status {
+                case .silent:
+                    Text(tr("Não chega som: confira em Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela e Áudio do Sistema."))
+                        .font(.footnote).foregroundStyle(.orange)
+                case .failed(let why):
+                    Text(String(format: tr("Não consegui escutar o player: %@"), why))
+                        .font(.footnote).foregroundStyle(.orange)
+                default: EmptyView()
+                }
             }
             Section(tr("Foco")) {
                 Toggle(tr("Modo foco (só o que pede atenção)"), isOn: prefs.bind({ Attention.focus }, { Attention.focus = $0 }))

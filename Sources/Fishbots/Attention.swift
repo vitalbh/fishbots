@@ -141,7 +141,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         case .error: c.title = tr("%@: erro", f.label)
         case .alert: c.title = tr("%@: alerta", f.label)
         case .done: c.title = tr("%@ terminou", f.label)
-        default: c.title = "\(f.label): \(f.state.label)"
+        default: c.title = "\(f.label): \(f.stateLabel)"
         }
         c.body = [f.displayTitle, f.sub].compactMap { $0 }.joined(separator: " · ")
         c.userInfo = ["fish": f.id]

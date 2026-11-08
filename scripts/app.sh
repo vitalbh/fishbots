@@ -26,6 +26,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Para você falar com o peixinho: a sua voz vira a resposta para a sessão.</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>Para transcrever o que você fala ao peixinho (no próprio Mac quando possível).</string>
+  <key>NSAudioCaptureUsageDescription</key><string>Para os visualizadores dançarem com o Spotify ou o Música: só o som desses apps, analisado na hora, nada é gravado.</string>
   <key>NSAppleEventsUsageDescription</key><string>Para levar você até o terminal de uma sessão quando você clica no peixe.</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.music</string>
 </dict></plist>
@@ -35,6 +36,7 @@ mkdir -p "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/pt-BR.lproj
 cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<STRINGS
 NSMicrophoneUsageDescription = "So you can talk to the little fish: your voice becomes the reply to the session.";
 NSSpeechRecognitionUsageDescription = "To transcribe what you say to the little fish (on the Mac itself when possible).";
+NSAudioCaptureUsageDescription = "So the visualizers dance to Spotify or Music: only those apps' sound, analyzed on the fly, nothing recorded.";
 NSAppleEventsUsageDescription = "To take you to a session's terminal when you click its fish.";
 STRINGS
 touch "$APP/Contents/Resources/pt-BR.lproj/InfoPlist.strings"

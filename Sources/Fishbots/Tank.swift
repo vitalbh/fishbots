@@ -166,6 +166,11 @@ final class Fish {
     var ringAt: Double = 0
     /// What just happened, for the minimal label to show for a few seconds.
     var moment: (text: String, until: Double)?
+    /// Its own way of saying how it is, in place of the state's name (the music fish: "🎶 na vibe" rather than "working").
+    var mood: String?
+    var stateLabel: String { mood ?? state.label }
+    /// How far along it is (seconds), for the card's bar: the music fish's song.
+    var progress: (() -> (pos: Double, dur: Double, playing: Bool)?)?
     /// The agent's last reply (clean text, no markdown), for the card.
     var lastReply: String?
     /// The reply ended with a question for you (the final part).

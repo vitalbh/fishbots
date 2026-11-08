@@ -293,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         rememberSessions()
         plugins = Plugins(tank: tank)
         nowPlaying = NowPlaying(tank: tank)
+        nowPlaying?.ears.visual = visual
         setupStatusItem()
         // ⌃⌥F from any app: the session that has been waiting the longest (or the aquarium, if nobody is)
         registerHotkey()
@@ -620,7 +621,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 case ("POST", "/test/card"):
                     // to test the hover card without moving the mouse
                     let goal = path.components(separatedBy: "f=").dropFirst().first?.removingPercentEncoding
-                    if let f = self.tank.fish.first(where: { $0.isAgent && !$0.leaving && (goal == nil || $0.id.hasSuffix(goal!)) }) {
+                    if let f = self.tank.fish.first(where: { ($0.isAgent || goal != nil) && !$0.leaving && (goal == nil || $0.id.hasSuffix(goal!)) }) {
                         self.hoverId = f.id                      // pretend the mouse is over it, so the card doesn't close
                         self.hoverSince = Date(timeIntervalSinceNow: -1)
                         self.showCard(f)
@@ -809,6 +810,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         else if let m = f.moment, tank.time < m.until {
             line2 = (m.text, NSColor(white: 1, alpha: CGFloat(min(1, m.until - tank.time)) * 0.6))
         }
+        else if let m = f.mood { line2 = (m, NSColor(white: 1, alpha: 0.5)) }
         if let (t, color) = line2 {
             s.append(NSAttributedString(string: "\n" + t, attributes: [.font: rounded(10), .foregroundColor: color]))
         }
@@ -1125,6 +1127,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             return i
         }
         m.addItem(item(f.link != nil ? "Abrir link" : "Ir até lá", #selector(menuGo)))
+        if f.source == NowPlaying.source {
+            let ears = item("Visualizadores dançam com essa música", #selector(toggleSongEars))
+            ears.state = SongEars.enabled ? .on : .off
+            m.addItem(ears)
+        }
         // actions from the registry (built-ins, providers and config.json)
         for a in FishActions.all where a.when(f) {
             let it = item(a.title, #selector(menuAction(_:)))
@@ -1189,6 +1196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         FishKinds.setOverride(i.representedObject as? String, for: f.projectKey)
         for o in tank.fish where o.projectKey == f.projectKey { Providers.refresh(o) }
     }
+    @objc private func toggleSongEars() { SongEars.enabled.toggle() }
     @objc private func menuGo() { if let f = menuFish { Whereabouts.go(f) } }
     @objc private func menuAction(_ i: NSMenuItem) {
         guard let f = menuFish, let id = i.representedObject as? String, let a = FishActions.all.first(where: { $0.id == id }) else { return }
@@ -1295,7 +1303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 minimalLabel(f, l)
                 continue
             }
-            var state = f.state.label
+            var state = f.stateLabel
             if f.state == .busy, let tool = f.tool { state += " · \(tool)" }
             if let c = f.context, c >= 0.05 { state += tr(" · %d%% contexto", Int((c * 100).rounded())) }
             if f.compactingSince != nil { state = tr("🫧 compactando…") }
