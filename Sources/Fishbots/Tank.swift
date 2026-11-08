@@ -326,8 +326,23 @@ final class Tank {
     }
 
     /// The mouse moved (or left the tank, with nil).
+    private var rippleFrom: SIMD2<Float>?
+    private var rippleAt: Double = 0
+
     func moveCursor(_ p: SIMD2<Float>?) {
         if let p, let c = cursor, simd_distance(p, c) > 3 { cursorRestingAt = time }
+        // the mouse moving through the water leaves a trail of faint rings
+        if let p, p.y < size.y * 0.95, p.y > size.y * sand(p.x / max(1, size.x)) + 8 {
+            if let r = rippleFrom, simd_distance(p, r) > 46, time - rippleAt > 0.07 {
+                particles.append(Particle(pos: p, vel: .zero, life: 0, maxLife: 0.9, size: 3, grow: 34, kind: 2,
+                                          color: [0.42, 0.58, 0.66, 1]))
+                rippleFrom = p
+                rippleAt = time
+                stir(at: p, radius: 60, strength: 14)
+            } else if rippleFrom == nil { rippleFrom = p }
+        } else {
+            rippleFrom = nil
+        }
         cursor = p
         cursorAt = time
     }
@@ -335,6 +350,7 @@ final class Tank {
     /// Click near (but not on) fish: they get scared and flee. Returns true if it scared anyone.
     @discardableResult
     func scare(_ p: SIMD2<Float>) -> Bool {
+        stir(at: p, radius: 170, strength: 90)
         var some = false
         for f in fish where !f.leaving && simd_distance(f.pos, p) < 150 {
             f.fearUntil = time + 1.1
@@ -689,7 +705,16 @@ final class Tank {
     }
 
     /// Marine snow: specks drifting down at different depths (far ones behind the fish, near ones in front).
-    private struct Mote { var pos: SIMD2<Float>; var depth: Float; var size: Float; var phase: Float; var speed: Float }
+    private struct Mote { var pos: SIMD2<Float>; var depth: Float; var size: Float; var phase: Float; var speed: Float; var vel: SIMD2<Float> = .zero }
+
+    /// Pushes the marine snow away from a point (a click, the mouse, a quake).
+    func stir(at p: SIMD2<Float>, radius r: Float, strength: Float) {
+        for i in motes.indices {
+            let d = motes[i].pos - p, l = simd_length(d)
+            guard l < r, l > 0.1 else { continue }
+            motes[i].vel += d / l * strength * (1 - l / r) * (1.2 - motes[i].depth)
+        }
+    }
     private var motes: [Mote] = []
     private var motesFor: SIMD2<Float> = .zero
 
@@ -704,9 +729,17 @@ final class Tank {
                             phase: Float.random(in: 0...20), speed: Float.random(in: 2...7) * (1.2 - depth * 0.6))
             }
         }
+        // fish swimming by leave a wake in the snow
+        let movers = fish.filter { !$0.leaving && simd_length($0.vel) > 35 }
         for i in motes.indices {
             var m = motes[i]
             m.phase += dt
+            for f in movers {
+                let d = m.pos - f.pos, l = simd_length(d), r = f.size * 1.6
+                if l < r && l > 0.1 { m.vel += (d / l * 40 + f.vel * 0.5) * (1 - l / r) * dt * (1.2 - m.depth) }
+            }
+            m.pos += m.vel * dt
+            m.vel *= expf(-dt * 1.6)
             m.pos.y -= m.speed * dt
             m.pos.x += (sinf(m.phase * 0.35) * 5 + current * 0.5 * (1.1 - m.depth)) * dt
             if m.pos.y < size.y * sand(m.pos.x / max(1, size.x)) { m.pos.y = size.y * 0.97; m.pos.x = Float.random(in: 0...size.x) }
@@ -839,6 +872,7 @@ final class Tank {
     }
 
     func feed(at p: SIMD2<Float>) {
+        stir(at: p, radius: 150, strength: 70)
         for _ in 0..<8 {
             particles.append(Particle(pos: [p.x + Float.random(in: -25...25), p.y + Float.random(in: -8...8)], vel: [0, -26],
                                       life: 0, maxLife: 12, size: 3.2, grow: 0, kind: 3,
@@ -1286,10 +1320,14 @@ final class Tank {
             if f.phase == 0 {
                 target = f.wander
             } else {
-                let ang = Float(f.phase) * 1.1 + Float(time) * 0.3
-                target = leader.pos + SIMD2(cosf(ang), sinf(ang)) * Float(14 + f.phase * 4)
+                // a school: toward the group's center, heading where the group heads, following the leader from a distance
+                var center = SIMD2<Float>.zero, heading = SIMD2<Float>.zero, n: Float = 0
+                for o in fish where o.decor && o.parent == nil && o !== f { center += o.pos; heading += o.vel; n += 1 }
+                if n > 0 { center /= n; heading /= n }
+                let wobble = SIMD2(sinf(Float(time) * 0.7 + Float(f.phase) * 1.9), cosf(Float(time) * 0.5 + Float(f.phase))) * 9
+                target = f.pos + (center - f.pos) * 0.35 + (leader.pos - f.pos) * 0.3 + heading * 0.8 + wobble
             }
-            speed = f.phase == 0 ? 45 : 70
+            speed = f.phase == 0 ? 45 : 75
             // a real school: they part around a big fish passing through and close up again behind it,
             // and keep a little room between each other
             var away: SIMD2<Float> = .zero
@@ -1299,7 +1337,7 @@ final class Tank {
             }
             for o in fish where o.decor && o !== f && o.parent == nil {
                 let d = f.pos - o.pos, l = simd_length(d)
-                if l < 12 && l > 0.1 { away += d / l * (12 - l) / 12 * 0.6 }
+                if l < 16 && l > 0.1 { away += d / l * (16 - l) / 16 * 0.6 }
             }
             if simd_length(away) > 0.01 {
                 target = f.pos + simd_normalize(away) * 90 + (target - f.pos) * 0.3
