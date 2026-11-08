@@ -90,10 +90,12 @@ Helpers you can call: `sd_box(p, half, r)`, `sd_seg(p, a, b)`, `sd_tri(p, a, b, 
 - No globals except `constant` ones; no `half` as a variable name; define a helper above the function using it.
 - Several pieces may share one `.metal` file (it goes into the shader once).
 - Anything past ±1 is clipped with a straight edge: keep shapes inside, and fade glows to zero before the edge.
-- **Keep it cheap.** The function runs for every pixel of the quad, every frame. No loops over hundreds of steps,
-  few `vnoise`/`vor_edge` calls (each `vor_edge` is 34 hashes), and return early (`if (a <= 0.0) return float4(0.0);`)
-  before costly shading. The app pauses a pack whose drawings make the aquarium drop under 30 frames a second
-  (Tema → Reativar; a `pack dev` pack comes back on the next save), so a heavy drawing simply disappears.
+- **There's plenty of room — don't skimp on looks, just avoid brute force.** A whole aquarium with the Japanese
+  pond's koi, lantern, lily pads, frogs, tadpoles and shrimp draws in about 10 ms a frame; the app only steps in past
+  33 ms. Detailed drawings like the koi (scales, two-octave patches, lighting, rayed fins) or the octopus (6 arms × 8
+  segments) are fine. What's too much: loops of hundreds of steps per pixel, dozens of `vor_edge` calls, ray
+  marching. Early `return float4(0.0)` where the shape isn't is a free win. If a drawing does go too far, the app
+  pauses its pack (Tema → Reativar; a `pack dev` pack comes back on the next save), so it simply disappears.
 
 ## Making it look good (the house style)
 
