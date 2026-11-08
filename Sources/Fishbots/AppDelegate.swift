@@ -1395,10 +1395,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// The fish chosen with Tab (its card stays open until Esc or the mouse goes to another fish).
     private var keyboardPick: String?
 
-    /// Who needs you, in order of arrival: waiting (questions, permission requests), alerts and errors.
+    /// The Tab order: agent sessions waiting for you first (a permission request or a question, the latest first), then the
+    /// other agent sessions (the most recently active first), then anything else asking for attention (a broken PR, an alert).
     private var needingYou: [Fish] {
-        tank.fish.filter { !$0.decor && !$0.leaving && ([.waiting, .error, .alert].contains($0.state) || permissions.request(ofFish: $0.id) != nil) }
-            .sorted { $0.since < $1.since }
+        let live = tank.fish.filter { !$0.decor && !$0.leaving }
+        func waits(_ f: Fish) -> Bool { f.state == .waiting || permissions.request(ofFish: f.id) != nil }
+        let agents = live.filter(\.isAgent)
+        let waiting = agents.filter(waits).sorted { $0.since > $1.since }
+        let active = agents.filter { !waits($0) }.sorted { $0.seen > $1.seen }
+        let others = live.filter { !$0.isAgent && [.waiting, .error, .alert].contains($0.state) }.sorted { $0.since < $1.since }
+        return waiting + active + others
     }
 
     private func pick(_ f: Fish) {

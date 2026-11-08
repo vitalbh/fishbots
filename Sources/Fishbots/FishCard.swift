@@ -21,13 +21,13 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     private var showAllButton: NSButton?
     private var fullReply = ""
 
-    /// The end of the text: the last lines (up to 6 and ~360 characters), with "…" if it was cut.
-    static func textEnding(_ t: String, _ n: Int) -> String {
+    /// The end of the text: the last lines (up to `lines` and ~n characters), with "…" if it was cut.
+    static func textEnding(_ t: String, _ n: Int, lines maxLines: Int = 6) -> String {
         let lines = t.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         var taken: [String] = []
         var total = 0
         for l in lines.reversed() {
-            if taken.count >= 6 || total + l.count > n {
+            if taken.count >= maxLines || total + l.count > n {
                 if taken.isEmpty { taken.append("…" + String(l.suffix(n))) }   // one huge line: its end
                 break
             }
@@ -49,21 +49,24 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         tv.string = fullReply
         tv.isEditable = false
         tv.drawsBackground = false
-        tv.font = .systemFont(ofSize: 11.5)
+        tv.font = .systemFont(ofSize: 12.5)
         tv.textColor = .labelColor
         tv.textContainer?.widthTracksTextView = true
         tv.isVerticallyResizable = true
         tv.autoresizingMask = [.width]
         scroll.documentView = tv
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.widthAnchor.constraint(equalToConstant: 360).isActive = true
-        scroll.heightAnchor.constraint(equalToConstant: 260).isActive = true
+        // as wide as the card and as tall as the text needs, up to about half the screen
+        let screenH = view.window?.screen?.visibleFrame.height ?? NSScreen.main?.visibleFrame.height ?? 900
+        let lines = CGFloat(fullReply.count) / (width / 7) + CGFloat(fullReply.components(separatedBy: "\n").count)
+        scroll.widthAnchor.constraint(equalToConstant: width + 20).isActive = true
+        scroll.heightAnchor.constraint(equalToConstant: min(screenH * 0.55, max(200, lines * 17))).isActive = true
         if let i = stack.arrangedSubviews.firstIndex(of: short) {
             stack.insertArrangedSubview(scroll, at: i)
             short.removeFromSuperview()
             showAllButton?.removeFromSuperview()
         }
-        tv.frame = NSRect(x: 0, y: 0, width: 344, height: 10)
+        tv.frame = NSRect(x: 0, y: 0, width: width + 4, height: 10)
         tv.sizeToFit()
         tv.scrollToEndOfDocument(nil)
         view.layoutSubtreeIfNeeded()
@@ -113,7 +116,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         let t = NSTextField(wrappingLabelWithString: s)
         t.font = mono ? .monospacedSystemFont(ofSize: len, weight: weight) : .systemFont(ofSize: len, weight: weight)
         t.textColor = color
-        t.preferredMaxLayoutWidth = 340
+        t.preferredMaxLayoutWidth = width
         t.isSelectable = false
         return t
     }
@@ -148,6 +151,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(s, forType: .string)
     }
+
+    /// How wide the card is: it grows with what there is to read (a long reply, a long command to approve).
+    private lazy var width: CGFloat = {
+        let longest = max(f.lastReply?.count ?? 0, request?.summary.count ?? 0, (f.displayTitle ?? "").count * 3)
+        return longest < 180 ? 340 : longest < 600 ? 440 : 540
+    }()
 
     override func loadView() {
         var v: [NSView] = []
@@ -242,9 +251,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             let header = NSStackView(views: [title, listen])
             header.spacing = 6
             v.append(header)
-            let final = Self.textEnding(r, 360)
-            let t = text(final, 11.5, color: .labelColor)
-            t.maximumNumberOfLines = 8
+            let final = Self.textEnding(r, width > 400 ? 800 : 380, lines: width > 400 ? 10 : 6)
+            let t = text(final, 12.5, color: .labelColor)
+            t.maximumNumberOfLines = 14
+            let ps = NSMutableParagraphStyle(); ps.lineSpacing = 2
+            t.attributedStringValue = NSAttributedString(string: final, attributes: [.font: NSFont.systemFont(ofSize: 12.5),
+                                                                                  .foregroundColor: NSColor.labelColor, .paragraphStyle: ps])
             v.append(t)
             replySummary = t
             if final.hasPrefix("…") {
@@ -269,7 +281,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             let buttons = NSStackView(views: [b(tr("Ir até lá"), "go"), NSView(), b(tr("Negar"), "deny"), b(tr("Permitir"), "allow", "\r")])
             buttons.spacing = 8
             v.append(buttons)
-            buttons.widthAnchor.constraint(equalToConstant: 340).isActive = true
+            buttons.widthAnchor.constraint(equalToConstant: width).isActive = true
         } else if reply != nil {
             // reply from the aquarium: typed into the session's terminal, with Enter
             let c = NSTextField(wrappingLabelWithString: "")
@@ -297,7 +309,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             mic.bezelStyle = .rounded
             mic.toolTip = tr("Falar (clique de novo para parar)")
             microphone = mic
-            c.widthAnchor.constraint(equalToConstant: 230).isActive = true
+            c.widthAnchor.constraint(equalToConstant: width - 110).isActive = true
             let line = NSStackView(views: [mic, c, b])
             line.alignment = .top
             line.spacing = 6
@@ -308,9 +320,16 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             b.bezelStyle = .rounded
             v.append(b)
         }
-        if request == nil && reply == nil {
+        if (request == nil && reply == nil) || keyboardHint {
+            // the keys this fish really takes: speaking and writing only where the session can be replied to
+            // (its provider's .reply), hearing only with something to read, allow/deny only with a request
+            var keys = [tr("Tab: próximo"), f.link != nil ? tr("↩ abrir") : tr("↩ ir")]
+            if f.asked != nil || !(f.lastReply ?? "").isEmpty { keys.append(tr("R ouvir")) }
+            if reply != nil { keys += [tr("M falar"), tr("E escrever")] }
+            if request != nil { keys += [tr("A permitir"), tr("N negar")] }
+            keys.append(tr("Esc fechar"))
             let hint = keyboardHint
-                ? tr("Tab: próximo  ·  ↩ ir  ·  R ouvir  ·  M falar  ·  E escrever  ·  Esc fechar")
+                ? keys.joined(separator: "  ·  ")
                 : tr(f.link != nil ? "clique: abrir  ·  botão direito: menu" : "clique: ir até lá  ·  botão direito: menu")
             v.append(text(hint, 10, color: .tertiaryLabelColor))
         }
