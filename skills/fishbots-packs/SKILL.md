@@ -135,6 +135,8 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
 - **Sand and seaweed:** `"looks"` also takes `pebble`, `seashell` and `pearl` (→ pack scenery: river stones, ice chips;
   a pearl gets the project's color); `"weeds": {"shapes": ["reed", "ribbon", "blade", "kelp", "leafy"]}` picks the
   seaweed's shapes.
+- **Ambience:** `"looks"` takes `mote` (marine snow: petals, ice crystals), `bubble`, `food` too; `"foreground": false`
+  removes the blurred tufts up front; `"voices": {"chime": "koto"}` gives the scene's sounds another voice or a pack sound.
 - **Schools and jellyfish:** `"schools": [{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}]`
   (up to 3: middle, high, low and far) replaces the tropical neons; `"jellyfish": false` removes the drifting one.
 - **Presences** (`"presences"`): kinds plugins can send (`"kind": "<id>"`), with `motion` (swim drift hover walk sit

@@ -120,7 +120,9 @@ final class Music {
 
     /// Plays a scene voice now. The cue shapes it over the voice's root, in the current key: a hello (born), a
     /// question going up a fifth (waiting), a tritone (alert), a step down (error), a major arpeggio (done).
-    func sceneSound(_ voice: String, cue: SceneCue, x: Float) {
+    func sceneSound(_ asked: String, cue: SceneCue, x: Float) {
+        // the theme may give a voice another one, or one of its packs' recorded sounds ("voices": {"chime": "koto"})
+        let voice = Themes.current.voices[asked] ?? asked
         guard synth.running, voice != "none" else { return }
         let pan = (x * 2 - 1) * 0.6
         let t0 = Double(synth.now.load(ordering: .relaxed)) + 0.05 * sr
@@ -140,6 +142,10 @@ final class Music {
             }
         }
         let root = tonic
+        if let timbre = Packs.soundTimbres[voice] {
+            line(timbre, root, vel: 0.5, gap: 0.2, dur: 0.8)
+            return
+        }
         switch voice {
         case "arpeggio": tank.pendingArp += 1
         case "whale": whaleSong()

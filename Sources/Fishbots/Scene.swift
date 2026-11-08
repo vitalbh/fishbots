@@ -485,7 +485,8 @@ final class Scene {
             icon = "🐟"
             let dir: Float = Bool.random() ? 1 : -1
             let y0 = h * (y ?? Float.random(in: 0.35...0.7))
-            let c = tint ?? [0.7, 0.85, 1]
+            // the theme's first school crosses (the usual silversides otherwise)
+            let c = tint ?? Themes.current.schools?.first?.color ?? [0.7, 0.85, 1]
             for i in 0..<13 {
                 let off: SIMD2<Float> = [Float(i % 5) * -18 * dir + Float.random(in: -8...8), Float(i / 5) * 14 - 14 + Float.random(in: -5...5)]
                 school.append(Swimmer(pos: [(dir > 0 ? -40 : w + 40) + off.x, y0 + off.y], vel: [dir * Float.random(in: 92...104), 0],
@@ -738,7 +739,7 @@ final class Scene {
             }
         }
         if front {
-            let kind = Float(FishKinds.index(of: "slender"))
+            let kind = Float(FishKinds.index(of: Themes.current.schools?.first?.kind ?? "slender"))
             for s in school {
                 let d: Float = s.vel.x >= 0 ? 1 : -1
                 out.append(Sprite(pos: s.pos, dir: [d, 0], size: s.size, kind: 0, glow: 0, phase: s.phase,

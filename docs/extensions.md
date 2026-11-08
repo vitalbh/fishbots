@@ -146,6 +146,8 @@ A pack theme can draw its own far background and give the built-in pieces anothe
     `"lanternfish"` the night lanternfish;
   - a **built-in creature** (`crab`, `turtle`, `snail`, `starfish`, `whale`, `jellyfish`): drawn as one of the pack's
     creatures (or, for the jellyfish, a presence), moving as always;
+  - the **drifting bits** (`mote`, the marine snow; `bubble`; `food`): drawn as one of the pack's scenery pieces
+    (`float` anchor), small; `t` turns them;
   - the **little things on the sand** (`pebble`, `seashell`, `pearl`): drawn as one of the pack's scenery pieces (sized
     by the app; a pearl's drawing gets the project's color as `col` and glows while it's new).
 
@@ -164,6 +166,10 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   far), each `{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}`; `kind` may be a pack's fish.
   Without it, the usual neons, tetras and silversides.
 - `jellyfish`: `false` leaves out the jellyfish that drifts around.
+- `voices`: the scene's voices (what presences and effects sound like, docs/scene.md) given another voice or one of the
+  packs' recorded sounds: `{"chime": "koto", "kalimba": "marimba"}`. The crossing school effect uses the theme's first
+  school.
+- `foreground`: `false` leaves out the blurred seaweed tufts up front; a color tints them.
 - `weeds.shapes`: the seaweed's shapes, mixed along the tank: `blade`, `kelp`, `leafy`, `reed` (straight, some with a
   cattail's head), `ribbon` (thin, dark, waving). Without it, blades, kelp and leafy stems.
 - `description` / `descriptions`: one sentence about the theme for the themes window (the pack's, if it has none).

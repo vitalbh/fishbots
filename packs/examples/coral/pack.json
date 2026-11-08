@@ -4,7 +4,7 @@
   "names": {
     "en": "Coral reef"
   },
-  "version": "2.5",
+  "version": "2.6",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -113,7 +113,11 @@
             0.8
           ]
         }
-      ]
+      ],
+      "voices": {
+        "kalimba": "marimba",
+        "chime": "marimba"
+      }
     }
   ],
   "chords": {
