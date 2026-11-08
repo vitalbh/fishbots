@@ -68,6 +68,8 @@ enum FishKinds {
         gen += "\n\nfloat4 draw_kind(int k, float2 c, float phase, float glow, float4 col, float4 extra, float4 aux) {\n    switch (k) {\n"
         for (i, k) in all.enumerated() { gen += "    case \(i): return \(k.call);\n" }
         gen += "    default: return \(all[0].call);\n    }\n}\n"
-        return shaderBase.replacingOccurrences(of: "// @fish-kinds", with: gen)
+        // the lanternfish's quad is bigger, so its light fades out before the edge instead of ending in a straight line
+        return "#define LANTERN_KIND \(index(of: "lanternfish"))\n#define LANTERN_ROOM 1.6\n"
+            + shaderBase.replacingOccurrences(of: "// @fish-kinds", with: gen)
     }
 }
