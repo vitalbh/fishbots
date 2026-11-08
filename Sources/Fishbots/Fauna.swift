@@ -60,7 +60,14 @@ final class Fauna {
 /// Crabs: walk sideways in the sand, stop, sometimes bury themselves.
 final class Crabs: Creature {
     let id = "crab"
-    private struct Crab { var x: Float; var dir: Float; var walking = true; var until: Double = 0; var buried: Float = 0; var phase: Float = 0; var color: SIMD3<Float> }
+    private struct Crab {
+        var x: Float; var dir: Float; var walking = true; var until: Double = 0; var buried: Float = 0; var phase: Float = 0; var color: SIMD3<Float>
+        /// An errand: 1 going to the pearls, 2 carrying something shiny to the chest, 3 coming back home.
+        var errand = 0
+        var goal: Float = 0
+        var home: Float = 0
+        var errandAt: Double = 0
+    }
     private var crabs: [Crab] = []
 
     func update(_ t: Tank, dt: Float) {
@@ -74,6 +81,45 @@ final class Crabs: Creature {
         for i in crabs.indices {
             var c = crabs[i]
             c.phase += dt
+            if c.errandAt == 0 { c.errandAt = t.time + Double.random(in: 40...120) * Tank.scale }
+            // now and then, an errand: something shiny from the pearls' row to the treasure chest, then back home
+            if c.errand == 0, c.buried < 0.5, t.time > c.errandAt, let p = t.pearls.randomElement(),
+               let chest = t.scenery.first(where: { $0.id == "chest" }) {
+                _ = chest
+                c.errand = 1; c.home = c.x; c.goal = t.pearlPos(p).x
+            }
+            if c.errand > 0 {
+                c.walking = true
+                c.dir = c.goal >= c.x ? 1 : -1
+                c.x += c.dir * 30 * dt
+                if abs(c.goal - c.x) < 4 {
+                    let y = t.size.y * t.sand(c.x / max(1, t.size.x)) + 12
+                    switch c.errand {
+                    case 1:
+                        t.sparkle(at: [c.x, y], color: [1, 0.97, 0.85])
+                        if let s = t.scenery.first(where: { $0.id == "chest" }) {
+                            let (center, sz) = t.place(s)
+                            c.goal = center.x + (c.x < center.x ? -1 : 1) * sz * 1.05
+                            c.errand = 2
+                        } else { c.errand = 3; c.goal = c.home }
+                    case 2:
+                        // drops it into the chest: a golden glint and a bubble
+                        if let s = t.scenery.first(where: { $0.id == "chest" }) {
+                            let (center, sz) = t.place(s)
+                            t.sparkle(at: center + [0, sz * 0.5], color: [1, 0.82, 0.4])
+                            t.bubble(at: center + [0, sz * 0.3], size: 2)
+                        }
+                        c.errand = 3; c.goal = c.home
+                    default:
+                        c.errand = 0
+                        c.errandAt = t.time + Double.random(in: 90...220) * Tank.scale
+                        c.until = t.time + Double.random(in: 2...5)
+                        c.walking = false
+                    }
+                }
+                crabs[i] = c
+                continue
+            }
             if t.time > c.until {
                 let r = Float.random(in: 0...1)
                 if c.buried > 0.5 { c.buried = 0; c.walking = true; c.until = t.time + Double.random(in: 4...9) }
@@ -101,11 +147,18 @@ final class Crabs: Creature {
 
     func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
         guard layer == .middle else { return [] }
-        return crabs.map { c in
+        return crabs.flatMap { c -> [Sprite] in
             let u = c.x / max(1, t.size.x)
-            return Sprite(pos: [c.x, t.size.y * t.sand(u) + 7 - c.buried * 7], dir: [1, 0], size: 20, kind: 14,
-                          glow: c.walking ? 1 : 0, phase: c.phase, color: SIMD4(c.color * (0.55 + 0.45 * t.light), 1 - c.buried * 0.75),
-                          extra: [1, 0, 0, 0])
+            let y = t.size.y * t.sand(u) + 7 - c.buried * 7
+            var out = [Sprite(pos: [c.x, y], dir: [1, 0], size: 20, kind: 14,
+                              glow: c.walking ? 1 : 0, phase: c.phase, color: SIMD4(c.color * (0.55 + 0.45 * t.light), 1 - c.buried * 0.75),
+                              extra: [1, 0, 0, 0])]
+            // carrying: a little shiny pearl held up over its shell
+            if c.errand == 2 {
+                out.append(Sprite(pos: [c.x, y + 11 + sinf(c.phase * 8) * 0.8], dir: [1, 0], size: 4.5, kind: 12, glow: 0.6, phase: 0,
+                                  color: [0.97, 0.93, 0.88, 1], extra: [1, 0, 0, 0]))
+            }
+            return out
         }
     }
 }

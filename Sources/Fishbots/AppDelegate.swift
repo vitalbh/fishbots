@@ -410,6 +410,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     func applicationDidBecomeActive(_ notification: Notification) { Attention.reload(); notifier.readPermission() }
     func applicationWillTerminate(_ notification: Notification) {
+        // quitting in widget mode: back to the normal window first, so it isn't remembered as the window's size
+        if widgetFrom != nil { toggleWidget() }
         SessionMemory.save(tank)
         plugins?.stop()
         permissions.releaseAll()
@@ -1396,8 +1398,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             window.backgroundColor = .black
             content.layer?.cornerRadius = 0
             window.setFrame(from, display: true, animate: true)
+            window.setFrameAutosaveName("Fishbots")        // remember the normal window's size again
         } else {
             widgetFrom = window.frame
+            window.setFrameAutosaveName("")                // the widget's size isn't the window's size
             levelBeforeWidget = window.level
             tank.compact = true
             window.styleMask = [.borderless, .resizable]

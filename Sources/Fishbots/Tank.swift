@@ -748,6 +748,7 @@ final class Tank {
 
     private var oxygenAt: Double = 0
     private var pearlGlintAt: Double = 0
+    private var shapedAt: Double = 0
     /// How full of sessions the tank is (0: four or fewer, 1: ten or more), smoothed.
     private var crowd: Float = 0
 
@@ -1275,6 +1276,19 @@ final class Tank {
             later = keep
         }
 
+        // now and then the bubbler lets out something special: a bubble ring, or a big bubble that splits in two
+        if shapedAt == 0 { shapedAt = time + Double.random(in: 15...30) * Self.scale }
+        if time > shapedAt {
+            shapedAt = time + Double.random(in: 25...50) * Self.scale
+            if Bool.random() {
+                particles.append(Particle(pos: [bubblerX, 60], vel: [0, 34], life: 0, maxLife: 5.5, size: 6, grow: 3.5, kind: 2,
+                                          color: [0.85, 0.95, 1, 1]))
+            } else {
+                // alpha 0.99 marks it: it splits halfway up (in the particles' update)
+                particles.append(Particle(pos: [bubblerX, 60], vel: [0, 46], life: 0, maxLife: 30, size: 7.5, grow: 0, kind: 1,
+                                          color: [0.8, 0.95, 1, 0.99]))
+            }
+        }
         // bubbler bubbles
         if time > bubblerAt {
             bubble(at: [bubblerX + Float.random(in: -4...4), 50], size: Float.random(in: 1.5...3.5))
@@ -1486,6 +1500,18 @@ final class Tank {
             if p.kind == 1 || p.kind == 10 { p.pos.x += current * dt * 0.6 }
             p.size += p.grow * dt
             particles[i] = p
+        }
+        // the big bubble splits in two halfway up
+        var splits: [SIMD2<Float>] = []
+        for i in particles.indices where particles[i].kind == 1 && particles[i].color.w < 0.995 && particles[i].pos.y > size.y * 0.55 {
+            splits.append(particles[i].pos)
+            particles[i].life = particles[i].maxLife + 1
+        }
+        for p in splits {
+            for side: Float in [-1, 1] {
+                particles.append(Particle(pos: p + [side * 3, 0], vel: [side * 26, 40], life: 0, maxLife: 30, size: 4.6, grow: 0, kind: 1,
+                                          color: [0.8, 0.95, 1, 1]))
+            }
         }
         // a bubble reaching the surface pops: a little ring spreads on the water
         var pops: [SIMD2<Float>] = []
@@ -1744,6 +1770,10 @@ final class Tank {
                     // lies on the sand
                     target = [f.pos.x, size.y * sand(f.pos.x / max(1, w)) + f.size * 1.7]
                     speed = 8
+                } else if f.kindID == "octopus" && time - f.since > 45 * Self.scale {
+                    // an octopus whose PR sits still settles on the sand and blends in (camouflage, below)
+                    target = [f.pos.x + sinf(Float(time) * 0.2 + Float(f.phase)) * 6, size.y * sand(f.pos.x / max(1, w)) + f.size * 0.85]
+                    speed = 14
                 } else {
                     target = wanderPoint(f, yRange: (h * 0.14, h * 0.36), every: 5...10)
                     speed = 24 * burst(f)
@@ -1969,6 +1999,11 @@ final class Tank {
             }
             if f.decor { alpha = 0.85 }
             if asleep { c *= 0.8 }
+            // camouflage: an octopus resting on the sand takes the sand's color, little by little (back in color when its state changes)
+            if octopus && (f.state == .idle || f.state == .ok) && !f.leaving {
+                let camo = smoothstep(45, 80, Float((time - f.since) / Self.scale))
+                c = mix(c, SIMD3<Float>(0.5, 0.44, 0.33) * (0.45 + 0.55 * light), t: camo * 0.85)
+            }
             var glow = f.glow
             if f.state == .waiting { glow = max(glow, 0.35 + 0.35 * sinf(Float(time) * 4)) }
             // waking up: stretches (grows and shrinks back)
