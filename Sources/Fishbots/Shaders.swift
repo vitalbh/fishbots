@@ -317,6 +317,7 @@ vertex SpOut sprite_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     float2 c = corners[vid];
     float2 ext;
     if (s.kind < 0.5) ext = float2(1.25, 0.8) * s.size;
+    else if (s.kind > 33.5) ext = float2(s.size);                     // coral
     else if (s.kind > 32.5) ext = float2(s.size);                     // mote (marine snow)
     else if (s.kind > 31.5) ext = float2(1.0, 0.28) * s.size;         // shadow on the sand
     else if (s.kind > 24.5) ext = presence_extent(int(s.kind + 0.5)) * s.size;   // presences (Scene.swift)
@@ -615,6 +616,11 @@ float4 draw_jelly(float2 c, float phase, float glow, float4 col) {
     return float4(c3 * a * col.a + col.rgb * halo, min(1.0, a * col.a + halo * 0.5));
 }
 
+float sd_seg(float2 p, float2 a, float2 b) {
+    float2 pa = p - a, ba = b - a;
+    return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0));
+}
+
 float sd_box(float2 p, float2 b, float r) {
     float2 q = abs(p) - b + r;
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
@@ -688,6 +694,64 @@ float4 draw_shell(float2 c, float phase, float4 col) {
     float3 base = col.rgb * (0.68 + 0.32 * ribs) * (0.72 + 0.38 * clamp(r / 1.3, 0.0, 1.0));
     base += col.rgb * pow(ribs, 6.0) * 0.25 * smoothstep(0.3, 1.2, r);   // nacre sheen on the ribs
     return float4(base * a, a);
+}
+
+// corals on the sand (scenery). The sand line is at y = -0.3; `seed` picks the shape and varies it a little.
+float4 draw_coral(float2 c, float seed, float t, float4 col) {
+    float2 p = c;
+    int kind = int(seed) % 3;
+    float h = fract(seed) * 6.0;
+    float d = 1e3;
+    float cover = -1.0;                 // set directly by shapes whose edges aren't a clean distance (the fan's lace)
+    float3 c3 = col.rgb;
+    if (kind == 0) {
+        // branching: a short trunk and forking branches with rounded tips, swaying a little
+        d = sd_seg(p, float2(0.0, -0.35), float2(0.0, -0.05)) - 0.075;
+        for (int i = 0; i < 5; i++) {
+            float fi = float(i);
+            float a = -0.95 + 0.47 * fi + sin(h + fi * 2.1) * 0.12;
+            float2 s0 = float2(0.0, -0.08 + 0.05 * fmod(fi, 2.0));
+            float len = 0.5 + 0.18 * fract(sin(h * 7.0 + fi * 3.3) * 43.7);
+            float2 e = s0 + float2(sin(a), cos(a)) * len;
+            e.x += sin(t * 0.7 + fi + h) * 0.03;
+            d = min(d, sd_seg(p, s0, e) - 0.055);
+            float2 m = mix(s0, e, 0.55);
+            float2 e2 = m + float2(sin(a + 0.55), cos(a + 0.55)) * len * 0.42;
+            e2.x += sin(t * 0.7 + fi + h + 1.0) * 0.03;
+            d = min(d, sd_seg(p, m, e2) - 0.042);
+        }
+        c3 *= 0.65 + 0.5 * smoothstep(-0.3, 0.8, p.y);                   // lighter toward the tips
+        float polyp = step(0.8, vnoise(p * 24.0 + h));
+        c3 = mix(c3, c3 * 1.35 + 0.08, polyp * 0.6);
+    } else if (kind == 1) {
+        // sea fan: a wide lacy fan on a short stem, waving slowly
+        float2 q = p;
+        q.x -= sin(t * 0.6 + h) * 0.035 * (p.y + 0.3);
+        float fan = (length((q - float2(0.0, 0.3)) / float2(0.85, 0.62)) - 1.0) * 0.5;
+        fan = max(fan, -0.1 - q.y);
+        float ang = atan2(q.x, q.y + 0.3);
+        float veins = abs(fract(ang * 4.5 + 0.5) - 0.5) * 2.0;           // ribs from the base
+        float rings = abs(fract(length(q + float2(0.0, 0.3)) * 9.0) - 0.5) * 2.0;
+        float lace = 1.0 - smoothstep(0.26, 0.36, min(veins, rings));
+        float afan = fwidth(fan) + 1e-4;
+        float inFan = (1.0 - smoothstep(-afan, afan, fan)) * lace;
+        float stem = sd_seg(p, float2(0.0, -0.35), float2(0.0, -0.08)) - 0.045;
+        float ast = fwidth(stem) + 1e-4;
+        cover = max(inFan, 1.0 - smoothstep(-ast, ast, stem));
+        c3 *= 0.7 + 0.4 * smoothstep(-0.3, 0.9, p.y);
+    } else {
+        // brain coral: a dome with winding grooves
+        float2 q = (p - float2(0.0, -0.32)) / float2(0.78, 0.62);
+        d = max((length(q) - 1.0) * 0.5, -0.33 - p.y);
+        float groove = sin(p.x * 23.0 + sin(p.y * 13.0 + h) * 2.4 + h);
+        c3 *= 0.7 + 0.45 * smoothstep(-0.35, 0.3, p.y);
+        c3 = mix(c3, c3 * 0.55, smoothstep(0.55, 0.9, abs(groove)));
+    }
+    float aa = fwidth(d) + 1e-4;
+    float inside = cover >= 0.0 ? cover : 1.0 - smoothstep(-aa, aa, d);
+    // the sand line hides the base
+    inside *= smoothstep(-0.36, -0.3, p.y);
+    return float4(c3 * inside, inside) * col.a;
 }
 
 // `open` (0…1): the lid rises and tips back, showing a heap of gold coins inside
@@ -790,11 +854,6 @@ float4 draw_note(float2 c, float glow, float4 col) {
 
 // ---------- presences (Scene.swift): creatures and objects that plugins control, sprite kinds 25–30 ----------
 // Every drawing returns premultiplied color; `col` is already tinted by the state, `glow` is the state's halo.
-
-float sd_seg(float2 p, float2 a, float2 b) {
-    float2 pa = p - a, ba = b - a;
-    return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0));
-}
 
 // the state's halo fades out well before the quad's edge (otherwise it shows as a blurred rectangle)
 float edge_fade(float2 c) { return 1.0 - smoothstep(0.45, 0.9, max(abs(c.x), abs(c.y))); }
@@ -1012,7 +1071,8 @@ float emissive(float k, float glow) {
     if (k < 24.5) return 0.7;                                      // music note
     if (k < 31.5) return 0.12 + clamp(glow, 0.0, 1.0) * 0.6;       // presences: their state's halo
     if (k < 32.5) return 0.0;                                      // shadow
-    return 0.25;                                                   // marine snow
+    if (k < 33.5) return 0.25;                                     // marine snow
+    return 0.0;                                                    // coral
 }
 
 fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buffer(0)]]) {
@@ -1073,6 +1133,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float border = 1.0 - smoothstep(0.5, 1.0, max(abs(c.x), abs(c.y)));
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
+    } else if (k > 33.5) {             // scenery: coral (phase: 0 branching, 1 sea fan, 2 brain)
+        outc = draw_coral(c, in.phase, u.time, in.color);
     } else if (k > 32.5) {             // mote of marine snow: a tiny soft speck
         float a = exp(-r * r * 4.5) * in.glow;
         outc = float4(in.color.rgb * a, a);

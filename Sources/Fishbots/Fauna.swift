@@ -18,7 +18,7 @@ final class Fauna {
     /// Factories of every known creature, by id.
     private(set) static var kinds: [(id: String, make: () -> Creature)] = [
         ("crab", { Crabs() }), ("starfish", { Starfish() }), ("turtle", { TurtleSwimmer() }),
-        ("snail", { Snail() }), ("lanternfish", { Lanterns() }), ("whale", { WhaleSwimmer() }),
+        ("snail", { Snail() }), ("lanternfish", { Lanterns() }), ("whale", { WhaleSwimmer() }), ("grouper", { Grouper() }),
     ]
 
     static func register(_ id: String, _ make: @escaping () -> Creature) {
@@ -282,5 +282,43 @@ final class WhaleSwimmer: Creature {
         guard layer == .background, let b = whale else { return [] }
         return [Sprite(pos: [b.x, b.y], dir: [b.dir, 0], size: t.size.y * 0.16, kind: 19, glow: 0, phase: Float(t.time),
                        color: [0.05, 0.12, 0.2, 1], extra: [b.dir, 0, 0, 0])]
+    }
+}
+
+/// A big, slow grouper that wanders through now and then while the tank is quiet (few sessions), so it never feels empty.
+final class Grouper: Creature {
+    let id = "grouper"
+    private var pos: SIMD2<Float> = .zero
+    private var dir: Float = 1
+    private var y0: Float = 0
+    private var phase: Float = 0
+    private var active = false
+    private var next: Double?
+
+    func update(_ t: Tank, dt: Float) {
+        let w = t.size.x, h = t.size.y
+        if next == nil { next = t.time + Double.random(in: 30...80) * Tank.scale }
+        if !active, let n = next, t.time > n {
+            next = t.time + Double.random(in: 150...320) * Tank.scale
+            let agents = t.fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.count
+            guard agents <= 3 else { return }
+            active = true
+            dir = Bool.random() ? 1 : -1
+            y0 = h * Float.random(in: 0.28...0.55)
+            pos = [dir > 0 ? -90 : w + 90, y0]
+        }
+        guard active else { return }
+        phase += dt
+        pos.x += dir * 17 * dt
+        pos.y = y0 + sinf(phase * 0.3) * 14
+        if pos.x < -110 || pos.x > w + 110 { active = false }
+    }
+
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
+        guard layer == .middle, active else { return [] }
+        let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * t.light)
+        let c = mix(SIMD3<Float>(0.55, 0.47, 0.36) * (0.55 + 0.45 * t.light), water, t: 0.3)
+        return [Sprite(pos: pos, dir: [dir, 0], size: 46, kind: 0, glow: 0, phase: phase * 3.2, color: SIMD4(c, 0.95),
+                       extra: [dir, 2, Float(FishKinds.index(of: "oval")), 0.55], aux: [0, 0, 0.3, 0])]
     }
 }

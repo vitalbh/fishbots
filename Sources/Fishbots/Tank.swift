@@ -157,6 +157,8 @@ final class Fish {
     var fearUntil: Double = 0
     var fearFrom: SIMD2<Float> = .zero
     var awakeUntil: Double = 0
+    /// A decorative fish's own depth; the schools step back from it when the tank is crowded.
+    var restDepth: Float = 0
     /// Where the eye looks (world direction, smoothed): the cursor nearby, or the nearest food.
     var look: SIMD2<Float> = .zero
     var chattingWith: String?
@@ -331,6 +333,7 @@ final class Tank {
                 f.state = .idle
                 f.pattern = sc.pattern
                 f.depth = Float.random(in: sc.depth)
+                f.restDepth = f.depth
                 f.species = FishKinds.index(of: sc.kind)
                 fish.append(f)
             }
@@ -660,7 +663,7 @@ final class Tank {
 
     // MARK: per-tool animation
 
-    /// Scenery on the sand that the fish swim around: rocks, a big shell, a chest (the theme picks which).
+    /// Scenery on the sand that the fish swim around: rocks, a big shell, a chest, corals (the theme picks which).
     struct SceneryItem {
         let id: String           // "rock", "shell", "chest"
         let kind: Float          // sprite kind (21 rock, 22 shell, 23 chest)
@@ -675,6 +678,11 @@ final class Tank {
         SceneryItem(id: "chest", kind: 23, u: 0.335, scale: 0.06, color: [0.5, 0.31, 0.16], seed: 0),
         SceneryItem(id: "shell", kind: 22, u: 0.66, scale: 0.05, color: [0.98, 0.8, 0.74], seed: 0),
         SceneryItem(id: "rock", kind: 21, u: 0.8, scale: 0.058, color: [0.4, 0.37, 0.35], seed: 2.9),
+        // corals (seed: 0 branching, 1 sea fan, 2 brain), muted by the water
+        SceneryItem(id: "coral", kind: 34, u: 0.47, scale: 0.085, color: [0.95, 0.45, 0.55], seed: 0.2),
+        SceneryItem(id: "coral", kind: 34, u: 0.565, scale: 0.05, color: [0.62, 0.5, 0.85], seed: 2.6),
+        SceneryItem(id: "coral", kind: 34, u: 0.735, scale: 0.06, color: [0.35, 0.78, 0.75], seed: 0.8),
+        SceneryItem(id: "coral", kind: 34, u: 0.905, scale: 0.1, color: [0.98, 0.58, 0.3], seed: 1.4),
     ]
     /// The scenery the theme wants (nil: all of it).
     var sceneryKinds: [String]? = nil
@@ -707,6 +715,8 @@ final class Tank {
 
     private var oxygenAt: Double = 0
     private var pearlGlintAt: Double = 0
+    /// How full of sessions the tank is (0: four or fewer, 1: ten or more), smoothed.
+    private var crowd: Float = 0
 
     /// The treasure chest opens while the summary is open (the app sets it); the lid follows with a little spring.
     var chestOpen = false
@@ -1133,6 +1143,8 @@ final class Tank {
 
         scene.update(self, dt: dt)
         updateWeeds(dt: dt)
+        let agents = Float(fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.count)
+        crowd += (max(0, min(1, (agents - 4) / 6)) - crowd) * min(1, dt * 0.5)
         if Int(time * 10) % 50 == 0 { expireGauges() }
         breathe(dt: dt)
         updateChest(dt: dt)
@@ -1488,6 +1500,8 @@ final class Tank {
             // the school follows the neons' center, wandering
             let school = f.phase / 100
             let leads = f.phase % 100 == 0
+            // many sessions in the tank: the schools step back (further, fainter), and come forward again when it empties
+            f.depth += (min(0.92, f.restDepth + crowd * 0.3) - f.depth) * min(1, dt * 0.25)
             if leads && (time > f.wanderAt || simd_distance(f.pos, f.wander) < 30) {
                 // each school keeps to its own height: neons in the middle, tetras up high, silversides low in the back
                 let band: ClosedRange<Float> = school == 1 ? 0.55...0.88 : school == 2 ? 0.18...0.48 : 0.3...0.8
