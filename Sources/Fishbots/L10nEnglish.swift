@@ -169,6 +169,8 @@ let english: [String: String] = [
     "Foco": "Focus",
     "Cena": "Scene",
     "Brilho (bloom)": "Glow (bloom)",
+    "Modo widget (janelinha no canto)": "Widget mode (a little window in the corner)",
+    "✓ ninguém esperando": "✓ nobody waiting",
     "Desligado": "Off",
     "Suave": "Soft",
     "Normal": "Normal",

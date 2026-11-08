@@ -492,7 +492,7 @@ final class Tank {
 
     /// The (non-decorative) fish under the point, nearest first.
     func fish(at p: SIMD2<Float>) -> Fish? {
-        fish.filter { !$0.decor && !$0.leaving && simd_distance($0.pos, p) < max(26, $0.size * 1.3) }
+        fish.filter { !$0.decor && !$0.leaving && !isHidden($0) && simd_distance($0.pos, p) < max(26, $0.size * 1.3) }
             .min { simd_distance($0.pos, p) < simd_distance($1.pos, p) }
     }
 
@@ -1080,6 +1080,13 @@ final class Tank {
         }
         let days = (now - first) / 86400
         return days > 60 ? 2 : days > 14 ? 1 : 0
+    }
+
+    /// Widget mode: only who needs you shows (the rest keeps swimming, hidden).
+    var compact = false
+
+    func isHidden(_ f: Fish) -> Bool {
+        compact && !f.decor && ![.waiting, .error, .alert].contains(f.state)
     }
 
     // MARK: - interaction
@@ -1808,7 +1815,7 @@ final class Tank {
 
         // marine snow far away, and the shadows on the sand (under the fish and whatever swims)
         out += moteSprites(front: false)
-        for f in fish {
+        for f in fish where !isHidden(f) {
             if let s = shadow(under: f.pos, size: f.size * (1 - 0.35 * f.depth), strength: (f.leaving ? 0.4 : 1) * (1 - f.depth * 0.6)) { out.append(s) }
         }
         for p in scene.presences where [.swim, .drift, .hover].contains(p.kind.motion) {
@@ -1871,7 +1878,7 @@ final class Tank {
 
         // fish near the surface show upside down on its underside, faint
         let surfY = size.y * 0.965
-        for f in fish where !f.leaving && surfY - f.pos.y < f.size * 2.2 && f.pos.y < surfY {
+        for f in fish where !f.leaving && !isHidden(f) && surfY - f.pos.y < f.size * 2.2 && f.pos.y < surfY {
             let gap = surfY - f.pos.y
             let a = (1 - gap / (f.size * 2.2)) * 0.28
             let l = simd_length(f.vel)
@@ -1882,7 +1889,7 @@ final class Tank {
         }
 
         // far ones first (they stay behind)
-        for f in fish.sorted(by: { $0.depth > $1.depth }) {
+        for f in fish.sorted(by: { $0.depth > $1.depth }) where !isHidden(f) {
             let l = simd_length(f.vel)
             var dx = l > 0.01 ? f.vel.x / l : 1
             var dy = l > 0.01 ? f.vel.y / l : 0
@@ -2009,6 +2016,8 @@ final class Tank {
 
         // quake: everything shakes together
         if scene.shakeOffset != .zero { for i in out.indices { out[i].pos += scene.shakeOffset } }
+        // widget mode: a small window, so everything is drawn a little smaller
+        if compact { for i in out.indices { out[i].size *= 0.75 } }
         return out
     }
 }

@@ -4,7 +4,15 @@ import QuartzCore
 import simd
 import ServiceManagement
 
+/// The aquarium's window: it can take keys even without a title bar (widget mode).
+final class TankWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 final class TankView: MTKView {
+    /// Widget mode: dragging the empty water moves the window (it has no title bar).
+    var dragMovesWindow: (() -> Bool)?
     var onKey: ((String) -> Void)?
     var onClick: ((CGPoint) -> Void)?
     var hits: ((CGPoint) -> Bool)?
@@ -43,7 +51,10 @@ final class TankView: MTKView {
     override func mouseDragged(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         guard let d = downAt else { return }
-        if !dragging && hypot(p.x - d.x, p.y - d.y) > 6 { dragging = true }
+        if !dragging && hypot(p.x - d.x, p.y - d.y) > 6 {
+            if dragMovesWindow?() == true && hits?(d) != true { window?.performDrag(with: event); downAt = nil; return }
+            dragging = true
+        }
         if dragging { onDrag?(d, p) }
     }
     override func mouseUp(with event: NSEvent) {
@@ -80,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private var footerOpacity: Float = 1
     private let banner = CATextLayer()
     private let batteryText = CATextLayer()
+    private let calmText = CATextLayer()
     private var activity: NSObjectProtocol?
     private var port: UInt16 = 7777
     private let notifier = Notifier()
@@ -125,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         if let p = Env.value("PORT"), let n = UInt16(p) { port = n }
         buildMenu()
 
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
+        window = TankWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "Fishbots"
@@ -162,6 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         applyTheme()
         view.onKey = { [unowned self] k in self.key(k) }
         view.onClick = { [unowned self] p in self.click(p) }
+        view.dragMovesWindow = { [unowned self] in self.tank.compact }
         // drag a fish to nudge it, or the water to make a current; double click knocks; scrolling sprinkles food
         view.onDrag = { [unowned self] from, to in
             self.tank.drag(from: [Float(from.x), Float(from.y)], to: [Float(to.x), Float(to.y)])
@@ -532,6 +545,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                     let tab = path.components(separatedBy: "tab=").dropFirst().first.flatMap { Int($0.prefix(1)) }
                     self.preferences.show(tab: tab)
                     return (200, Data(#"{"ok":true}"#.utf8))
+                case ("POST", "/test/widget"):
+                    self.toggleWidget()
+                    return (200, Data(#"{"ok":true}"#.utf8))
                 case ("POST", "/summary"):
                     self.recentSummary()
                     return (200, Data(#"{"ok":true}"#.utf8))
@@ -733,6 +749,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             }()
             let near = hoverPresence == p.id
             if labelMode == "none" && !near && !p.needsYou { l.opacity = 0; continue }
+            if tank.compact && !p.needsYou { l.opacity = 0; continue }
             var name = short(p.label, 28)
             if p.kind.meter, p.detail == nil, let v = p.value { name += " · \(Int((v * 100).rounded()))%" }
             if near && p.link != nil { name += " ↗" }
@@ -976,7 +993,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private let previewMotif = MotifMenuDelegate()
 
     private func fishMenu(_ p: CGPoint, _ e: NSEvent) {
-        guard let f = tank.fish(at: [Float(p.x), Float(p.y)]) else { return }
+        guard let f = tank.fish(at: [Float(p.x), Float(p.y)]) else {
+            // on the water: the aquarium's own options
+            let m = NSMenu()
+            let w = NSMenuItem(title: tr("Modo widget (janelinha no canto)"), action: #selector(toggleWidget), keyEquivalent: "")
+            w.target = self
+            w.state = tank.compact ? .on : .off
+            m.addItem(w)
+            let fl = NSMenuItem(title: tr("Alimentar"), action: #selector(feed), keyEquivalent: "")
+            fl.target = self
+            m.addItem(fl)
+            NSMenu.popUpContextMenu(m, with: e, for: view)
+            return
+        }
         menuFish = f
         let m = NSMenu()
         let title = NSMenuItem(title: f.label + (f.sub.map { "  ·  " + $0 } ?? ""), action: nil, keyEquivalent: "")
@@ -1118,7 +1147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     private func setupFooter() {
         let scale = window.backingScaleFactor
-        for l in [footer, banner, batteryText, pearlText] {
+        calmText.alignmentMode = .center
+        for l in [footer, banner, batteryText, pearlText, calmText] {
             l.contentsScale = scale
             l.fontSize = 11
             l.font = rounded(11, .medium)
@@ -1154,6 +1184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 textLayers[f.id] = t
                 return t
             }()
+            if tank.isHidden(f) { l.opacity = 0; continue }        // widget mode: only who needs you
             if labelMode != "full" {
                 minimalLabel(f, l)
                 continue
@@ -1222,7 +1253,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // the footer shows while you use the window (mouse moving over it) and fades out a few seconds later
         let wanted: Float = tank.cursor != nil && tank.time - tank.cursorAt < 4 ? 1 : 0
         footerOpacity += (wanted - footerOpacity) * (wanted > footerOpacity ? 0.25 : 0.04)
-        footer.opacity = footerOpacity
+        footer.opacity = tank.compact ? 0 : footerOpacity
+        // widget mode with nobody needing you: a quiet line in the middle
+        let anyone = tank.fish.contains { !$0.decor && !$0.leaving && [.waiting, .error, .alert].contains($0.state) }
+            || tank.scene.presences.contains { !$0.leaving && $0.needsYou }
+        calmText.string = tr("✓ ninguém esperando")
+        calmText.frame = CGRect(x: 0, y: labels.bounds.height / 2 - 9, width: labels.bounds.width, height: 18)
+        calmText.opacity = tank.compact && !anyone ? 0.55 : 0
 
         if let b = tank.battery {
             batteryText.string = "\(Int((b * 100).rounded()))%" + (tank.pluggedIn ? " ⚡︎" : "")
@@ -1269,6 +1306,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case "d": toggleDemo()
         case "m": toggleMute()
         case "t": toggleFloat()
+        case "w": toggleWidget()
         case "s": toggleFocus()
         case "r": recentSummary()
         case "l": cycleLabels()
@@ -1314,6 +1352,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     @objc func toggleDemo() { demo.toggle() }
     @objc func toggleMute() { synth.muted.store(!synth.muted.load(ordering: .relaxed), ordering: .relaxed) }
+    // MARK: - widget mode
+
+    private var widgetFrom: NSRect?
+    private var levelBeforeWidget: NSWindow.Level = .normal
+
+    /// Widget mode: a small, frameless, rounded window in a corner, always on top and on every Space, showing only
+    /// who needs you (the rest keeps swimming, hidden). W, the menu or the right-click menu switch it.
+    @objc func toggleWidget() {
+        guard let content = window.contentView else { return }
+        content.wantsLayer = true
+        if let from = widgetFrom {
+            UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: "widgetFrame")
+            tank.compact = false
+            widgetFrom = nil
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.level = levelBeforeWidget
+            window.collectionBehavior = window.level == .floating ? [.canJoinAllSpaces, .fullScreenAuxiliary] : []
+            window.isOpaque = true
+            window.backgroundColor = .black
+            content.layer?.cornerRadius = 0
+            window.setFrame(from, display: true, animate: true)
+        } else {
+            widgetFrom = window.frame
+            levelBeforeWidget = window.level
+            tank.compact = true
+            window.styleMask = [.borderless, .resizable]
+            window.level = .floating
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.hasShadow = true
+            content.layer?.cornerRadius = 16
+            content.layer?.masksToBounds = true
+            let vf = (window.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+            var frame = NSRect(x: vf.maxX - 436, y: vf.minY + 16, width: 420, height: 260)
+            if let s = UserDefaults.standard.string(forKey: "widgetFrame") {
+                let r = NSRectFromString(s)
+                if r.width > 200 && vf.intersects(r) { frame = r }
+            }
+            window.setFrame(frame, display: true, animate: true)
+            show()
+        }
+        window.invalidateShadow()
+    }
+
     @objc func toggleFloat() {
         window.level = window.level == .floating ? .normal : .floating
         window.collectionBehavior = window.level == .floating ? [.canJoinAllSpaces, .fullScreenAuxiliary] : []
@@ -1420,6 +1505,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case #selector(toggleNotifyError): item.state = Attention.level("*", .error) == .urgent ? .on : .off
         case #selector(toggleDemo): item.state = demo.on ? .on : .off
         case #selector(toggleFloat): item.state = window.level == .floating ? .on : .off
+        case #selector(toggleWidget): item.state = tank.compact ? .on : .off
         default: break
         }
         return true
@@ -1451,6 +1537,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         add("Modo demo", #selector(toggleDemo), "d")
         add("Som ligado/desligado", #selector(toggleMute), "m")
         add("Flutuar sobre as janelas", #selector(toggleFloat), "t")
+        add("Modo widget (janelinha no canto)", #selector(toggleWidget), "w")
         aq.addItem(.separator())
         add("Música ambiente (tocar o tempo todo)", #selector(toggleAmbientMusic), "a")
         add("Modo foco (só o que pede atenção)", #selector(toggleFocus), "s")

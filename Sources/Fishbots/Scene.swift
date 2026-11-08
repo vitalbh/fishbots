@@ -586,7 +586,7 @@ final class Scene {
         var out: [Sprite] = []
         let lit = 0.55 + 0.45 * t.light
         let pulse = 0.5 + 0.5 * sinf(Float(t.time) * 4)
-        for p in presences where (p.state == .waiting && !p.leaving) == front {
+        for p in presences where (p.state == .waiting && !p.leaving) == front && (!t.compact || p.needsYou) {
             var c = p.baseColor
             var glow: Float = 0
             switch p.state {
