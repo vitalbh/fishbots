@@ -717,6 +717,11 @@ final class Tank {
                 }
             }
         }
+        // a pebble or shell under a passing sun ray catches the light
+        if light > 0.8, let p = pebbles.randomElement(), Float.random(in: 0...1) < dt * 2.5 {
+            let x = clearOfScenery(size.x * p.u), at: SIMD2<Float> = [x, size.y * sand(x / max(1, size.x)) + p.size * 0.6]
+            if rayLight(at) > 0.06 { sparkle(at: at, color: [1, 0.96, 0.85]) }
+        }
         // by day a pearl on the sand catches the light now and then
         if light > 0.8, time > pearlGlintAt, let p = pearls.randomElement() {
             pearlGlintAt = time + Double.random(in: 2.5...6)

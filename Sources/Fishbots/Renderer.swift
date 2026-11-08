@@ -241,7 +241,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
         enc.endEncoding()
 
-        // bloom: a quarter of the glow, blurred twice each way, added onto the image
+        // bloom: a quarter of the glow, blurred twice each way, added onto the image (with the front glass, always)
         if bloom > 0.001 {
             postPass(cmd, downPipeline, from: glow, to: qa)
             for spread: Float in [1.0, 2.0] {
@@ -249,10 +249,11 @@ final class Renderer: NSObject, MTKViewDelegate {
                 postPass(cmd, blurPipeline, from: qa, to: qb) { $0.setFragmentBytes(&h, length: MemoryLayout<SIMD2<Float>>.stride, index: 0) }
                 postPass(cmd, blurPipeline, from: qb, to: qa) { $0.setFragmentBytes(&v, length: MemoryLayout<SIMD2<Float>>.stride, index: 0) }
             }
-            var strength = bloom
-            postPass(cmd, addPipeline, from: qa, to: drawable.texture, load: true) {
-                $0.setFragmentBytes(&strength, length: MemoryLayout<Float>.stride, index: 0)
-            }
+        }
+        var strength = bloom
+        postPass(cmd, addPipeline, from: qa, to: drawable.texture, load: true) {
+            $0.setFragmentBytes(&strength, length: MemoryLayout<Float>.stride, index: 0)
+            $0.setFragmentBytes(&u, length: MemoryLayout<Uniforms>.stride, index: 1)
         }
         cmd.present(drawable)
         let without = inflight
