@@ -395,6 +395,10 @@ final class Music {
 
     /// Plays only on changes: finished (resolves), started waiting for you (asks and knocks on the glass,
     /// with a reminder every 2.5 min) and error. Working makes no sound: it shows in the fish's movement.
+    /// A fish just asked you something and finished calling (motif and knocks): seconds from now until it's quiet.
+    /// The app reads the question aloud then, so the voice doesn't drown the knocks (it ducks the music while speaking).
+    var called: ((Fish, Double) -> Void)?
+
     private func signals(_ f: Fish, s: Int, t: Double, now: Double) {
         guard s == 0 else { return }
         let changed = f.changed
@@ -406,10 +410,13 @@ final class Music {
             guard changed || tank.time - f.reminder > 150 else { return }
             f.reminder = tank.time
             motif(f, at: t, now: now, vel: 0.42, octave: 0, only: 2)
+            var end = t + 4 * samplesPerStep
             if Attention.level(f.source, .waiting) >= .attention {
                 knock(f, at: t + 12 * samplesPerStep, now: now)
                 knock(f, at: t + 14 * samplesPerStep, now: now)
+                end = t + 15 * samplesPerStep
             }
+            if changed { called?(f, (end - now) / sr + 0.35) }
         case .error, .alert:
             if changed && Attention.level(f.source, f.state) >= .attention {
                 motif(f, at: t, now: now, vel: 0.42, octave: 0, lastShift: 1)

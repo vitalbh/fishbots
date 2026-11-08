@@ -164,6 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         synth.start()
         music = Music(synth: synth, tank: tank)
         music.visual = visual
+        music.called = { [unowned self] f, delay in self.readQuestion(f, after: delay) }
         // the Mac's voice ducks the music while it speaks
         applyVolume()
         Speaker.shared.muffle = { [unowned self] on in self.applyVolume(ducked: on) }
@@ -448,8 +449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 tank.fauna.maybeWhale(tank, tasksToday: tank.pearls.count)
             case .error: journal.record(.error, f.label, fish: f.id)
             case .waiting:
-                journal.record(.waiting, f.label, fish: f.id)
-                readQuestion(f)
+                journal.record(.waiting, f.label, fish: f.id)   // (the question is read after the knocks: music.called)
             default: break
             }
             Outputs.emit(TankEvent(type: "state", fish: f, previous: before))
@@ -732,11 +732,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private var readQuestions: Bool { UserDefaults.standard.bool(forKey: "readQuestions") }
     @objc func toggleReadQuestions() { UserDefaults.standard.set(!readQuestions, forKey: "readQuestions") }
 
-    /// If on (and neither muted nor in focus), reads the question aloud: "aquariozinho pergunta: …".
-    private func readQuestion(_ f: Fish) {
+    /// If on (and neither muted nor in focus), reads the question aloud: "aquariozinho pergunta: …". It's called once
+    /// the fish has finished calling (motif and knocks on the glass), so the voice doesn't cover them.
+    private func readQuestion(_ f: Fish, after delay: Double) {
         guard readQuestions, !synth.muted.load(ordering: .relaxed), !Attention.focus else { return }
-        // the question is recorded right after the state: wait a moment
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self, weak f] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.4, delay)) { [weak self, weak f] in
             guard let f, f.state == .waiting, let q = f.asked else { return }
             Speaker.shared.speak(tr("%@ pergunta: %@", f.nickname ?? f.displayTitle ?? f.label, q))
             _ = self
