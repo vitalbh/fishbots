@@ -4,7 +4,7 @@
   "names": {
     "en": "Japanese pond"
   },
-  "version": "1.5",
+  "version": "1.6",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -43,7 +43,8 @@
         "shark": "namazu",
         "betta": "ryukin",
         "pebble": "river-stone",
-        "seashell": "snail-shell"
+        "seashell": "snail-shell",
+        "mote": "petal"
       },
       "background": {
         "metal": "background.metal",
@@ -317,6 +318,22 @@
         0.75
       ],
       "color": "#a07850"
+    },
+    {
+      "id": "petal",
+      "name": "pétala",
+      "names": {
+        "en": "petal"
+      },
+      "metal": "lily.metal",
+      "function": "draw_koi_petal",
+      "anchor": "float",
+      "size": 0.006,
+      "extent": [
+        1.0,
+        1.0
+      ],
+      "color": "#ffffff"
     }
   ],
   "sounds": [

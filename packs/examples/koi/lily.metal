@@ -51,3 +51,15 @@ float4 draw_lily(float2 c, float t, float glow, float4 col, float4 extra) {
     }
     return float4(c3 * a, a);
 }
+
+// A cherry-blossom petal drifting in the water (the pond's marine snow): pale pink, a notch at its tip, turning slowly.
+float4 draw_koi_petal(float2 c, float t, float glow, float4 col, float4 extra) {
+    float ang = t * (0.4 + extra.y * 0.6) + extra.y * 6.28;
+    float2 p = float2(c.x * cos(ang) - c.y * sin(ang), c.x * sin(ang) + c.y * cos(ang));
+    p.x *= 1.0 + 0.4 * sin(t * 0.9 + extra.y * 9.0);                              // it tumbles: narrower, wider
+    float d = length((p - float2(0.0, -0.1)) / float2(0.45, 0.75)) - 1.0;
+    d = max(d, -(length((p - float2(0.0, 0.8)) / float2(0.18, 0.25)) - 1.0));    // the notch
+    float a = 1.0 - smoothstep(-0.08, 0.08, d);
+    float3 c3 = mix(float3(1.0, 0.86, 0.9), float3(0.98, 0.65, 0.75), smoothstep(-0.8, 0.6, p.y)) * (0.6 + 0.4 * col.rgb);
+    return float4(c3 * a * col.a, a * col.a);
+}

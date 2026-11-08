@@ -1073,10 +1073,22 @@ final class Tank {
             let shift = gaze * (-12 * (1 - m.depth))
             let twinkle = 0.75 + 0.25 * sinf(m.phase * 1.7)
             let lit = min(2.5, rayLight(m.pos) * 7)
-            return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * (1 + lit * 0.25), kind: 33,
-                          glow: min(1, (front ? 0.62 : 0.38) * twinkle * (1 + lit)),
+            let glow = min(1, (front ? 0.62 : 0.38) * twinkle * (1 + lit))
+            if let (i, k) = themeLook("mote") {
+                // the theme's own drifting bits (petals, ice crystals): bigger than a speck, turning slowly
+                return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * 3.2, kind: 35, glow: glow, phase: Float(time),
+                              color: SIMD4(k.color * (0.55 + 0.45 * light), front ? 0.9 : 0.6), extra: [1, m.phase.truncatingRemainder(dividingBy: 1), Float(i), 0],
+                              aux: [k.extent.x, k.extent.y, 0, 0])
+            }
+            return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * (1 + lit * 0.25), kind: 33, glow: glow,
                           phase: 0, color: SIMD4(tint * (1 + lit * 0.3), 1), extra: [1, 0, 0, 0])
         }
+    }
+
+    /// A piece of the theme's pack scenery standing in for a built-in thing ("looks": {"mote": "petal"}), if dressing is on.
+    func themeLook(_ id: String) -> (Int, SceneryKind)? {
+        guard FishKinds.dressByTheme, let look = Themes.current.looks[id], let i = SceneryKinds.index(of: look) else { return nil }
+        return (i, SceneryKinds.all[i])
     }
 
     /// A soft shadow on the sand under something swimming: darker and smaller the closer it is to the bottom.
@@ -2064,8 +2076,15 @@ final class Tank {
                               color: p.color, extra: [1, 0, 0, 0]))
         }
 
+        let bubbleLook = themeLook("bubble"), foodLook = themeLook("food")
         for p in particles where p.kind == 3 || p.kind == 1 {
             let a = p.kind == 3 ? min(1, (p.maxLife - p.life) / 2) : 1
+            if let (i, k) = p.kind == 1 ? bubbleLook : foodLook {
+                out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size * (p.kind == 1 ? 1.2 : 1.6), kind: 35, glow: a, phase: Float(time),
+                                  color: SIMD4(k.color * (0.55 + 0.45 * light), a), extra: [1, (p.pos.x * 0.013).truncatingRemainder(dividingBy: 1), Float(i), 0],
+                                  aux: [k.extent.x, k.extent.y, 0, 0]))
+                continue
+            }
             out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size, kind: p.kind, glow: a, phase: 0,
                               color: p.color, extra: [1, 0, 0, 0]))
         }
@@ -2206,13 +2225,16 @@ final class Tank {
             out.append(Sprite(pos: p.pos, dir: [1, 0], size: p.size, kind: p.kind, glow: k, phase: 0,
                               color: p.color, extra: [1, 0, 0, 0]))
         }
-        // foreground: dark, blurred seaweed tufts in the corners, moving more with the parallax
-        let shift = gaze * -14
-        let tuft = size.y * 0.32
-        out.append(Sprite(pos: [size.x * 0.03 + shift.x, tuft * 0.62 + shift.y * 0.3], dir: [1, 0], size: tuft, kind: 20, glow: 0.92,
-                          phase: Float(time), color: SIMD4(SIMD3<Float>(0.02, 0.07, 0.06) * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
-        out.append(Sprite(pos: [size.x * 0.97 + shift.x, tuft * 0.5 + shift.y * 0.3], dir: [1, 0], size: tuft * 0.85, kind: 20, glow: 0.92,
-                          phase: Float(time) + 3, color: SIMD4(SIMD3<Float>(0.03, 0.06, 0.07) * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
+        // foreground: dark, blurred seaweed tufts in the corners, moving more with the parallax (the theme may leave them
+        // out, "foreground": false, or tint them)
+        if let fg = Themes.current.foreground {
+            let shift = gaze * -14
+            let tuft = size.y * 0.32
+            out.append(Sprite(pos: [size.x * 0.03 + shift.x, tuft * 0.62 + shift.y * 0.3], dir: [1, 0], size: tuft, kind: 20, glow: 0.92,
+                              phase: Float(time), color: SIMD4(fg * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
+            out.append(Sprite(pos: [size.x * 0.97 + shift.x, tuft * 0.5 + shift.y * 0.3], dir: [1, 0], size: tuft * 0.85, kind: 20, glow: 0.92,
+                              phase: Float(time) + 3, color: SIMD4(fg * 1.1 * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
+        }
 
         // quake: everything shakes together
         if scene.shakeOffset != .zero { for i in out.indices { out[i].pos += scene.shakeOffset } }

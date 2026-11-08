@@ -4,7 +4,7 @@
     {
       "id": "koi",
       "name": "Lago japonês",
-      "version": "1.5",
+      "version": "1.6",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -34,7 +34,7 @@
         "themes": 1,
         "styles": 1,
         "fish": 2,
-        "scenery": 5,
+        "scenery": 6,
         "fauna": 3,
         "presences": 4,
         "sounds": 1
@@ -78,7 +78,7 @@
     {
       "id": "arctic",
       "name": "Ártico",
-      "version": "1.3",
+      "version": "1.4",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
@@ -103,7 +103,7 @@
         "themes": 1,
         "styles": 1,
         "fish": 2,
-        "scenery": 4,
+        "scenery": 5,
         "fauna": 3,
         "presences": 4
       }

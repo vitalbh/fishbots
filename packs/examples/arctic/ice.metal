@@ -115,3 +115,17 @@ float4 draw_arctic_ice_chip(float2 c, float t, float glow, float4 col, float4 ex
     c3 += float3(1.0) * (1.0 - smoothstep(0.0, 0.03, -d)) * 0.3;
     return float4(c3 * a * 0.85, a * 0.8);
 }
+
+// An ice crystal drifting (the arctic's marine snow): a small six-armed star, clear and bright at the tips.
+float4 draw_arctic_crystal(float2 c, float t, float glow, float4 col, float4 extra) {
+    float ang = t * (0.2 + extra.y * 0.4) + extra.y * 6.28;
+    float2 p = float2(c.x * cos(ang) - c.y * sin(ang), c.x * sin(ang) + c.y * cos(ang));
+    float r = length(p), th = atan2(p.y, p.x);
+    float arm = abs(fract(th / 6.2832 * 6.0 + 0.5) - 0.5) * r * 6.2832 / 6.0;      // distance to the nearest arm
+    float d = max(arm - 0.06, r - 0.9);
+    float branches = max(abs(fract(r * 3.0) - 0.5) - 0.1, arm - 0.22) ;
+    d = min(d, max(branches, r - 0.8));
+    float a = (1.0 - smoothstep(-0.05, 0.05, d)) * 0.85;
+    float3 c3 = mix(float3(0.75, 0.88, 1.0), float3(1.0), smoothstep(0.2, 0.9, r)) * (0.7 + 0.3 * col.rgb);
+    return float4(c3 * a * col.a, a * col.a);
+}

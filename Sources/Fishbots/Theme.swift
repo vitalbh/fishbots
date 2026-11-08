@@ -50,6 +50,8 @@ struct Theme {
     var schools: [School]?
     /// The jellyfish that drifts around (false: none here).
     var jellyfish = true
+    /// The blurred seaweed tufts up front, in the corners: their color (nil: none here, "foreground": false).
+    var foreground: SIMD3<Float>? = [0.02, 0.065, 0.065]
     /// The seaweed's shapes ("weeds": {"shapes": ["reed", "blade"]}): blade, kelp, leafy, reed, ribbon (nil: the usual mix).
     var weedShapes: [Int]?
     var weedCount: Int { Int(uniforms.params.x) }
@@ -103,6 +105,8 @@ struct Theme {
         if let s = json["sky"] as? [String: Any] { sky = Sky(json: s) }
         if let list = json["schools"] as? [[String: Any]] { schools = list.prefix(3).map(School.init(json:)) }
         jellyfish = json["jellyfish"] as? Bool ?? true
+        if (json["foreground"] as? Bool) == false { foreground = nil }
+        else if let c = Theme.color(json["foreground"]) { foreground = [c.x, c.y, c.z] }
         let shapeNames = ["blade": 0, "kelp": 1, "leafy": 2, "reed": 3, "ribbon": 4]
         if let s = (json["weeds"] as? [String: Any])?["shapes"] as? [String] {
             let ids = s.compactMap { shapeNames[$0] }
