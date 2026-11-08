@@ -42,6 +42,7 @@ struct Sprite {
     float phase;
     float4 color;
     float4 extra;      // x: vertical mirror (fish), y: stripes
+    float4 aux;        // fish: where the eye looks (xy) and blur by distance (z)
 };
 
 // ---------- background ----------
@@ -280,6 +281,7 @@ struct SpOut {
     float phase;
     float4 color;
     float4 extra;
+    float4 aux;
 };
 
 // the presences' quads (Scene.swift), relative to their size
@@ -339,6 +341,7 @@ vertex SpOut sprite_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.phase = s.phase;
     o.color = s.color;
     o.extra = s.extra;
+    o.aux = s.aux;
     return o;
 }
 
@@ -419,7 +422,7 @@ float4 draw_octo(float2 c, float phase, float glow, float4 col) {
 }
 
 // Shape (extra.z): 0 oval, 1 elongated, 2 pufferfish, 3 angelfish (the built-in fish kinds pass it). extra.y: stripes.
-float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
+float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra, float4 aux) {
     float2 p = c * float2(1.25, 0.8);
     int sp = int(extra.z + 0.5);
     int pad = int(extra.y + 0.5) % 8;      // project pattern
@@ -479,7 +482,7 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
     if (sp == 3) pect = 1e3;                                       // the angelfish has its tall fins instead
 
     float d = min(min(min(body, tail), fins), pect);
-    float aa = fwidth(d) + 1e-4;
+    float aa = fwidth(d) * (1.0 + aux.z * 7.0) + 1e-4;                // far away: softer edges (depth of field)
     float inside = 1.0 - smoothstep(-aa, aa, d);
 
     float3 base = col.rgb;
@@ -521,8 +524,12 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
         float arc = abs(q.y + q.x * q.x * 6.0) - 0.009;
         c3 = mix(c3, float3(0.05), (1.0 - smoothstep(0.0, 0.012, arc)) * step(abs(q.x), er));
     } else {
-        c3 = mix(c3, float3(0.02), 1.0 - smoothstep(er * 0.8, er, length(p - eyeP)));
-        c3 = mix(c3, float3(1.0), 1.0 - smoothstep(0.012, 0.022, length(p - eyeP - float2(0.012, 0.015))));
+        // a light ring around a dark pupil that looks where aux.xy points (the cursor, food), and a catchlight
+        float re = length(p - eyeP);
+        c3 = mix(c3, float3(0.92, 0.94, 0.9), 1.0 - smoothstep(er * 0.9, er * 1.08, re));
+        float2 look = clamp(aux.xy, float2(-1.0), float2(1.0)) * er * 0.38;
+        c3 = mix(c3, float3(0.02), 1.0 - smoothstep(er * 0.56, er * 0.7, length(p - eyeP - look)));
+        c3 = mix(c3, float3(1.0), 1.0 - smoothstep(0.009, 0.017, length(p - eyeP - look - float2(0.012, 0.014))));
     }
     c3 *= 0.78 + 0.35 * (p.y / (ry / 0.36) + 0.4);
     if (body < 0.0) {
@@ -982,7 +989,7 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
     float k = in.kind;
     float4 outc;
     if (k < 0.5) {
-        outc = draw_kind(int(in.extra.z + 0.5), c, in.phase, in.glow, in.color, in.extra);   // extra.z: the fish kind
+        outc = draw_kind(int(in.extra.z + 0.5), c, in.phase, in.glow, in.color, in.extra, in.aux);   // extra.z: the fish kind
         if (outc.a > 0.01) {
             // the same background light passes over the fish
             float2 uw = in.world / u.res;

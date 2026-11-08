@@ -157,6 +157,8 @@ final class Fish {
     var fearUntil: Double = 0
     var fearFrom: SIMD2<Float> = .zero
     var awakeUntil: Double = 0
+    /// Where the eye looks (world direction, smoothed): the cursor nearby, or the nearest food.
+    var look: SIMD2<Float> = .zero
     var chattingWith: String?
     var chatUntil: Double = 0
     var ringAt: Double = 0
@@ -1758,10 +1760,20 @@ final class Tank {
                 squeeze = 1 - 0.14 * pace * pulse
                 len *= 1 + 0.09 * pace * pulse
             }
+            // the eye: from world to the fish's own axes (rotated by theta, mirrored when it faces left)
+            var lookTo: SIMD2<Float> = .zero
+            if let cur = cursor, time - cursorAt < 4, simd_distance(cur, f.pos) < 320 { lookTo = simd_normalize(cur - f.pos + [0.01, 0]) }
+            else if let fd = particles.lazy.filter({ $0.kind == 3 && simd_distance($0.pos, f.pos) < 320 }).first { lookTo = simd_normalize(fd.pos - f.pos + [0.01, 0]) }
+            f.look += (lookTo - f.look) * min(1, frameDt * 5)
+            let ct = cosf(theta), st = sinf(theta)
+            var lookLocal: SIMD2<Float> = [f.look.x * ct + f.look.y * st, -f.look.x * st + f.look.y * ct]
+            if f.facingX < 0 { lookLocal.y = -lookLocal.y }
+            let blur = f.decor ? min(1, f.depth * 1.2) : max(0, (f.depth - 0.15) * 2.2)
             out.append(Sprite(pos: f.pos, dir: [cosf(theta), sinf(theta)], size: len, kind: 0,
                               glow: glow, phase: f.tail, color: SIMD4(c, alpha),
                               extra: [(f.facingX >= 0 ? max(abs(f.facingX), 0.12) : -max(abs(f.facingX), 0.12)) * squeeze,
-                                      Float(f.pattern + f.cut * 8), Float(f.species), min(0.99, f.fat) + (asleep ? 2 : 0)]))
+                                      Float(f.pattern + f.cut * 8), Float(f.species), min(0.99, f.fat) + (asleep ? 2 : 0)],
+                              aux: [lookLocal.x, lookLocal.y, blur, 0]))
         }
 
         out += scene.sprites(self, front: true)

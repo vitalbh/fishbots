@@ -29,6 +29,8 @@ struct Sprite {
     var phase: Float
     var color: SIMD4<Float>
     var extra: SIMD4<Float>
+    /// More per-sprite data. Fish: where the eye looks (xy, in the fish's own axes) and how blurred it is by distance (z).
+    var aux: SIMD4<Float> = .zero
 }
 
 final class Renderer: NSObject, MTKViewDelegate {
@@ -72,7 +74,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     init?(view: MTKView) {
         guard let device = view.device ?? MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
-        precondition(MemoryLayout<Sprite>.stride == 64, "Sprite must be 64 bytes")
+        precondition(MemoryLayout<Sprite>.stride == 80, "Sprite must be 80 bytes")
         precondition(MemoryLayout<Uniforms>.stride == 96, "Uniforms must be 96 bytes")
         precondition(MemoryLayout<ThemeUniforms>.stride == 192, "ThemeUniforms must be 192 bytes")
         self.device = device

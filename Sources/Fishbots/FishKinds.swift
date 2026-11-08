@@ -19,16 +19,16 @@ struct FishKind {
 /// The registry of fish kinds. A fish stores its kind as an index into `all` (that's what goes to the shader).
 enum FishKinds {
     private(set) static var all: [FishKind] = [
-        FishKind(id: "oval", name: "oval", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 0.0, extra.w))"),
-        FishKind(id: "slender", name: "comprido", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 1.0, extra.w))"),
-        FishKind(id: "puffer", name: "baiacu", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 2.0, extra.w))"),
-        FishKind(id: "angelfish", name: "acará-bandeira", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 3.0, extra.w))"),
+        FishKind(id: "oval", name: "oval", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 0.0, extra.w), aux)"),
+        FishKind(id: "slender", name: "comprido", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 1.0, extra.w), aux)"),
+        FishKind(id: "puffer", name: "baiacu", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 2.0, extra.w), aux)"),
+        FishKind(id: "angelfish", name: "acará-bandeira", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 3.0, extra.w), aux)"),
         FishKind(id: "octopus", name: "polvinho", source: nil, call: "draw_octo(c, phase, glow, col)"),
         FishKind(id: "stingray", name: "arraia", source: nil, call: "draw_ray(c, phase, glow, col)"),
         // the music fish (what Spotify or the Music app is playing)
         FishKind(id: "betta", name: "peixe-beta", source: nil, call: "draw_betta(c, phase, glow, col, extra)"),
         // the fauna's lanternfish (dark, with a light on its forehead)
-        FishKind(id: "lanternfish", name: "peixe-lanterna", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 6.0, extra.w))"),
+        FishKind(id: "lanternfish", name: "peixe-lanterna", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 6.0, extra.w), aux)"),
     ]
 
     /// Kinds added after the shader was compiled only show up on the next launch.
@@ -65,7 +65,7 @@ enum FishKinds {
     /// The full shader: the base source with the kinds' functions and the `draw_kind` dispatch in place of the marker.
     static func shaderSource() -> String {
         var gen = all.compactMap(\.source).joined(separator: "\n\n")
-        gen += "\n\nfloat4 draw_kind(int k, float2 c, float phase, float glow, float4 col, float4 extra) {\n    switch (k) {\n"
+        gen += "\n\nfloat4 draw_kind(int k, float2 c, float phase, float glow, float4 col, float4 extra, float4 aux) {\n    switch (k) {\n"
         for (i, k) in all.enumerated() { gen += "    case \(i): return \(k.call);\n" }
         gen += "    default: return \(all[0].call);\n    }\n}\n"
         return shaderBase.replacingOccurrences(of: "// @fish-kinds", with: gen)
