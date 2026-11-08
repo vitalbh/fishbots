@@ -321,7 +321,7 @@ private struct ExtrasTab: View {
                         if !p.contents.isEmpty { Text(p.contents.joined(separator: ", ")).font(.footnote).foregroundStyle(.secondary) }
                     }
                 }
-                ForEach(Packs.problems, id: \.self) { Text(tr("⚠︎ ") + $0).font(.footnote).foregroundStyle(.orange) }
+                ForEach(Packs.problems + AgentManifests.problems, id: \.self) { Text(tr("⚠︎ ") + $0).font(.footnote).foregroundStyle(.orange) }
                 Button(tr("Abrir a pasta de pacotes")) { NSWorkspace.shared.open(Packs.folder) }
                 Text(tr("Pacotes novos entram ao reabrir o app.")).font(.footnote).foregroundStyle(.secondary)
             }

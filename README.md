@@ -206,7 +206,10 @@ The hook also sends **where** the session is (`X-Where-*` headers). The label ge
 - **Rex:** shows `session › tab` and, on click, the app selects the session and tab and focuses the exact pane (`session.select` + `block focus`).
 - **Rex without the variables:** if the session arrived without `REX_*`, the aquarium looks up the pane by Claude's pid and the tty's processes.
 - **No known terminal:** the hook walks up the parent processes to the `.app` that opened the session (e.g. ClaudeCode.app), shows its name in the label, and the click brings that app forward.
-- **Without Rex:** a generic script handles iTerm (by session), Terminal (by tty), tmux (by pane), WezTerm, kitty, Ghostty and VS Code. To replace it with your own, create `~/Library/Application Support/Fishbots/goto.sh`. It receives `WHERE_TERM`, `WHERE_ITERM`, `WHERE_TTY`, `WHERE_TMUX`, `WHERE_WEZTERM`, `WHERE_KITTY`, `WHERE_CWD`, `WHERE_APP` and `WHERE_PID`.
+- **Herdr:** shows `Herdr · space › tab` (from `herdr-core`) and, on click, shows the agent in the Herdr window (`herdr-app do agent.focus`). Reply and Esc from the card go through `herdr-core send`/`keys`, after checking the agent is still in front.
+- **Ghostty (1.3+):** the click finds the session's own terminal through Ghostty's AppleScript, by tty (or by folder and title on older dictionaries); reply and Esc from the card work too, after checking the terminal's foreground process is the agent. macOS asks once for permission to control Ghostty.
+- **Editors:** Cursor, Windsurf and other VS Code forks say `TERM_PROGRAM=vscode`; the label and the click use the app the session really runs in. Zed opens on the session's folder.
+- **Without Rex:** a generic script handles iTerm (by session), Terminal (by tty), tmux (by pane), WezTerm, kitty, Ghostty, Warp (the app only: it can't be told which tab), VS Code and its forks, and Zed. To replace it with your own, create `~/Library/Application Support/Fishbots/goto.sh`. It receives `WHERE_TERM`, `WHERE_ITERM`, `WHERE_TTY`, `WHERE_TMUX`, `WHERE_WEZTERM`, `WHERE_KITTY`, `WHERE_CWD`, `WHERE_APP`, `WHERE_PID` and `WHERE_TITLE` (the conversation's title).
 
 The **fish menu** (right-click) has: go there, open the folder, copy the path, **change motif** (hovering over the options plays each one), mute the project and remove from the aquarium. Sessions from the same project share a motif, but with different pitch and size.
 
@@ -280,6 +283,29 @@ Codex has hooks in the same format. Its sessions become **rays**, and the aquari
 ### Cursor
 
 Cursor's agent (the app's chat and `cursor-agent`) has its own hooks, which `plugins/cursor/hook.sh` forwards to `POST /cursor`. Its sessions become **angelfish**, labeled with the workspace folder: prompt → busy, tools → busy with their animation (`Shell` puffs bubbles, `StrReplace` nibbles), subagents → fry, compaction, and at the end the last response goes on the card (ending in a question → waiting; stopped by you → idle). Not yet: the context fat (Cursor sends the tokens of the whole turn, not the context size), its questions (`AskQuestion` sends no hook) and answering permissions. Reply and Esc work only for `cursor-agent` in Rex, iTerm or tmux. `scripts/install-hooks.sh cursor` merges `plugins/cursor/hooks.json` into `~/.cursor/hooks.json`. For now the hook also logs every event to `~/Library/Logs/Fishbots/cursor-events.jsonl`.
+
+### Antigravity
+
+Antigravity (Google's successor to Gemini CLI: the CLI `agy`, its IDE and its app) reads hooks from `~/.gemini/config/hooks.json`, shared by all three; `scripts/install-hooks.sh antigravity` adds a `fishbots` entry there. Its payload doesn't name its event, so each event calls `plugins/antigravity/hook.sh <Event>`, which forwards to `POST /antigravity`: `SessionStart` → born, `PreInvocation` → busy (the first prompt names the conversation), `PostToolUse` → the tool's animation (`run_command` puffs bubbles, `replace_file_content` nibbles), `Stop` → done (or error). It stays out of `PreToolUse` on purpose: there a hook must decide, and one that fails blocks the tool. Not yet: waiting for you (Antigravity has no permission event) and the reply on the card (it's only in an undocumented transcript). Antigravity cleans the hook's environment, so the terminal is found through the parent processes (tty, Rex), not iTerm/tmux/Herdr variables. Written from Antigravity's hook docs and not yet tried on a real session; the last event is kept in `~/Library/Logs/Fishbots/antigravity-last.json`.
+
+### Gemini CLI (retired)
+
+Gemini CLI stopped serving most users on June 18, 2026 (Antigravity replaces it). Its hooks (`hooks` in `~/.gemini/settings.json`) go through `plugins/gemini/hook.sh` to `POST /gemini`. Its events and tool names are translated to Claude Code's (`BeforeAgent` → prompt, `BeforeTool`/`AfterTool` → tools, `run_shell_command` puffs bubbles, `replace` nibbles; `Notification` → waiting for a permission; `AfterAgent` → the reply on the card). `scripts/install-hooks.sh gemini` merges `plugins/gemini/hooks.json` into `~/.gemini/settings.json`. Written from Gemini CLI's hook reference and not yet tried on a real session; its last event is kept in `~/Library/Logs/Fishbots/gemini-last.json` to check the format. Reply and Esc need the terminal to show the `gemini` process in front (it runs on node, so not always).
+
+### opencode
+
+opencode loads plugins from `~/.config/opencode/plugins/`; `scripts/install-hooks.sh opencode` links `plugins/opencode/fishbots.js` there. The plugin turns opencode's events (`session.created`/`updated`/`idle`/`error`, user messages, `tool.execute.before`/`after`, permissions) into Claude Code's hook shape and posts them to `POST /agent/opencode` (an agent without Swift, below), with the session's title and where it runs. Subagent sessions don't become fish of their own (their parent shows fry). Written from opencode's plugin docs (the function-export API) and not yet tried on a real session.
+
+### Your own agent
+
+Any agent with hooks can join without touching the app: have its hook (or plugin) post Claude Code-shaped events to `POST /agent/<id>` — `hook_event_name` (SessionStart, UserPromptSubmit, PreToolUse with `tool_name`/`tool_input`, PostToolUse, Notification, Stop with `last_assistant_message`, StopFailure, SessionEnd…), `session_id`, `cwd` and optionally `session_title`. `plugins/common/hook.sh <route>` forwards a hook's stdin with the `X-Where-*` headers, so the click and reply/Esc find its terminal. Optionally, describe it in `~/Library/Application Support/Fishbots/agents/<id>.json` (or a pack's `"agents"`):
+
+```json
+{"id": "aider", "name": "Aider", "processNames": ["aider"], "fish": "slender", "timbre": "pluck",
+ "events": {"turn_start": "UserPromptSubmit"}, "tools": {"run_command": "Bash"}}
+```
+
+The maps rename its events and tools to Claude Code's, so a hook that already sends JSON in its own words may need no translation at all. See `Sources/Fishbots/AgentManifests.swift` and `docs/extensions.md`.
 
 ### MCP, lists and skills
 

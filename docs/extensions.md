@@ -39,14 +39,23 @@ protocol SessionProvider {
 
 The card, the fish menu and the music only ask the fish's provider what it can do (no "Responder" without `.reply`).
 
-**Adding an agent with hooks** (as implemented in `Providers.swift`):
+**Agents without Swift** (`AgentManifests.swift`): an agent whose hook or plugin posts Claude Code-shaped events to
+`POST /agent/<id>` becomes a full agent fish (tool animations, fry, the card and its last reply, where it runs,
+reply/Esc in the exact terminal). A manifest is optional (`~/Library/Application Support/Fishbots/agents/<id>.json`,
+or a pack's `"agents"` list): `name`, `processNames`, `fish`, `timbre`, and `events`/`tools` maps from the agent's
+names to Claude Code's. Without one, `<id>` is the process name and the fish follows the terminal. Built-in ids
+can't be taken. The translation lives in the agent's hook (any language): opencode's plugin
+(`plugins/opencode/fishbots.js`) is the reference. What still needs Swift: reading the agent's own conversation files
+(title, context, branch), renaming conversations, and answering permissions.
+
+**Adding a built-in agent** (as implemented in `Providers.swift`):
 1. `plugins/<agent>/hook.sh`: a one-liner that runs `plugins/common/hook.sh <route> '<glob of its executable>'…`
    (forwards stdin and the `X-Where-*` headers; `FISHBOTS_HOOK_LOG=1` keeps the last event to study the format), plus
    the agent's own hook config (`hooks.json`). Permissions, if its hook format matches Claude Code's:
    `plugins/common/permission.sh <route>`.
 2. A provider registered in `Providers.registerBuiltIns()`: `id`, `routes`, `profile` (timbre, fish kind) and
    `processNames` (words in its process path, used to check the Rex pane before typing and whether a saved session is
-   still alive). Subclass `TerminalAgentProvider` to get reply/stop through Rex, iTerm and tmux.
+   still alive). Subclass `TerminalAgentProvider` to get reply/stop through Rex, Herdr, Ghostty, iTerm and tmux.
 3. Translate its events: if the JSON looks like Claude Code's (`session_id`, `hook_event_name`, `tool_name`, `cwd`,
    `transcript_path`), call `ClaudeCodeHook.apply`; otherwise rename its fields/events in `handle` first.
 4. Optional: a branch in `Transcript` for title, branch, context and last reply.

@@ -4,6 +4,9 @@
 #   scripts/install-hooks.sh claude-code [settings.json]     default: ~/.claude/settings.json
 #   scripts/install-hooks.sh codex [hooks.json]              default: ~/.codex/hooks.json
 #   scripts/install-hooks.sh cursor [hooks.json]             default: ~/.cursor/hooks.json
+#   scripts/install-hooks.sh antigravity [hooks.json]        default: ~/.gemini/config/hooks.json (CLI, IDE and app)
+#   scripts/install-hooks.sh gemini [settings.json]          default: ~/.gemini/settings.json (Gemini CLI, retired)
+#   scripts/install-hooks.sh opencode [plugins folder]       default: ~/.config/opencode/plugins (a link to the plugin)
 # The permission hook (it can approve tools on your behalf) only goes in with --permission:
 #   scripts/install-hooks.sh claude-code --permission
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -14,7 +17,20 @@ case "$agent" in
   claude-code) target="${target:-$HOME/.claude/settings.json}" ;;
   codex)       target="${target:-$HOME/.codex/hooks.json}" ;;
   cursor)      target="${target:-$HOME/.cursor/hooks.json}" ;;
-  *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  gemini)      target="${target:-$HOME/.gemini/settings.json}" ;;
+  antigravity) target="${target:-$HOME/.gemini/config/hooks.json}" ;;
+  opencode)
+    # opencode loads every .js in its plugins folder: a link to this clone's plugin (updates come with git pull)
+    dir="${target:-$HOME/.config/opencode/plugins}"
+    mkdir -p "$dir"
+    if [ "$(readlink "$dir/fishbots.js" 2>/dev/null)" = "$ROOT/plugins/opencode/fishbots.js" ]; then
+      echo "$dir/fishbots.js: already connected"
+    else
+      [ -e "$dir/fishbots.js" ] && mv -f "$dir/fishbots.js" "$dir/fishbots.js.bak-fishbots-$(date +%Y%m%d-%H%M%S)"
+      ln -s "$ROOT/plugins/opencode/fishbots.js" "$dir/fishbots.js" && echo "$dir/fishbots.js: linked (restart opencode)"
+    fi
+    exit 0 ;;
+  *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
 python3 -I - "$ROOT" "$agent" "$target" "$perm" <<'PY'
 import json, os, shutil, sys, time
@@ -31,6 +47,16 @@ def fix(entry):
     return e
 
 data = json.load(open(target)) if os.path.exists(target) else {}
+if agent == "antigravity":
+    # keyed by hook name, each with its events: Fishbots' hook is the "fishbots" entry
+    if "fishbots" in data:
+        print(f"{target}: already connected"); sys.exit()
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if os.path.exists(target):
+        shutil.copy(target, target + ".bak-fishbots-" + time.strftime("%Y%m%d-%H%M%S"))
+    data["fishbots"] = fix(template["fishbots"])
+    json.dump(data, open(target, "w"), indent=2, ensure_ascii=False); open(target, "a").write("\n")
+    print(f"{target}: connected (the CLI, the IDE and the app share it)"); sys.exit()
 if agent == "cursor": data.setdefault("version", 1)
 hooks = data.setdefault("hooks", {})
 added = skipped = 0

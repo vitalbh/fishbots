@@ -4,7 +4,7 @@ import AppKit
 ///
 /// With Rex, the app talks straight to `rex` (session › tab and focus on the right pane); with Herdr, to `herdr-app`
 /// (shows the agent) and `herdr-core` (where it is, typing into it).
-/// Without Rex, it runs a generic script (iTerm, Terminal, WezTerm, kitty, tmux, VS Code…),
+/// Without Rex, it runs a generic script (iTerm, Terminal, Ghostty, WezTerm, kitty, tmux, Warp, VS Code and its forks, Zed…),
 /// which can be replaced by your own in ~/Library/Application Support/Fishbots/goto.sh.
 enum Whereabouts {
     static func update(_ f: Fish, with o: [String: String]) {
@@ -31,6 +31,8 @@ enum Whereabouts {
         case "Apple_Terminal": return "Terminal"
         case "vscode": return "VS Code"
         case "ghostty": return "Ghostty"
+        case "WarpTerminal": return "Warp"
+        case "zed": return "Zed"
         case "rex": return "Rex"
         case "herdr": return "Herdr"
         default: return t
@@ -88,6 +90,10 @@ enum Whereabouts {
         }
         var parts: [String] = []
         if o["entrypoint"] == "claude-desktop" { parts.append(tr("Claude (desktop)")) }
+        else if o["term"] == "vscode", let app = o["app"] {
+            // Cursor, Windsurf… say they're VS Code: the app they really run in has the name
+            parts.append(((app as NSString).lastPathComponent as NSString).deletingPathExtension)
+        }
         else if let t = o["term"] { parts.append(terminalName(t)) }
         else if let app = o["app"] {
             let name = ((app as NSString).lastPathComponent as NSString).deletingPathExtension
@@ -193,19 +199,22 @@ enum Whereabouts {
             return true
         }
         guard o["term"] != nil || o["tmux"] != nil || o["app"] != nil || o["cwd"] != nil else { return false }
-        DispatchQueue.global(qos: .userInitiated).async { runScript(o) }
+        var env = o
+        env["title"] = f.displayTitle   // the terminal's title often is the conversation's (Ghostty picks the tab by it)
+        DispatchQueue.global(qos: .userInitiated).async { runScript(env) }
         return true
     }
 
     // MARK: - typing into the session (reply, stop)
 
-    enum Target { case rex(bin: String, block: String), herdr(core: String, terminal: String), iterm(String), tmux(String) }
+    enum Target { case rex(bin: String, block: String), herdr(core: String, terminal: String), ghostty(tty: String), iterm(String), tmux(String) }
 
     /// Where it's safe to type into the session's exact terminal (Rex, Herdr, iTerm or tmux). Otherwise, nil.
     static func target(_ f: Fish) -> Target? {
         let o = f.whereabouts
         if let b = o["rex_block"], let bin = rexBin(o) { return .rex(bin: bin, block: b) }
         if let t = o["herdr"], let core = herdrCore { return .herdr(core: core, terminal: t) }
+        if o["term"] == "ghostty", let tty = o["tty"], !tty.isEmpty { return .ghostty(tty: tty) }
         if o["term"] == "iTerm.app", let i = o["iterm"] { return .iterm(String(i.split(separator: ":").last ?? "")) }
         if let t = o["tmux"], !t.isEmpty { return .tmux(t) }
         return nil
@@ -234,6 +243,13 @@ enum Whereabouts {
                     // pastes and submits; --force: a session waiting for you counts as "blocked", and that's when the card replies
                     _ = run(core, ["send", "--force", t, line])
                 }
+            case .ghostty(let tty):
+                if !agentInGhostty(tty: tty, names: names) { failure = tr("o terminal não está com o agente na frente") }
+                else {
+                    failure = osa(ghosttyScript("input text (item 2 of argv) to t"), [tty, line])
+                    Thread.sleep(forTimeInterval: 0.5)
+                    if failure == nil { failure = osa(ghosttyScript("send key \"enter\" to t"), [tty]) }
+                }
             case .iterm(let id):
                 failure = osa(itermScript(id: id, action: "write text item 2 of argv newline NO"), [id, line])
                 Thread.sleep(forTimeInterval: 0.5)
@@ -258,6 +274,8 @@ enum Whereabouts {
                 if agentInRex(bin: bin, block: block, names: names) { _ = run(bin, ["--timeout", "3s", "send-key", "-b", block, "escape"]) }
             case .herdr(let core, let t):
                 if agentInHerdr(core: core, terminal: t, source: f.source, names: names) { _ = run(core, ["keys", t, "esc"]) }
+            case .ghostty(let tty):
+                if agentInGhostty(tty: tty, names: names) { _ = osa(ghosttyScript("send key \"escape\" to t"), [tty]) }
             case .iterm(let id):
                 _ = osa(itermScript(id: id, action: "write text (character id 27) newline NO"), [id])
             case .tmux(let pane):
@@ -273,6 +291,36 @@ enum Whereabouts {
               let fg = pr["foreground"] as? [String: Any] else { return false }
         let all = ((fg["path"] as? String) ?? "") + " " + ((fg["argv0"] as? String) ?? "") + " " + ((fg["name"] as? String) ?? "")
         return Providers.isAgentProcess(all, names: names)
+    }
+
+    // MARK: - Ghostty
+
+    /// A script acting on the session's Ghostty terminal (`t`), found by its tty (item 1 of argv: "ttys016").
+    private static func ghosttyScript(_ action: String) -> String {
+        """
+        on run argv
+          tell application id "com.mitchellh.ghostty"
+            set t to first terminal whose tty is ("/dev/" & item 1 of argv)
+            \(action)
+          end tell
+        end run
+        """
+    }
+
+    /// Is the terminal's foreground process the agent? (Ghostty gives its pid.)
+    private static func agentInGhostty(tty: String, names: [String]) -> Bool {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        p.arguments = ["-e", ghosttyScript("return pid of t"), tty]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        do { try p.run() } catch { return false }
+        let d = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        guard let pid = Int(String(decoding: d, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
+        let ps = String(decoding: run("/bin/ps", ["-o", "comm=", "-p", String(pid)]), as: UTF8.self)
+        return Providers.isAgentProcess(ps, names: names)
     }
 
     // MARK: - Herdr
@@ -419,7 +467,7 @@ enum Whereabouts {
     #!/bin/sh
     # Takes you to a session's terminal. Fishbots passes:
     #   WHERE_TERM (TERM_PROGRAM), WHERE_ITERM, WHERE_TTY, WHERE_TMUX, WHERE_WEZTERM, WHERE_KITTY, WHERE_CWD,
-    #   WHERE_APP (the .app that opened the session, when there is no TERM_PROGRAM), WHERE_PID (Claude's process)
+    #   WHERE_APP (the .app the session runs in), WHERE_PID (the agent's process), WHERE_TITLE (the conversation's title)
     PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 
     if [ -n "$WHERE_TMUX" ] && command -v tmux >/dev/null; then
@@ -472,8 +520,49 @@ enum Whereabouts {
         ;;
       WezTerm) wezterm cli activate-pane --pane-id "$WHERE_WEZTERM" 2>/dev/null; open -a WezTerm ;;
       kitty)   kitty @ focus-window --match "id:$WHERE_KITTY" 2>/dev/null; open -a kitty ;;
-      ghostty) open -a Ghostty ;;
-      vscode)  if command -v code >/dev/null; then code "$WHERE_CWD"; else open -a "Visual Studio Code"; fi ;;
+      ghostty)
+        # Ghostty's AppleScript (1.3+): the session's own terminal by its tty; without that (older dictionaries), the
+        # terminal in the session's folder, the one titled like the conversation if there are several; else just Ghostty
+        osascript - "$WHERE_TTY" <<'OSA' 2>/dev/null || osascript - "$WHERE_CWD" "$WHERE_TITLE" <<'OSA2' 2>/dev/null || open -a Ghostty
+    on run argv
+      tell application id "com.mitchellh.ghostty"
+        set t to first terminal whose tty is ("/dev/" & item 1 of argv)
+        focus t
+        activate
+      end tell
+    end run
+    OSA
+    on run argv
+      set dir to item 1 of argv
+      set wanted to item 2 of argv
+      tell application id "com.mitchellh.ghostty"
+        set found to every terminal whose working directory is dir
+        if (count of found) is 0 then set found to every terminal whose working directory contains dir
+        if (count of found) is 0 then error "not found"
+        set pick to item 1 of found
+        if wanted is not "" then
+          repeat with t in found
+            if name of t contains wanted then
+              set pick to contents of t
+              exit repeat
+            end if
+          end repeat
+        end if
+        focus pick
+        activate
+      end tell
+    end run
+    OSA2
+        ;;
+      vscode)
+        # Cursor, Windsurf and other forks also say "vscode": open the app the session really runs in
+        case "$WHERE_APP" in
+          ""|*"Visual Studio Code"*)
+            if command -v code >/dev/null; then code "$WHERE_CWD"; else open -a "Visual Studio Code" ${WHERE_CWD:+"$WHERE_CWD"}; fi ;;
+          *) open -a "$WHERE_APP" ${WHERE_CWD:+"$WHERE_CWD"} ;;
+        esac ;;
+      WarpTerminal) open -a Warp ;;   # Warp can't be told which tab
+      zed)     open -a Zed ${WHERE_CWD:+"$WHERE_CWD"} ;;
       tmux)    : ;;
       "")      if [ -n "$WHERE_APP" ]; then open -a "$WHERE_APP"; elif [ -n "$WHERE_CWD" ]; then open "$WHERE_CWD"; fi ;;
       *)       open -a "$WHERE_TERM" 2>/dev/null || { [ -n "$WHERE_CWD" ] && open "$WHERE_CWD"; } ;;

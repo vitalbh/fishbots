@@ -303,6 +303,8 @@ enum ClaudeCodeHook {
             }
             if !cwd.isEmpty { o["cwd"] = cwd }
             Whereabouts.update(f, with: o)
+            // agents without a transcript we can read send the conversation's title along (opencode)
+            if let t = m["session_title"] as? String, !t.isEmpty { f.logTitle = String(t.prefix(120)) }
             if let t = m["transcript_path"] as? String { f.transcriptPath = t; Transcript.read(t, to: f, now: tank.time) }
             // any other event after a while also ends the compaction
             if event != "PreCompact", let c = f.compactingSince, tank.time - c > 5, !compacted { f.compactingSince = nil; f.transcriptReadAt = 0 }

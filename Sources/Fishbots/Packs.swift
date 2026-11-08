@@ -10,6 +10,7 @@ import Foundation
 ///    "styles": [ {"id", "name", "bpm": [lo, hi], "progressions": ["Dreamy"], "scale": "major" | "penta" | [0, 2, …],
 ///                 "lead": ["flute"], "accomp": "arpeggio" | "lofi" | "bossa", "accompTimbre": ["soft"], …} ],
 ///    "chords": {"Dm9": [2, 5, 9, 0, 4]}, "progressions": {"Lagoon": ["Cmaj7", "Dm9"]},
+///    "agents": [ {agent manifest, see AgentManifests.swift} ],
 ///    "fish": [ {"id": "clownfish", "name": "palhaço", "metal": "clownfish.metal", "function": "draw_clownfish"} ],
 ///    "scenery": [ {"id": "lantern", "metal": "lantern.metal", "function": "draw_lantern", "anchor": "sand" | "surface" | "float",
 ///                  "size": 0.08, "extent": [0.6, 1], "at": [0.3] or "count": 3, "glowAtNight": true, …} ],
@@ -180,6 +181,11 @@ enum Packs {
             return
         }
 
+        // agents without Swift (AgentManifests.swift): their manifests
+        for a in json["agents"] as? [[String: Any]] ?? [] {
+            if let e = AgentManifests.register(a) { problems.append(name + ": " + e) }
+            else { pack.contents.append(tr("agente %@", a["name"] as? String ?? a["id"] as? String ?? "")) }
+        }
         for t in json["themes"] as? [[String: Any]] ?? [] {
             if let theme = Theme(json: t, base: Themes.named("classic")) {
                 Themes.register(theme); themeIds.append(theme.id); pack.contents.append(tr("tema %@", theme.name))

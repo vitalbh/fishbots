@@ -79,13 +79,16 @@ enum Providers {
                 if p.handlesPermissions, path == r + "/permission" || path == r + "/permissao" { return (p, true) }
             }
         }
-        return nil
+        // /agent/<id>: an agent without Swift, with or without a manifest
+        return AgentManifests.provider(forRoute: path).map { ($0, false) }
     }
 
     static func registerBuiltIns() {
         register(ClaudeCodeProvider())
         register(CodexProvider())
         register(CursorProvider())
+        register(GeminiProvider())
+        register(AntigravityProvider())
         register(DemoProvider())
         // script plugins and other sources that only need a look and a sound
         register(PlainSource(id: "github", profile: SourceProfile(timbre: .bell, fishKind: { _ in "octopus" })))
@@ -106,14 +109,14 @@ final class PlainSource: SessionProvider {
 /// Agents that run in a terminal and are driven by typing into it (Rex, iTerm or tmux; see Whereabouts).
 class TerminalAgentProvider {
     /// Fish kind by the app the session runs in: oval (Rex), slender (plain terminal), puffer (the Claude desktop
-    /// app and ClaudeCode.app background sessions), angelfish (VS Code, Cursor).
+    /// app and ClaudeCode.app background sessions), angelfish (editors: VS Code and its forks, Zed).
     static func fishKind(_ f: Fish) -> String {
         let term = f.whereabouts["term"] ?? ""
         let app = (f.whereabouts["app"] ?? "").lowercased()
         if term == "rex" { return "oval" }
         if f.whereabouts["entrypoint"] == "claude-desktop" { return "puffer" }
-        if term == "vscode" || app.contains("cursor") || app.contains("visual studio code") { return "angelfish" }
-        if ["iTerm.app", "Apple_Terminal", "ghostty", "WezTerm", "kitty", "tmux", "Alacritty", "Hyper", "Warp"].contains(term) { return "slender" }
+        if term == "vscode" || term == "zed" || ["cursor", "visual studio code", "windsurf", "zed"].contains(where: app.contains) { return "angelfish" }
+        if ["iTerm.app", "Apple_Terminal", "ghostty", "WezTerm", "kitty", "tmux", "Alacritty", "Hyper", "WarpTerminal"].contains(term) { return "slender" }
         if app.contains("claude") { return "puffer" }
         return "oval"
     }
