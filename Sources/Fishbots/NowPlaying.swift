@@ -24,7 +24,7 @@ final class NowPlaying {
     let ears: SongEars
 
     static let source = "music"
-    private static let entity = "now-playing"
+    static let entity = "now-playing"
     private static let players = [("Spotify", "com.spotify.client"), ("Music", "com.apple.Music")]
 
     /// On by default; Preferências → Geral.

@@ -45,6 +45,13 @@ final class Music {
     private let start = CACurrentMediaTime()
     private var lastArrival = -1000
 
+    /// Your music (Spotify, Music) played since the ambient music was last turned on: it stays quiet until asked.
+    var yielded = false
+    private var lastUserMusic = false
+    /// Your music paused while the ambient music was on and yielding: the app asks whether to play it.
+    var onUserMusicPaused: (() -> Void)?
+    var onUserMusicPlays: (() -> Void)?
+
     init(synth: Synth, tank: Tank) {
         self.synth = synth
         self.tank = tank
@@ -203,8 +210,15 @@ final class Music {
         let bar = step / 16
         let active = tank.fish.filter { !$0.decor && !$0.leaving }
         let focus = Attention.focus
-        // the ambient music steps aside while Spotify or the Music app is playing
-        let ambient = UserDefaults.standard.bool(forKey: "ambientMusic") && !focus && !NowPlaying.playing
+        // the ambient music steps aside while Spotify or the Music app is playing, and doesn't come back by itself when
+        // it pauses (the pause may be for silence: a meeting): the aquarium asks, and ⌘A brings it back
+        let wanted = UserDefaults.standard.bool(forKey: "ambientMusic")
+        if NowPlaying.playing != lastUserMusic {
+            lastUserMusic = NowPlaying.playing
+            if NowPlaying.playing { yielded = true; onUserMusicPlays?() }
+            else if yielded && wanted { onUserMusicPaused?() }
+        }
+        let ambient = wanted && !focus && !NowPlaying.playing && !yielded
 
         if ambient {
             playAmbient(step: step, s: s, bar: bar, t: t, now: now, active: active)

@@ -255,6 +255,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         synth.start()
         music = Music(synth: synth, tank: tank)
         music.visual = visual
+        // your music paused while the aquarium's was yielding: the music fish offers it, like an agent asking (but
+        // quietly: no notification, nothing read aloud), and the offer goes away when your music plays again
+        music.onUserMusicPaused = { [unowned self] in
+            if let f = self.tank.fish(source: NowPlaying.source, entity: NowPlaying.entity) {
+                f.offer = tr("♪ toco a música do aquário? (clique)")
+            } else {
+                self.tank.notice = (tr("sua música pausou: ⌘A toca a do aquário"), self.tank.time)
+            }
+        }
+        music.onUserMusicPlays = { [unowned self] in
+            self.tank.fish(source: NowPlaying.source, entity: NowPlaying.entity)?.offer = nil
+        }
         music.called = { [unowned self] f, delay in self.readQuestion(f, after: delay) }
         // the Mac's voice ducks the music while it speaks
         applyVolume()
@@ -650,6 +662,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                     let tab = path.components(separatedBy: "tab=").dropFirst().first.flatMap { Int($0.prefix(1)) }
                     self.preferences.show(tab: tab)
                     return (200, Data(#"{"ok":true}"#.utf8))
+                case ("POST", "/test/music-paused"):
+                    // as if your music had played and paused: the music fish offers the aquarium's
+                    self.music.yielded = true
+                    self.music.onUserMusicPaused?()
+                    return (200, Data(#"{"ok":true}"#.utf8))
                 case ("POST", "/test/catalog"):
                     // ?install=<id>: installs that pack from the catalog, as the button would
                     if let id = path.components(separatedBy: "install=").dropFirst().first {
@@ -728,6 +745,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let q: SIMD2<Float> = [Float(p.x), Float(p.y)]
         if let f = tank.fish(at: q), let p = permissions.request(ofFish: f.id) {
             showRequest(p, fish: f)
+            return
+        }
+        if let f = tank.fish(at: q), f.offer != nil {
+            // the music fish's offer: a click says yes
+            f.offer = nil
+            music.yielded = false
+            tank.ring(at: f.pos, color: f.color, size: f.size * 0.6, grow: 160, life: 0.8)
+            tank.notice = (tr("música do aquário"), tank.time)
             return
         }
         if let f = tank.fish(at: q) {
@@ -853,6 +878,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         var line2: (String, NSColor)?
         if let p = permissions.request(ofFish: f.id) { line2 = (tr("✋ quer usar %@", p.tool), yellow) }
         else if f.state == .waiting { line2 = (f.asked.map { "✋ " + short($0, 38) } ?? tr("✋ esperando você"), yellow) }
+        else if let o = f.offer { line2 = (o, yellow) }
         else if f.state == .error { line2 = (tr("✗ erro"), NSColor(red: 1, green: 0.45, blue: 0.4, alpha: 1)) }
         else if f.state == .alert { line2 = (tr("⚠︎ alerta"), NSColor(red: 1, green: 0.75, blue: 0.3, alpha: 1)) }
         else if f.compactingSince != nil { line2 = (tr("🫧 compactando…"), NSColor(white: 1, alpha: 0.6)) }
@@ -1645,7 +1671,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     @objc func feed() { key("f") }
     @objc func toggleFocus() { Attention.focus.toggle() }
     @objc func toggleAmbientMusic() {
+        // yielding to your music (it played and paused): ⌘A brings the aquarium's back instead of turning it off
+        if UserDefaults.standard.bool(forKey: "ambientMusic") && music.yielded && !NowPlaying.playing {
+            music.yielded = false
+            tank.fish(source: NowPlaying.source, entity: NowPlaying.entity)?.offer = nil
+            tank.notice = (tr("música do aquário"), tank.time)
+            return
+        }
         UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: "ambientMusic"), forKey: "ambientMusic")
+        music.yielded = false
     }
     @objc func toggleToolNotes() {
         UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: "toolNotes"), forKey: "toolNotes")

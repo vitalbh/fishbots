@@ -175,6 +175,9 @@ final class Fish {
     var lastReply: String?
     /// The reply ended with a question for you (the final part).
     var asked: String?
+    /// A quiet question that needs no attention (no notification, nothing read aloud): the music fish offering the
+    /// aquarium's music when yours pauses. Shown like an agent's question; a click answers it.
+    var offer: String?
     /// TodoWrite: the list becomes pebbles in the sand (the done ones glow in the fish's color).
     var todos: (total: Int, done: Int)?
     var todoU: Float?
@@ -2072,6 +2075,7 @@ final class Tank {
             }
             var glow = f.glow
             if f.state == .waiting { glow = max(glow, 0.35 + 0.35 * sinf(Float(time) * 4)) }
+            if f.offer != nil { glow = max(glow, 0.2 + 0.2 * sinf(Float(time) * 2)) }       // softer than waiting
             // waking up: stretches (grows and shrinks back)
             var len = f.size * (1 - 0.35 * f.depth)
             let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
