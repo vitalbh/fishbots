@@ -79,7 +79,7 @@ interval (`name.5m.sh`) get the same clean-up as fish: a presence that isn't in 
 | `hourglass` | stands on the sand; `value` is the sand left on top | time left, a countdown |
 | `anchor` | drops from the top and stays | something pinned, a blocker |
 | `flag` | stands on the sand, waving; its cloth takes the state's color | a status (green/yellow/red) |
-| `helm` | a ship's wheel standing on the sand; its hub takes the state's color and it turns while `busy` | a cluster, something you steer |
+| `helm` | a ship's wheel hanging on the side glass (on the sand once the sides are full); its hub takes the state's color and it turns while `busy` | a cluster, something you steer |
 | `chest` | stays on the sand; glows when `done` or `waiting` | a goal, a reward |
 | `battery` | lies on the sand; `value` is the charge | a level that runs out |
 

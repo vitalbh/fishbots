@@ -27,6 +27,8 @@ struct PresenceKind {
     var drops = false
     /// Its voice (Scene.voices), when its state changes.
     var sound = "soft"
+    /// Hangs on the side glass while there's room (helms); otherwise it sits on the sand.
+    var wall = false
 }
 
 /// A creature or object a plugin keeps in the tank, with a state and its own text.
@@ -46,6 +48,9 @@ final class Presence {
     var reminder: Double = 0
     /// The helm's turn (radians): it turns while busy.
     var spin: Float = 0
+    /// Its place on the side glass (even: left, odd: right; /2: the level from the top), or nil when it's on the sand.
+    var wallSlot: Int?
+    var onWall: Bool { wallSlot != nil }
     /// Home position (0…1 of the width).
     var u: Float
     var pos: SIMD2<Float>
@@ -106,7 +111,7 @@ final class Scene {
             PresenceKind(id: "hourglass", sprite: 28, motion: .sit, size: 28, color: [0.62, 0.42, 0.26], meter: true, sound: "tick"),
             PresenceKind(id: "anchor", sprite: 29, motion: .sit, size: 34, color: [0.42, 0.4, 0.38], drops: true, sound: "clang"),
             PresenceKind(id: "flag", sprite: 30, motion: .sit, size: 32, color: [0.35, 0.85, 0.5], sound: "soft"),
-            PresenceKind(id: "helm", sprite: 31, motion: .sit, size: 34, color: [0.6, 0.4, 0.22], sound: "clang"),
+            PresenceKind(id: "helm", sprite: 31, motion: .sit, size: 34, color: [0.6, 0.4, 0.22], sound: "clang", wall: true),
             PresenceKind(id: "chest", sprite: 23, motion: .sit, size: 22, color: [0.5, 0.31, 0.16], sound: "bell"),
             PresenceKind(id: "battery", sprite: 6, motion: .sit, size: 20, color: [1, 1, 1], meter: true, sound: "bubble"),
         ]
@@ -181,6 +186,7 @@ final class Scene {
 
     /// Where its text goes: above the objects on the sand, below the swimmers. (point, above)
     func labelAnchor(_ p: Presence) -> (SIMD2<Float>, above: Bool) {
+        if p.onWall { return (p.pos + p.shakeOffset - [0, p.kind.size * 1.15 + 2], false) }
         if p.kind.motion.grounded {
             let top: Float = [27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 2.05, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite] ?? 1.2
             return (p.pos + p.shakeOffset + [0, p.kind.size * top + 4], true)
@@ -191,7 +197,7 @@ final class Scene {
 
     /// Objects on the sand are drawn above their anchor point.
     private func hitCenter(_ p: Presence) -> SIMD2<Float> {
-        p.kind.motion.grounded ? p.pos + [0, p.kind.size * 0.4] : p.pos
+        p.kind.motion.grounded && !p.onWall ? p.pos + [0, p.kind.size * 0.4] : p.pos
     }
 
     /// Creates or updates. Returns an error for the protocol's response.
@@ -281,11 +287,36 @@ final class Scene {
         case .float:
             if fresh { p.pos = [w * p.u, h * 0.955] }
         case .walk, .sit:
+            // helms go on the side glass first, while there's room
+            if p.kind.wall {
+                if p.wallSlot == nil, let slot = freeWallSlot(t) { p.wallSlot = slot }
+                if let slot = p.wallSlot, let at = wallPosition(slot, p.kind.size, t) { p.pos = at; return }
+                p.wallSlot = nil
+            }
             let x = t.clearOfScenery(w * p.u)
             p.u = x / max(1, w)
             p.pos = [x, ground(p, t)]
             if fresh && p.kind.drops { p.pos.y = h + 20; p.landed = false }
         }
+    }
+
+    /// Where a wall slot is: alternating sides, from high up down to just above the dark seaweed in the corners.
+    private func wallPosition(_ slot: Int, _ size: Float, _ t: Tank) -> SIMD2<Float>? {
+        let w = t.size.x, h = t.size.y
+        let spacing = size * 3.1
+        let y = h * 0.8 - Float(slot / 2) * spacing
+        guard y > h * 0.38 else { return nil }
+        let x = slot % 2 == 0 ? max(size * 1.6, w * 0.045) : w - max(size * 1.6, w * 0.045)
+        return [x, y]
+    }
+
+    private func freeWallSlot(_ t: Tank) -> Int? {
+        let used = Set(presences.filter { !$0.leaving }.compactMap(\.wallSlot))
+        for slot in 0..<40 where !used.contains(slot) {
+            guard wallPosition(slot, 34, t) != nil else { return nil }
+            return slot
+        }
+        return nil
     }
 
     private func ground(_ p: Presence, _ t: Tank) -> Float {
@@ -495,6 +526,9 @@ final class Scene {
                     if t.sceneryBlocks(next) && !t.sceneryBlocks(p.pos.x) { p.dir = -p.dir } else { p.pos.x = next }
                 }
                 p.pos.y = ground(p, t)
+            case .sit where p.onWall:
+                if let slot = p.wallSlot, let at = wallPosition(slot, p.kind.size, t) { p.pos += (at - p.pos) * min(1, dt * 2.5) }
+                else { p.wallSlot = nil; place(p, t, fresh: false) }   // no room anymore (smaller window): to the sand
             case .sit:
                 if !p.landed {
                     p.pos.y -= 320 * dt
@@ -513,6 +547,8 @@ final class Scene {
                 }
             }
             if p.kind.id == "helm" { p.spin += dt * (p.state == .busy ? 1.1 : p.state == .waiting ? 0.25 : 0) }
+            // a place freed up on the glass: one from the sand goes up there (gliding)
+            if p.kind.wall && !p.onWall && !p.leaving && p.landed, let slot = freeWallSlot(t) { p.wallSlot = slot }
             // busy: small bubbles rise from it
             if p.state == .busy && !p.leaving && time > p.bubbleAt {
                 p.bubbleAt = time + Double.random(in: 0.35...0.9)
@@ -600,7 +636,7 @@ final class Scene {
                 let hub: SIMD3<Float> = color(of: p.state) ?? (p.state == .idle ? [0.5, 0.52, 0.55]
                                                                 : p.state == .busy ? [0.45, 0.75, 1] : [0.35, 0.85, 0.5])
                 let wobble: Float = p.state == .error ? sinf(p.phase * 7) * 0.06 : sinf(p.phase * 0.6) * 0.03
-                out.append(Sprite(pos: pos + [0, p.kind.size * 1.0], dir: [1, 0], size: p.kind.size, kind: 31, glow: glow,
+                out.append(Sprite(pos: pos + [0, p.onWall ? 0 : p.kind.size * 1.0], dir: [1, 0], size: p.kind.size, kind: 31, glow: glow,
                                   phase: p.spin + wobble, color: SIMD4(c, a), extra: [1, hub.x * lit, hub.y * lit, hub.z * lit]))
             case 23:     // chest: glows when done or waiting
                 let open: Float = p.state == .done || p.state == .waiting ? 1 : 0.25
