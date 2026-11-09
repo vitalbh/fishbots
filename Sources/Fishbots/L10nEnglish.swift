@@ -355,6 +355,7 @@ let english: [String: String] = [
     "seguindo quem canta": "following the singer",
     "estrelinhas": "sparkles",
     "🌟 plâncton": "🌟 plankton",
+    "🐟 cardume de luz": "🐟 school of light",
     "✨ aurora submarina": "✨ underwater aurora",
     "🌊 superfície viva": "🌊 living surface",
     "🎼 partitura de bolhas": "🎼 bubble score",

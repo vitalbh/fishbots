@@ -93,6 +93,7 @@ They sit behind the fish and react to each note (at the position and in the colo
 - 🌊 **living surface:** each note makes a wave on the surface;
 - 🎼 **bubble score:** the melody moves right to left, each bubble at the note's height;
 - 🌌 **plankton constellation:** each fish's notes linked by thin lines;
+- 🐟 **school of light:** a school of little bioluminescent fish follows the melody, each note pulling it to its pitch's height and toward whoever played, each chord changing its color, a trail of light behind; a click scatters it;
 - 🎆 **light fireworks:** on each event, in any mode, a burst of dots opens in the water (slowed by it) and rises, fading.
 
 The **aurora stays in the background** (default; turn off in Visualizador → Aurora de fundo), and the chosen visualizer appears on top of it. The **Visualizador** menu lets you choose automatic by style (lullaby → plankton, ambient → constellation, lo-fi → score, bossa → surface), random (changes with each piece), off or a fixed one. In the screen saver, since there's no music, they react when fish change state.

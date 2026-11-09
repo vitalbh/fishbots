@@ -271,7 +271,7 @@ final class Visual {
             var g: Float
             switch p.kind {
             case 4:   // glow: lights up fast, fades slowly, twinkles
-                let input = min(1, p.life / 0.25)
+                let input = p.maxLife < 0.2 ? 1 : min(1, p.life / 0.25)   // a very short one (a moving light) is lit at once
                 g = input * k * (p.blink > 0 ? 0.75 + 0.25 * sinf(p.phase * 3) : 0.85 + 0.15 * sinf(p.phase * 9))
             case 7: g = min(1, p.life / 0.4) * k * 0.55
             case 1: g = min(1, k * 3)
