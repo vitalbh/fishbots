@@ -149,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         Renderer.packBackgroundFailed = Packs.backgroundFailed
         TankProtocol.stateExtras = { ["packs": Packs.loaded.map { ["id": $0.id, "name": $0.name, "contents": $0.contents] },
                                       "packProblems": Packs.problems, "agentProblems": AgentManifests.problems, "fishKinds": FishKinds.all.map(\.id),
+                                      "packsSignature": String(self.packsSignature.hashValue),
                                       "notifications": self.notifier.permission, "onScreen": self.onScreen] }
         notifier.prepare()
         if let p = Env.value("PORT"), let n = UInt16(p) { port = n }
@@ -770,6 +771,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                     return (200, self.packsJSON())
                 case ("GET", "/packs"):
                     return (200, self.packsJSON())
+                case ("GET", "/packs/files"):
+                    // the screen saver copies the packs from here (it can't read the app's folder)
+                    return (200, Packs.filesJSON())
                 case ("POST", "/packs/install"):
                     // {"path": "/…/x.fishbotspack"}: installs it and reloads
                     guard let j = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any], let p = j["path"] as? String else {
