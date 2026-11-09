@@ -1,0 +1,371 @@
+{
+  "id": "kelp",
+  "name": "Floresta de kelp",
+  "names": {
+    "en": "Kelp forest"
+  },
+  "version": "1.0",
+  "author": "Fishbots",
+  "license": "MIT",
+  "description": "Uma floresta de kelp gigante subindo até a superfície, um deserto de ouriços-roxos onde o kelp foi todo comido, o sheephead que come os ouriços, garibaldis laranja, um abalone no lugar do baú, uma lontra boiando de costas e leões-marinhos passando rápido.",
+  "descriptions": {
+    "en": "A forest of giant kelp rising to the surface, an urchin barren where purple urchins ate the kelp down to nothing, the sheephead that eats them, orange garibaldi, an abalone for the chest, a sea otter floating on its back and sea lions darting by."
+  },
+  "themes": [
+    {
+      "id": "kelp-forest",
+      "name": "Floresta de kelp",
+      "names": {
+        "en": "Kelp forest"
+      },
+      "visualizer": "surface",
+      "music": "ambient",
+      "fauna": [
+        "crab",
+        "starfish",
+        "sheephead",
+        "otter",
+        "sea-lion",
+        "garibaldi"
+      ],
+      "scenery": [
+        "rock",
+        "chest",
+        "giant-kelp",
+        "barren"
+      ],
+      "looks": {
+        "oval": "garibaldi",
+        "shark": "sealion",
+        "chest": "abalone",
+        "bottle": "bull-kelp",
+        "helm": "kelp-helm",
+        "flag": "dive-flag"
+      },
+      "background": {
+        "metal": "kelp.metal",
+        "function": "draw_kelp_background",
+        "replaceReef": true
+      },
+      "water": {
+        "deep": "#06201f",
+        "shallow": "#2f7468",
+        "rays": "#f0dc90",
+        "raysStrength": 0.34,
+        "caustics": "#f2e6a8",
+        "causticsStrength": 0.08,
+        "surface": "#86b89a",
+        "murk": "#2a3a1e"
+      },
+      "weeds": {
+        "count": 6,
+        "farCount": 8,
+        "far": "#2a3a1c",
+        "low": "#3a3414",
+        "high": "#a07a2a",
+        "shapes": [
+          "kelp",
+          "kelp",
+          "blade"
+        ]
+      },
+      "sand": {
+        "dark": "#4a4436",
+        "light": "#8a8068"
+      },
+      "jellyfish": false,
+      "schools": [
+        {
+          "color": "#3a4a6e",
+          "kind": "oval",
+          "count": 12,
+          "size": [
+            7,
+            8.5
+          ],
+          "pattern": 0,
+          "depth": [
+            0.3,
+            0.65
+          ]
+        },
+        {
+          "color": "#e8c860",
+          "kind": "slender",
+          "count": 6,
+          "size": [
+            9,
+            11
+          ],
+          "pattern": 0,
+          "depth": [
+            0.5,
+            0.8
+          ]
+        },
+        {
+          "color": "#8a9a8a",
+          "kind": "slender",
+          "count": 5,
+          "size": [
+            12,
+            15
+          ],
+          "pattern": 0,
+          "depth": [
+            0.2,
+            0.45
+          ]
+        }
+      ],
+      "effects": {
+        "fireworks": "#ffc46b",
+        "sparkle": "#fff0b0",
+        "ring": "#e8f0c8"
+      },
+      "description": "Kelp gigante até a superfície, um deserto de ouriços, o sheephead, garibaldis, uma lontra e leões-marinhos.",
+      "descriptions": {
+        "en": "Giant kelp up to the surface, an urchin barren, the sheephead, garibaldi, a sea otter and sea lions."
+      }
+    }
+  ],
+  "fish": [
+    {
+      "id": "garibaldi",
+      "name": "garibaldi",
+      "names": {
+        "en": "garibaldi"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_kelp_garibaldi",
+      "swim": {
+        "beat": 1.2,
+        "bob": 0.08
+      }
+    }
+  ],
+  "scenery": [
+    {
+      "id": "giant-kelp",
+      "name": "kelp gigante",
+      "names": {
+        "en": "giant kelp"
+      },
+      "metal": "kelp.metal",
+      "function": "draw_kelp_giant",
+      "anchor": "sand",
+      "size": 0.46,
+      "extent": [
+        0.3,
+        1.0
+      ],
+      "at": [
+        0.07,
+        0.2,
+        0.42,
+        0.86,
+        0.96
+      ],
+      "color": "#8a6a2a",
+      "solid": false
+    },
+    {
+      "id": "barren",
+      "name": "deserto de ouriços",
+      "names": {
+        "en": "urchin barren"
+      },
+      "metal": "kelp.metal",
+      "function": "draw_kelp_barren",
+      "anchor": "sand",
+      "size": 0.11,
+      "extent": [
+        2.4,
+        0.6
+      ],
+      "at": [
+        0.63
+      ],
+      "color": "#c47a8a",
+      "bury": 0.3
+    },
+    {
+      "id": "abalone",
+      "name": "abalone",
+      "names": {
+        "en": "abalone"
+      },
+      "metal": "presences.metal",
+      "function": "draw_kelp_abalone",
+      "anchor": "sand",
+      "size": 0.06,
+      "extent": [
+        1.0,
+        0.75
+      ],
+      "color": "#ffffff"
+    }
+  ],
+  "fauna": [
+    {
+      "id": "sheephead",
+      "name": "sheephead",
+      "names": {
+        "en": "sheephead"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_kelp_sheephead",
+      "behavior": "home",
+      "on": "barren",
+      "size": 34,
+      "extent": [
+        1.4,
+        0.8
+      ],
+      "count": 1,
+      "speed": 20,
+      "color": "#ffffff"
+    },
+    {
+      "id": "otter",
+      "name": "lontra-marinha",
+      "names": {
+        "en": "sea otter"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_kelp_otter",
+      "behavior": "skim",
+      "size": 30,
+      "extent": [
+        1.6,
+        0.8
+      ],
+      "count": 1,
+      "speed": 6,
+      "when": "day",
+      "color": "#5a3e2a"
+    },
+    {
+      "id": "sea-lion",
+      "name": "leão-marinho",
+      "names": {
+        "en": "sea lion"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_kelp_sealion",
+      "behavior": "cross",
+      "size": 44,
+      "extent": [
+        1.8,
+        0.7
+      ],
+      "count": 1,
+      "speed": 120,
+      "height": [
+        0.35,
+        0.7
+      ],
+      "every": [
+        60,
+        180
+      ],
+      "color": "#6a4a32"
+    },
+    {
+      "id": "garibaldi",
+      "name": "garibaldi",
+      "names": {
+        "en": "garibaldi"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_kelp_garibaldi",
+      "behavior": "home",
+      "on": "giant-kelp",
+      "size": 18,
+      "extent": [
+        1.25,
+        0.8
+      ],
+      "count": [
+        2,
+        3
+      ],
+      "speed": 18,
+      "color": "#ff7a20"
+    }
+  ],
+  "presences": [
+    {
+      "id": "sealion",
+      "name": "leão-marinho",
+      "names": {
+        "en": "sea lion"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_kelp_sealion",
+      "motion": "swim",
+      "size": 52,
+      "extent": [
+        1.8,
+        0.7
+      ],
+      "color": "#6a4a32",
+      "band": [
+        0.3,
+        0.62
+      ],
+      "sound": "bass"
+    },
+    {
+      "id": "bull-kelp",
+      "name": "boia de kelp-touro",
+      "names": {
+        "en": "bull kelp float"
+      },
+      "metal": "presences.metal",
+      "function": "draw_kelp_bullkelp",
+      "motion": "float",
+      "size": 32,
+      "extent": [
+        0.9,
+        0.5
+      ],
+      "color": "#ffd080",
+      "sound": "glass"
+    },
+    {
+      "id": "kelp-helm",
+      "name": "timão enroscado em kelp",
+      "names": {
+        "en": "helm tangled in kelp"
+      },
+      "metal": "presences.metal",
+      "function": "draw_kelp_helm",
+      "motion": "sit",
+      "size": 34,
+      "extent": [
+        1.0,
+        1.0
+      ],
+      "color": "#6ac0ff",
+      "sound": "clang"
+    },
+    {
+      "id": "dive-flag",
+      "name": "bandeira de mergulhador",
+      "names": {
+        "en": "diver-down flag"
+      },
+      "metal": "presences.metal",
+      "function": "draw_kelp_diveflag",
+      "motion": "sit",
+      "size": 36,
+      "extent": [
+        0.8,
+        1.0
+      ],
+      "color": "#e04a3c",
+      "sound": "soft"
+    }
+  ]
+}

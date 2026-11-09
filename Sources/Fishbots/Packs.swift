@@ -307,7 +307,8 @@ enum Packs {
                 extent: ext.flatMap { $0.count == 2 ? SIMD2($0[0], $0[1]) : nil } ?? [1, 1],
                 size: max(0.005, min(0.5, num("size", 0.06))), color: col, at: at.map { max(0, min(1, $0)) },
                 height: max(0, min(1, num("height", 0.5))), glowAtNight: sc["glowAtNight"] as? Bool ?? false,
-                drift: sc["drift"] as? Bool ?? (anchor == .surface), solid: sc["solid"] as? Bool ?? (anchor != .surface)))
+                drift: sc["drift"] as? Bool ?? (anchor == .surface), solid: sc["solid"] as? Bool ?? (anchor != .surface),
+                bury: max(0, min(0.6, num("bury", 0.05)))))
             pack.contents.append(tr("cenário %@", localName(sc, id)))
         }
         for fa in json["fauna"] as? [[String: Any]] ?? [] {

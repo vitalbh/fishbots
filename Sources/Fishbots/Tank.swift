@@ -773,6 +773,7 @@ final class Tank {
         var drift = false
         var solid = true
         var glowAtNight = false
+        var bury: Float = 0.05
     }
     static let allScenery: [SceneryItem] = [
         SceneryItem(id: "rock", kind: 21, u: 0.17, scale: 0.075, color: [0.42, 0.4, 0.36], seed: 0.3),
@@ -800,13 +801,14 @@ final class Tank {
             guard let look = looks[s.id], let i = SceneryKinds.index(of: look) else { return s }
             let k = SceneryKinds.all[i]
             return SceneryItem(id: s.id, kind: 35, u: s.u, scale: s.scale, color: k.color, seed: s.seed, pack: i,
-                               anchor: .sand, extent: k.extent, glowAtNight: k.glowAtNight)
+                               anchor: .sand, extent: k.extent, glowAtNight: k.glowAtNight, bury: k.bury)
         }
         for (i, k) in SceneryKinds.all.enumerated() where ids?.contains(k.id) == true {
             for (j, u) in k.at.enumerated() {
                 out.append(SceneryItem(id: k.id, kind: 35, u: u, scale: k.size, color: k.color,
                                        seed: Float(j) * 0.618 - floor(Float(j) * 0.618) + 0.05, pack: i, anchor: k.anchor,
-                                       extent: k.extent, height: k.height, drift: k.drift, solid: k.solid, glowAtNight: k.glowAtNight))
+                                       extent: k.extent, height: k.height, drift: k.drift, solid: k.solid, glowAtNight: k.glowAtNight,
+                                       bury: k.bury))
             }
         }
         return out
@@ -821,7 +823,7 @@ final class Tank {
         switch s.anchor {
         case .sand:
             // a pack's piece stands on the sand with the bottom of its drawing (c.y = -1) a little buried
-            return ([s.u * size.x, size.y * sand(s.u) + (s.pack != nil ? sz * s.extent.y * 0.9 : sz * 0.3)], sz)
+            return ([s.u * size.x, size.y * sand(s.u) + (s.pack != nil ? sz * s.extent.y * (1 - 2 * s.bury) : sz * 0.3)], sz)
         case .surface:
             // floating: drifting slowly back and forth, riding the waves
             let x = s.u * size.x + (s.drift ? sinf(Float(time) * 0.035 + s.seed * 6.3) * size.x * 0.03 : 0)

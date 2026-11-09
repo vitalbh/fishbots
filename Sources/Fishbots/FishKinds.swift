@@ -255,6 +255,9 @@ struct SceneryKind {
     let drift: Bool
     /// The fish swim around it (default: on the sand and in the water yes, at the surface no).
     let solid: Bool
+    /// On the sand: how much of the quad's height sits below the sand line (default 0.05), so a wide piece doesn't
+    /// float where the sand dips under it.
+    var bury: Float = 0.05
 }
 
 /// A kind of presence that comes from a pack (plugins use it like the built-in ones: "kind": "<id>"), drawn by its own

@@ -120,7 +120,8 @@ A theme is data, passed to the shader as uniforms (no recompiling):
 Ideas for packs: coral reef, deep sea (dark, bioluminescent), Japanese pond (koi), night aquarium. Two are in
 `packs/examples/`: `coral` (a reef: clownfish, anemones, chromis, a blue tang, the reef wall, marimba), `koi` (a Japanese
 pond: koi, a stone lantern, lily pads, a shrine for the chest, frogs, koinobori, a water wheel, the namazu, koto) and
-`arctic` (under the ice: an ice ceiling, polar cod, a seal, a narwhal, the frozen chest, its own cold sky).
+`arctic` (under the ice: an ice ceiling, polar cod, a seal, a narwhal, the frozen chest, its own cold sky) and `kelp`
+(a kelp forest: giant kelp to the surface, an urchin barren, the sheephead, garibaldi, a sea otter, sea lions).
 
 #### A theme's own background and looks
 A pack theme can draw its own far background and give the built-in pieces another look:
@@ -218,6 +219,7 @@ the fish, crabs and pearls clear of it and draws it with the rest of the scenery
 | `glowAtNight` | `glow` rises as the light goes down, and its bright parts feed the bloom (a lantern's window) |
 | `drift` | drifts slowly sideways (default: yes at the surface) |
 | `solid` | the fish swim around it (default: yes, except at the surface) |
+| `bury` | on the sand: how much of the quad's height sits below the sand line (default 0.05). A wide piece needs more (0.3), and should fade out below that line, so it doesn't float where the tank's sand dips |
 
 ```metal
 // c: -1…1 over the quad, y up. t: seconds. glow: 0…1. col: its color, lit.

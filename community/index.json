@@ -2,6 +2,36 @@
   "format": 1,
   "packs": [
     {
+      "id": "kelp",
+      "name": "Floresta de kelp",
+      "version": "1.0",
+      "author": "Fishbots",
+      "license": "MIT",
+      "description": "Uma floresta de kelp gigante subindo até a superfície, um deserto de ouriços-roxos onde o kelp foi todo comido, o sheephead que come os ouriços, garibaldis laranja, um abalone no lugar do baú, uma lontra boiando de costas e leões-marinhos passando rápido.",
+      "descriptions": {
+        "en": "A forest of giant kelp rising to the surface, an urchin barren where purple urchins ate the kelp down to nothing, the sheephead that eats them, orange garibaldi, an abalone for the chest, a sea otter floating on its back and sea lions darting by."
+      },
+      "names": {
+        "en": "Kelp forest"
+      },
+      "path": "packs/examples/kelp",
+      "files": [
+        "cover.png",
+        "creatures.metal",
+        "kelp.metal",
+        "pack.json",
+        "presences.metal"
+      ],
+      "cover": "cover.png",
+      "contents": {
+        "themes": 1,
+        "fish": 1,
+        "scenery": 3,
+        "fauna": 4,
+        "presences": 4
+      }
+    },
+    {
       "id": "koi",
       "name": "Lago japonês",
       "version": "1.8",

@@ -602,6 +602,7 @@ the fish, crabs and pearls clear of it and draws it with the rest of the scenery
 | `glowAtNight` | `glow` rises as the light goes down, and its bright parts feed the bloom (a lantern's window) |
 | `drift` | drifts slowly sideways (default: yes at the surface) |
 | `solid` | the fish swim around it (default: yes, except at the surface) |
+| `bury` | on the sand: how much of the quad's height sits below the sand line (default 0.05). A wide piece needs more (0.3), and should fade out below that line, so it doesn't float where the tank's sand dips |
 
 ```metal
 // c: -1…1 over the quad, y up. t: seconds. glow: 0…1. col: its color, lit.
