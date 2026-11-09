@@ -72,8 +72,49 @@ enum Packs {
     private static var styleIds: [String] = []
 
     static var folder: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        folderOverride ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Fishbots/packs", isDirectory: true)
+    }
+    /// Another packs folder (the screen saver keeps a copy of the app's, which it can't read: GET /packs/files).
+    static var folderOverride: URL?
+
+    /// Every pack's text files (pack.json and the Metal drawings), for the screen saver to copy:
+    /// {"signature": …, "packs": {"<folder>": {"<file>": "<text>"}}}. Recorded sounds and pictures stay out (it's silent).
+    static func filesJSON() -> Data {
+        let fm = FileManager.default
+        var packs: [String: [String: String]] = [:]
+        for dir in ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []) {
+            var files: [String: String] = [:]
+            for f in ((try? fm.contentsOfDirectory(at: dir.resolvingSymlinksInPath(), includingPropertiesForKeys: nil)) ?? [])
+            where ["json", "metal"].contains(f.pathExtension.lowercased()) {
+                if let t = try? String(contentsOf: f, encoding: .utf8) { files[f.lastPathComponent] = t }
+            }
+            if files["pack.json"] != nil { packs[dir.lastPathComponent] = files }
+        }
+        let obj: [String: Any] = ["signature": signature(), "packs": packs]
+        return (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+    }
+
+    /// The screen saver: writes the app's packs (from filesJSON) into its own folder and reads them.
+    /// Folder and file names come from the app, checked anyway (no paths, only pack files).
+    @discardableResult
+    static func mirror(_ data: Data, into dir: URL) -> Bool {
+        guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let packs = obj["packs"] as? [String: [String: String]] else { return false }
+        let fm = FileManager.default
+        try? fm.removeItem(at: dir)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        func safe(_ n: String) -> Bool { !n.isEmpty && !n.contains("/") && !n.contains("..") && !n.hasPrefix(".") }
+        for (name, files) in packs where safe(name) {
+            let pd = dir.appendingPathComponent(name, isDirectory: true)
+            try? fm.createDirectory(at: pd, withIntermediateDirectories: true)
+            for (file, text) in files where safe(file) && ["json", "metal"].contains((file as NSString).pathExtension.lowercased()) {
+                try? text.write(to: pd.appendingPathComponent(file), atomically: true, encoding: .utf8)
+            }
+        }
+        folderOverride = dir
+        reload()
+        return true
     }
 
     /// Reads every pack. Call before the renderer compiles the shader (fish kinds go into it) and before applying the theme.

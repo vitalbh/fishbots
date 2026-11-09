@@ -24,6 +24,10 @@ final class FishbotsSaverView: ScreenSaverView {
     private var poll: Timer?
     private var running = false
     private var connected = false
+    /// The app's packs, copied here (the saver can't read the app's folder): their signature, and the theme applied.
+    private var packsSignature = ""
+    private var fetchingPacks = false
+    private var appliedTheme = ""
 
     override init?(frame: NSRect, isPreview: Bool) {
         super.init(frame: frame, isPreview: isPreview)
@@ -114,13 +118,48 @@ final class FishbotsSaverView: ScreenSaverView {
         }.resume()
     }
 
-    private func apply(_ obj: [String: Any]) {
-        // the app's theme (only the built-in ones: the saver can't read the app's folder)
-        let theme = Themes.named(obj["theme"] as? String)
+    /// The app's packs changed (or were never copied): fetch their files, read them here, compile the shader again.
+    private func syncPacks(_ signature: String) {
+        guard signature != packsSignature, !fetchingPacks, let url = URL(string: "http://127.0.0.1:7777/packs/files") else { return }
+        fetchingPacks = true
+        URLSession.shared.dataTask(with: URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)) { [weak self] data, _, _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.fetchingPacks = false
+                guard let data else { journal("packs: fetch failed"); return }
+                let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fishbots-saver-packs", isDirectory: true)
+                guard Packs.mirror(data, into: dir) else { journal("packs: bad data"); return }
+                journal("packs: \(Packs.loaded.map(\.id)) problems: \(Packs.problems.count)")
+                self.packsSignature = signature
+                self.renderer?.reload()
+                self.appliedTheme = ""                   // apply it again, with what the packs brought
+            }
+        }.resume()
+    }
+
+    /// The app's theme, as the app applies it: water, seaweed, scenery and its looks, creatures, schools.
+    private func applyTheme(_ id: String?) {
+        let theme = Themes.named(id)
         renderer?.theme = theme.uniforms
-        if tank.weedCount != theme.weedCount { tank.weedCount = theme.weedCount }
+        guard theme.id != appliedTheme else { return }
+        appliedTheme = theme.id
+        Themes.current = theme
+        tank.weedCount = theme.weedCount
         tank.rayStrength = theme.uniforms.params.z
+        visual.themeVisualizer = theme.visualizer
+        tank.fauna.select(theme.fauna)
+        tank.weedShapes = theme.weedShapes
+        tank.sceneryLooks = theme.looks
         tank.sceneryKinds = theme.scenery
+        tank.scene.themeLooks = theme.looks
+        tank.scene.dressByTheme = FishKinds.dressByTheme
+        tank.setSchools(theme.schools ?? School.usual)
+    }
+
+    private func apply(_ obj: [String: Any]) {
+        // the app's packs (copied when they change) and its theme
+        if let sig = obj["packsSignature"] as? String { syncPacks(sig) }
+        applyTheme(obj["theme"] as? String)
         let fishes = obj["fish"] as? [[String: Any]] ?? []
         var seen = Set<String>()
         for p in fishes {
@@ -135,7 +174,11 @@ final class FishbotsSaverView: ScreenSaverView {
                 f.sub = d.isEmpty ? nil : d
                 if let c = (p["context"] as? NSNumber)?.floatValue, c >= 0 { f.context = c }
                 if let a = p["agent"] as? Bool { f.isAgent = a }
-                if let sp = (p["species"] as? NSNumber)?.intValue { f.species = sp }
+                // its kind by name (the app's numbering includes the packs'); missing here: its base kind
+                if let k = p["kind"] as? String, FishKinds.all.contains(where: { $0.id == k }) { f.species = FishKinds.index(of: k) }
+                else if let b = p["baseKind"] as? String, FishKinds.all.contains(where: { $0.id == b }) { f.species = FishKinds.index(of: b) }
+                else if let sp = (p["species"] as? NSNumber)?.intValue, sp < FishKinds.all.count { f.species = sp }
+                if let s = p["sings"] as? Bool { f.sings = s }
                 let t = p["title"] as? String ?? ""
                 f.title = t.isEmpty ? nil : t
             }
