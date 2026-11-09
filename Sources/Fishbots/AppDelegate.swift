@@ -1650,7 +1650,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         set { UserDefaults.standard.set(newValue, forKey: "volume"); applyVolume() }
     }
     private func applyVolume(ducked: Bool = false) {
-        synth.engine.mainMixerNode.outputVolume = (ducked ? 0.3 : 0.9) * volume
+        synth.engine.mainMixerNode.outputVolume = 0.9 * volume
+        synth.music.outputVolume = ducked ? 1 / 3 : 1
     }
 
     private lazy var preferences = PreferencesWindow(Prefs.Actions(

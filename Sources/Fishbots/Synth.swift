@@ -132,6 +132,8 @@ final class Synth {
     let engine = AVAudioEngine()
     let eq = AVAudioUnitEQ(numberOfBands: 1)
     let reverb = AVAudioUnitReverb()
+    /// The music's own mixer: ducked while the Mac's voice speaks (the voice, when mixed in, goes around it).
+    let music = AVAudioMixerNode()
     private(set) var source: AVAudioSourceNode!
     let ring = EventRing()
     let now = Atomic<Int>(0)
@@ -165,6 +167,7 @@ final class Synth {
         engine.attach(src)
         engine.attach(eq)
         engine.attach(reverb)
+        engine.attach(music)
         let band = eq.bands[0]
         band.filterType = .lowPass
         band.frequency = 18000
@@ -173,7 +176,8 @@ final class Synth {
         reverb.wetDryMix = 32
         engine.connect(src, to: eq, format: fmt)
         engine.connect(eq, to: reverb, format: fmt)
-        engine.connect(reverb, to: engine.mainMixerNode, format: fmt)
+        engine.connect(reverb, to: music, format: fmt)
+        engine.connect(music, to: engine.mainMixerNode, format: fmt)
         engine.mainMixerNode.outputVolume = 0.9
         do {
             try engine.start()
