@@ -159,7 +159,8 @@ final class ThemePickerWindow: NSObject, NSWindowDelegate {
         return out
     }
     private static let faunaNames = ["crab": "caranguejo", "starfish": "estrela-do-mar", "turtle": "tartaruga", "snail": "caramujo",
-                                     "lanternfish": "peixe-lanterna", "whale": "baleia", "grouper": "garoupa"]
+                                     "lanternfish": "peixe-lanterna", "whale": "baleia", "grouper": "garoupa",
+                                     "anglerfish": "peixe-abissal", "sunfish": "peixe-lua"]
 
     /// The theme in use: a border in the accent color around its picture, and "✓ em uso" by its name.
     private func mark(_ id: String) {

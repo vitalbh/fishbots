@@ -148,7 +148,8 @@ enum Themes {
     private static func builtIns() -> [Theme] {
         let specs: [[String: Any]] = [
             ["id": "classic", "name": "Aquário", "description": "O aquário de sempre: água azul, algas verdes, pedras, a ostra e o baú."],
-            ["id": "abyss", "name": "Fundo do mar", "description": "Quase escuro, poucas plantas, peixes-lanterna à noite e a baleia passando ao longe.", "visualizer": "constellation", "fauna": ["starfish", "snail", "lanternfish", "whale"], "scenery": ["rock", "chest"],
+            ["id": "abyss", "name": "Fundo do mar", "description": "Quase escuro, poucas plantas, um peixe-abissal com sua isca acesa perto do fundo, tubarões-martelo, timões enferrujados, garrafas cobertas de cracas, um cofre de navio, um escafandro antigo, um navio naufragado ao longe, peixes-lanterna à noite, e o peixe-lua e a baleia passando ao longe.", "visualizer": "constellation", "fauna": ["starfish", "snail", "lanternfish", "whale", "anglerfish", "sunfish"], "scenery": ["rock", "chest", "helmet", "wreck"],
+             "looks": ["shark": "hammerhead", "helm": "rusty-helm", "bottle": "deep-bottle", "chest": "safe"],
              "water": ["deep": "#010309", "shallow": "#0a2440", "rays": "#2a4d6e", "raysStrength": 0.08,
                        "caustics": "#4a7fb0", "causticsStrength": 0.03, "surface": "#123a5c", "murk": "#0d1420"],
              "weeds": ["count": 5, "farCount": 8, "far": "#0b1f33", "low": "#06202a", "high": "#1d5a6b"],

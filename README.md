@@ -69,6 +69,7 @@ To see it all in action: `open --env FISHBOTS_FAST=1 build/Fishbots.app` (shorte
 - **starfish:** wave an arm on the sand;
 - **lanternfish:** show up at night, their little light swaying;
 - **whale:** rare, passes far away as a silhouette, with a deep song. It also shows up as a gift when the day passes 10 tasks, once a day.
+- **anglerfish** and **sunfish** (deep sea): the anglerfish lives near the bottom with its lure glowing and snaps its mouth open when a fish comes close to the light; the huge sunfish crosses now and then, far away.
 
 **Animations:**
 - **jump:** when a big task finishes (more than 5 min or 25 tools), the fish leaps out of the water in an arc, with a splash;
@@ -106,7 +107,7 @@ The app icon is drawn by `scripts/make-icon.swift` (`swift scripts/make-icon.swi
 
 ## Themes, fish kinds and packs
 
-- **Tema** (**E**, or the menu bar menu and the Aquário menu): a window with every theme's picture, where it comes from and what it brings; click a picture to use it. **Tema surpresa** picks another one by itself every hour or every day. The scene's look: water, light, seaweed, sand, which creatures live there, and the scene's preferred visualizer and music style. Built in: **Aquário** (the original), **Fundo do mar** (dark, few plants, lanternfish) and **Lagoa** (green water, lots of seaweed).
+- **Tema** (**E**, or the menu bar menu and the Aquário menu): a window with every theme's picture, where it comes from and what it brings; click a picture to use it. **Tema surpresa** picks another one by itself every hour or every day. The scene's look: water, light, seaweed, sand, which creatures live there, and the scene's preferred visualizer and music style. Built in: **Aquário** (the original), **Fundo do mar** (dark, few plants, an anglerfish, the sunfish, hammerheads, rusted helms and barnacle-crusted bottles) and **Lagoa** (green water, lots of seaweed).
 - **Tipo de peixe** (in the fish's right-click menu): the project's fish. Automatic follows the session (oval in Rex, elongated in a plain terminal, pufferfish in the Claude app, angelfish in VS Code/Cursor, octopus for GitHub, stingray for Codex); you can pick any kind, including the ones from packs.
 - **Packs** add themes, music styles, fish, scenery and creatures (each drawing in Metal) without compiling anything. They live in `~/Library/Application Support/Fishbots/packs/`; **Tema → Abrir pasta de pacotes…** opens it, and the same menu lists what each pack brought and any problem (a drawing whose Metal doesn't compile is skipped, the rest still loads). Packs are data and GPU code only: they can't run anything on the Mac. Two examples: `packs/examples/coral` (a coral reef, a calm "maré" style and a clownfish) and `packs/examples/koi` (a Japanese pond: koi, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp and a "zen" style).
 

@@ -1356,6 +1356,141 @@ float4 draw_chest(float2 c, float phase, float glow, float4 col, float open) {
     return float4(outc, min(a, 1.0));
 }
 
+// a ship's safe (the deep sea's chest): heavy riveted iron gone rusty, a door with a dial and a wheel handle; it
+// swings open (open: 0…1) on the gold inside. Sand line at y ≈ -0.3 like the chest's.
+float4 draw_safe(float2 c, float phase, float glow, float4 col, float open) {
+    float2 p = c;
+    float body = sd_box(p - float2(0.0, -0.2), float2(0.62, 0.5), 0.05);
+    float aa = fwidth(body) + 1e-4;
+    float inside = 1.0 - smoothstep(-aa, aa, body);
+    float lum = dot(col.rgb, float3(0.33)) / 0.33;                               // the scene's light
+    // iron: dark green-grey, rust blooming from the edges and the rivets, light from above
+    float edge = smoothstep(0.12, 0.0, -body);
+    float rustN = vnoise(p * 7.0) * 0.6 + vnoise(p * 21.0) * 0.4;
+    float rust = smoothstep(0.5, 0.75, rustN + edge * 0.35);
+    float3 iron = mix(float3(0.17, 0.19, 0.19), float3(0.36, 0.2, 0.11), rust) * (0.8 + 0.35 * vnoise(p * 45.0));
+    iron *= 0.65 + 0.45 * smoothstep(-0.7, 0.3, p.y);
+    iron += float3(0.12) * (1.0 - smoothstep(0.0, 0.04, abs(p.y - 0.27))) * step(abs(p.x), 0.6);   // the top edge catches light
+    // the door: an inset panel, hinged on the right; it swings open, getting narrower as seen from the front
+    float sw = 1.0 - 0.85 * clamp(open, 0.0, 1.0);
+    float dl = 0.46 - 0.92 * sw;
+    float2 dc = float2((dl + 0.46) * 0.5, -0.2);
+    float door = sd_box(p - dc, float2(0.46 * sw, 0.4), 0.03);
+    float hole = sd_box(p - float2(0.0, -0.2), float2(0.47, 0.41), 0.03);
+    float inHole = (1.0 - smoothstep(-aa, aa, hole)) * inside;
+    float inDoor = (1.0 - smoothstep(-aa, aa, door)) * inside;
+    float3 c3 = iron;
+    // behind the door: the dark inside, gold stacked at the bottom glittering, and its light
+    float pulse = (0.6 + 0.4 * sin(phase * 1.3)) * glow;
+    float2 cg = p * float2(12.0, 16.0);
+    float coin = 1.0 - smoothstep(0.25, 0.42, length(fract(cg + float2(floor(cg.y) * 0.5, 0.0)) - 0.5));
+    float twinkle = pow(max(0.0, sin(phase * 3.0 + floor(cg.x) * 1.7 + floor(cg.y) * 2.3)), 8.0);
+    float heap = step(p.y, -0.42 + 0.12 * (1.0 - pow(p.x / 0.47, 2.0)));
+    float3 goldC = mix(float3(0.85, 0.6, 0.18), float3(1.0, 0.88, 0.45), coin) * lum + float3(1.0) * twinkle * 0.5;
+    float3 cave = mix(float3(0.03, 0.03, 0.03) + float3(1.0, 0.75, 0.3) * 0.25 * pulse * smoothstep(0.2, -0.5, p.y), goldC, heap);
+    c3 = mix(c3, cave, inHole);
+    // the door itself: a bevelled plate with a dial and a three-spoke handle (squeezed as it turns)
+    float2 dp = float2((p.x - dc.x) / max(sw, 0.05), p.y - dc.y);
+    float3 dC = iron * (0.9 + 0.2 * smoothstep(-0.4, 0.4, dp.y));
+    dC *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.03, -door));
+    float dial = length(dp - float2(0.12, 0.06));
+    float ticks = step(0.75, fract(atan2(dp.y - 0.06, dp.x - 0.12) / 6.2832 * 24.0)) * step(0.09, dial) * step(dial, 0.13);
+    dC = mix(dC, float3(0.75, 0.62, 0.35) * lum * (0.8 + 0.3 * smoothstep(0.13, 0.0, dial)), (1.0 - smoothstep(0.125, 0.135, dial)));
+    dC = mix(dC, float3(0.2, 0.16, 0.1) * lum, ticks);
+    dC = mix(dC, float3(0.15, 0.12, 0.08) * lum, 1.0 - smoothstep(0.03, 0.04, dial));
+    float2 hp = dp - float2(-0.2, 0.06);
+    float hub = length(hp);
+    float spokes = 1e3;
+    for (int i = 0; i < 3; i++) {
+        float a = float(i) * 2.0944 + 0.4;
+        spokes = min(spokes, sd_seg(hp, float2(0.0), float2(cos(a), sin(a)) * 0.13) - 0.016);
+    }
+    float handle = min(spokes, hub - 0.04);
+    dC = mix(dC, float3(0.55, 0.5, 0.42) * lum * (0.7 + 0.5 * smoothstep(-0.1, 0.1, hp.y)), 1.0 - smoothstep(-0.005, 0.005, handle));
+    c3 = mix(c3, dC, inDoor);
+    // hinges on the right, rivets along the frame
+    float hinge = min(sd_box(p - float2(0.5, 0.0), float2(0.03, 0.07), 0.01), sd_box(p - float2(0.5, -0.4), float2(0.03, 0.07), 0.01));
+    c3 = mix(c3, float3(0.35, 0.3, 0.26) * lum, 1.0 - smoothstep(-0.005, 0.005, hinge));
+    float2 rp = float2(abs(p.x) - 0.555, fract((p.y + 0.7) * 6.0) - 0.5);
+    float rivet = (1.0 - smoothstep(0.018, 0.03, length(float2(rp.x, rp.y / 6.0)))) * step(p.y, 0.24) * step(-0.65, p.y);
+    c3 = mix(c3, iron * 1.5 + 0.05, rivet * (1.0 - inHole));
+    // closed: a thread of gold light leaking around the door
+    float seam = (1.0 - smoothstep(0.0, 0.02, abs(hole))) * (1.0 - smoothstep(0.0, 0.1, open)) * pulse * 0.5;
+    c3 += float3(1.0, 0.75, 0.3) * seam;
+    float halo = exp(-max(body, 0.0) * 14.0) * (1.0 - inside) * open * pulse * 0.35 * step(-0.6, p.y);
+    return float4(c3 * inside + float3(1.0, 0.8, 0.4) * halo, max(inside, halo * 0.6));
+}
+
+// a sunken ship far away (the deep sea's): a dark silhouette lying tilted on the bottom, its bow raised, a mast
+// standing, another broken and fallen, a hole in the hull, the keel buried. Soft and faded by the distance.
+float4 draw_wreck(float2 c, float phase, float4 col) {
+    float2 p = c * float2(2.2, 1.0);
+    float ang = -0.1;
+    p = float2(p.x * cos(ang) - p.y * sin(ang), p.x * sin(ang) + p.y * cos(ang));
+    float hull = max((length(p / float2(1.75, 0.5)) - 1.0) * 0.4, p.y - 0.06 - 0.12 * smoothstep(1.0, 1.7, p.x));
+    hull = min(hull, sd_tri(p, float2(1.3, 0.12), float2(1.98, 0.32), float2(1.45, -0.32)));       // the bow
+    hull = min(hull, sd_box(p - float2(-1.3, 0.16), float2(0.36, 0.14), 0.02));                     // the stern castle
+    hull = max(hull, -((length((p - float2(0.3, -0.14)) / float2(0.24, 0.11)) - 1.0) * 0.1));       // a breach
+    float mast = sd_seg(p, float2(-0.35, 0.05), float2(-0.28, 0.9)) - 0.03;
+    mast = min(mast, sd_seg(p, float2(-0.62, 0.62), float2(0.02, 0.68)) - 0.015);                   // a yard
+    mast = min(mast, sd_seg(p, float2(0.55, 0.05), float2(0.66, 0.46)) - 0.028);                    // broken
+    mast = min(mast, sd_seg(p, float2(0.7, 0.44), float2(1.15, 0.12)) - 0.022);                     // its fallen top
+    float rig = min(sd_seg(p, float2(-0.28, 0.9), float2(1.9, 0.3)), sd_seg(p, float2(-0.28, 0.9), float2(-1.55, 0.3))) - 0.006;
+    float d = min(min(hull, mast), rig);
+    float a = 1.0 - smoothstep(-0.02, 0.04, d);
+    a *= smoothstep(-0.5, -0.3, p.y);                                       // the keel sinks into the sand
+    // a dark shape, a little lighter on top where the faint light from above falls, some planks showing
+    float3 c3 = col.rgb * (0.75 + 0.5 * smoothstep(-0.4, 0.3, p.y));
+    c3 *= 0.9 + 0.1 * step(0.5, fract(p.y * 14.0)) * step(hull, 0.0);
+    c3 += col.rgb * 0.5 * (1.0 - smoothstep(0.0, 0.04, -d)) * smoothstep(0.0, 0.3, p.y);
+    float aw = a * col.a;
+    return float4(c3 * aw, aw);
+}
+
+// an old diving helmet lying on the sand (the deep sea's, only scenery): copper gone green, a round grilled faceplate,
+// a small side window, the breastplate with its bolts. Sand line at y ≈ -0.3.
+float4 draw_diving_helmet(float2 c, float phase, float4 col) {
+    float ang = 0.22;
+    float2 p = float2(c.x * cos(ang) + c.y * sin(ang), -c.x * sin(ang) + c.y * cos(ang)) - float2(0.0, 0.05);
+    float dome = length(p - float2(0.0, 0.12)) - 0.42;
+    float breast = sd_box(p - float2(0.0, -0.3), float2(0.58 - 0.12 * smoothstep(-0.45, -0.15, p.y), 0.13), 0.08);
+    float neck = sd_box(p - float2(0.0, -0.17), float2(0.36, 0.06), 0.02);
+    float valve = sd_box(p - float2(0.0, 0.58), float2(0.06, 0.06), 0.02);
+    float d = min(min(dome, breast), min(neck, valve));
+    float aa = fwidth(d) + 1e-4;
+    float inside = 1.0 - smoothstep(-aa, aa, d);
+    float lum = dot(col.rgb, float3(0.33)) / 0.33;
+    // copper with verdigris: green patina in blotches, brighter copper where it's worn
+    float pat = smoothstep(0.4, 0.7, vnoise(p * 6.0) * 0.65 + vnoise(p * 17.0) * 0.35);
+    float3 metal = mix(float3(0.46, 0.29, 0.19), float3(0.24, 0.38, 0.34), pat) * (0.7 + 0.3 * vnoise(p * 50.0));
+    // the dome is round: lit from the upper left
+    float2 dq = (p - float2(0.0, 0.12)) / 0.42;
+    float z = sqrt(max(0.0, 1.0 - dot(dq, dq)));
+    float diff = 0.35 + 0.8 * max(0.0, dot(normalize(float3(dq, z)), normalize(float3(-0.4, 0.6, 0.7))));
+    float3 c3 = metal * (dome < 0.0 ? diff : 0.55 + 0.4 * smoothstep(-0.45, -0.15, p.y));
+    c3 *= 1.0 - 0.25 * (1.0 - smoothstep(0.0, 0.01, abs(neck))) ;
+    // bolts along the breastplate
+    float2 bp = float2(fract((p.x + 0.6) * 5.0) - 0.5, p.y + 0.3);
+    float bolt = (1.0 - smoothstep(0.02, 0.035, length(float2(bp.x / 5.0, bp.y)))) * step(breast, 0.0) * step(abs(p.x), 0.5);
+    c3 = mix(c3, float3(0.5, 0.42, 0.3), bolt);
+    // the faceplate: a thick brass ring, dark glass, three bars across it; a little side window
+    float2 fp = p - float2(0.14, 0.1);
+    float fr = length(fp / float2(0.85, 1.0));
+    float glass = 1.0 - smoothstep(0.17, 0.18, fr);
+    float ring = (1.0 - smoothstep(0.215, 0.225, fr)) * (1.0 - glass);
+    float bars = (1.0 - smoothstep(0.012, 0.02, abs(fract(fp.x * 9.0 + 0.5) - 0.5) / 9.0)) * glass * step(abs(fp.x), 0.15);
+    float3 glassC = float3(0.03, 0.06, 0.07) + float3(0.25, 0.35, 0.35) * smoothstep(0.1, 0.0, length(fp - float2(-0.06, 0.07))) * 0.6;
+    c3 = mix(c3, glassC, glass);
+    c3 = mix(c3, float3(0.5, 0.4, 0.24) * (0.7 + 0.5 * smoothstep(-0.2, 0.2, fp.y)), max(ring, bars));
+    float2 sp = p - float2(-0.27, 0.16);
+    float sr = length(sp / float2(0.55, 1.0));
+    c3 = mix(c3, glassC, 1.0 - smoothstep(0.08, 0.09, sr));
+    c3 = mix(c3, float3(0.45, 0.36, 0.22), (1.0 - smoothstep(0.105, 0.115, sr)) * smoothstep(0.08, 0.09, sr));
+    c3 *= lum;
+    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.03, -d)) * 0.3;
+    return float4(c3 * inside, inside);
+}
+
 // ---------- the music fish (a betta with a flowing, iridescent tail) and the notes it lets out ----------
 
 float3 hue3(float h) { return clamp(abs(fract(h + float3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0); }
@@ -1425,19 +1560,28 @@ float4 presence_out(float d, float3 c3, float glow, float3 tint, float alpha, fl
 }
 
 // shark (25): a grey torpedo with a tall dorsal fin, a crescent tail and a pale belly; faces +x
-float4 draw_shark(float2 c, float phase, float glow, float4 col) {
+float4 draw_shark(float2 c, float phase, float glow, float4 col, float hammer = 0.0) {
     float2 p = c * float2(1.6, 0.7);
     float sway = sin(phase * 2.2);
     p.y -= sway * 0.06 * smoothstep(0.2, -1.3, p.x);                       // the back half follows the tail
     // a torpedo: pointed snout, deepest behind the gills, a slim tail stock
     float thin = mix(0.3, 1.0, smoothstep(-1.1, 0.1, p.x)) * mix(1.0, 0.72, smoothstep(0.55, 1.25, p.x));
     float body = (length((p - float2(0.08, 0.0)) / float2(1.22, 0.31 * thin)) - 1.0) * 0.28;
+    // a hammerhead: the snout ends in a wide flat head, an eye at each end
+    float2 eyeAt = float2(1.0, 0.055);
+    if (hammer > 0.5) {
+        body = max(body, p.x - 0.98);
+        float neck = sd_seg(p, float2(0.7, -0.01), float2(1.1, -0.01)) - 0.075;
+        float bar = sd_seg(p, float2(1.13, -0.24), float2(1.13, 0.22)) - 0.055 - 0.02 * smoothstep(0.2, -0.2, p.y);
+        body = smin_k(body, smin_k(neck, bar, 0.08), 0.06);
+        eyeAt = float2(1.15, 0.24);
+    }
     // the tail: a long upper lobe and a shorter lower one
     float2 tp = p - float2(0.0, sway * 0.08);
     float tail = min(sd_tri(tp, float2(-0.95, 0.03), float2(-1.55, 0.52), float2(-1.2, -0.02)),
                      sd_tri(tp, float2(-0.98, -0.02), float2(-1.42, -0.3), float2(-1.18, 0.02))) - 0.015;
     // fins: a tall swept-back dorsal with a hollow trailing edge, a second small one, a long pectoral, the pelvic
-    float dorsal = max(sd_tri(p, float2(-0.18, 0.22), float2(0.3, 0.26), float2(-0.28, 0.66)),
+    float dorsal = max(sd_tri(p, float2(-0.18, 0.22), float2(0.3, 0.26), float2(-0.28, 0.66 + hammer * 0.12)),
                        -(length(p - float2(-0.42, 0.52)) - 0.2)) - 0.012;
     float dorsal2 = sd_tri(p, float2(-0.78, 0.1), float2(-0.62, 0.12), float2(-0.84, 0.24)) - 0.008;
     float pang = sin(phase * 1.1) * 0.04;
@@ -1462,10 +1606,11 @@ float4 draw_shark(float2 c, float phase, float glow, float4 col) {
         c3 *= 1.0 - 0.45 * (1.0 - smoothstep(0.006, 0.014, abs(p.x - x))) * step(abs(p.y + 0.02), 0.11) * step(body, 0.0);
     }
     float mouth = abs(p.y + 0.11 + (p.x - 1.0) * 0.12) - 0.005;
-    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.01, mouth)) * step(0.86, p.x) * step(p.x, 1.1) * 0.35;
-    float re = length(p - float2(1.0, 0.055));
+    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.01, mouth)) * step(0.86, p.x) * step(p.x, 1.1) * 0.35 * (1.0 - hammer);
+    float re = length(p - eyeAt);
     c3 = mix(c3, float3(0.03), 1.0 - smoothstep(0.03, 0.042, re));
-    c3 = mix(c3, float3(0.9), 1.0 - smoothstep(0.004, 0.01, length(p - float2(1.008, 0.065))));
+    c3 = mix(c3, float3(0.9), 1.0 - smoothstep(0.004, 0.01, length(p - eyeAt - float2(0.008, 0.01))));
+    if (hammer > 0.5) c3 = mix(c3, float3(0.03), 1.0 - smoothstep(0.025, 0.036, length(p - float2(1.15, -0.25))));   // the far eye
     return presence_out(d, c3, glow, col.rgb, col.a, c);
 }
 
@@ -1493,7 +1638,7 @@ float4 draw_submarine(float2 c, float phase, float glow, float4 col) {
 }
 
 // bottle (27): green glass lying on the sand with a rolled message inside; the message glows with the state
-float4 draw_bottle(float2 c, float phase, float glow, float4 col) {
+float4 draw_bottle(float2 c, float phase, float glow, float4 col, float deep = 0.0) {
     float2 p = c * float2(0.9, 0.5);
     float a = 0.16;
     p = float2(p.x * cos(a) + p.y * sin(a), -p.x * sin(a) + p.y * cos(a));
@@ -1502,18 +1647,45 @@ float4 draw_bottle(float2 c, float phase, float glow, float4 col) {
     float glass = min(body, neck);
     float cork = sd_box(p - float2(0.7, 0.0), float2(0.08, 0.07), 0.02);
     float paper = sd_box(p - float2(-0.16, -0.01), float2(0.26, 0.085), 0.04);
+    // the deep sea's: barnacles crusting the glass along the top and around the neck
+    float barn = 1e3;
+    if (deep > 0.5) {
+        for (int i = 0; i < 6; i++) {
+            float fi = float(i);
+            float2 bc = i < 4 ? float2(-0.5 + fi * 0.2, 0.2 - 0.03 * fract(fi * 0.618)) : float2(0.28 + (fi - 4.0) * 0.17, 0.08);
+            barn = min(barn, length((p - bc) / float2(1.0, 0.85)) - (0.05 + 0.02 * fract(fi * 0.37)));
+        }
+        glass = min(glass, barn);
+    }
     float d = min(glass, cork);
     float aa = fwidth(d) + 1e-4;
     float inG = 1.0 - smoothstep(-aa, aa, glass);
     float rim = smoothstep(-0.05, 0.0, glass) * inG;
     float shine = (1.0 - smoothstep(0.0, 0.03, abs(p.y - 0.11))) * step(p.x, 0.1) * step(-0.45, p.x) * inG;
-    float inP = (1.0 - smoothstep(-aa, aa, paper)) * inG;
+    float inP = (1.0 - smoothstep(-aa, aa, paper)) * inG * (1.0 - deep);
     float3 c3 = col.rgb * (0.85 + 0.5 * rim) * inG;
     float alphaG = inG * (0.55 + 0.4 * rim);
     float3 paperC = float3(0.95, 0.9, 0.75) * (1.0 + glow * (0.8 + 0.4 * sin(phase * 4.0)));
     c3 = mix(c3, paperC, inP * 0.9);
     alphaG = max(alphaG, inP * 0.95);
-    c3 += float3(1.0) * shine * 0.6;
+    c3 += float3(1.0) * shine * 0.6 * (1.0 - deep * 0.7);
+    if (deep > 0.5) {
+        // dark old glass, and instead of the message a swirl of glowing plankton in the state's color
+        float inB = 1.0 - smoothstep(-aa, aa, barn);
+        // a barnacle: a pale ridged cone, lit on top, with a dark opening in the middle
+        float3 shellC = float3(0.62, 0.58, 0.5) * (0.65 + 0.5 * smoothstep(-0.05, 0.0, barn)) * (0.85 + 0.3 * vnoise(p * 40.0));
+        shellC *= 1.0 - 0.75 * (1.0 - smoothstep(0.0, 0.02, -barn - 0.03));
+        c3 = mix(c3 * 0.45 + float3(0.02, 0.03, 0.02) * inG, shellC, inB);
+        alphaG = max(alphaG * 0.85, inB);
+        float2 sp = p + float2(sin(phase * 0.7 + p.y * 9.0) * 0.03, cos(phase * 0.9 + p.x * 7.0) * 0.02);
+        float2 cell = floor(sp * 16.0), f = fract(sp * 16.0);
+        float2 at = float2(hash21(cell), hash21(cell + 7.3)) * 0.6 + 0.2 + 0.1 * float2(sin(phase + cell.x), cos(phase * 1.3 + cell.y));
+        float dots = (1.0 - smoothstep(0.08, 0.2, length(f - at))) * step(0.45, hash21(cell + 3.1))
+                   * (0.6 + 0.4 * sin(phase * 2.0 + hash21(cell) * 6.28)) * (1.0 - smoothstep(-0.02, 0.0, body + 0.03));
+        float3 plank = mix(float3(0.45, 1.0, 0.9), col.rgb * 1.6, 0.6) * (0.5 + glow * 1.5) * (0.75 + 0.25 * sin(phase * 3.0));
+        c3 += plank * dots;
+        c3 += plank * 0.12 * (1.0 - smoothstep(-0.02, 0.0, body + 0.03));
+    }
     float inC = 1.0 - smoothstep(-aa, aa, cork);
     c3 = mix(c3, float3(0.6, 0.42, 0.25), inC);
     float al = max(alphaG, inC);
@@ -1604,6 +1776,9 @@ float4 draw_flag(float2 c, float phase, float glow, float4 col) {
 // helm (31): a ship's wheel in wood, eight spokes ending in handles, an inner ring and a hub in the state's color;
 // `phase` is its turn (radians)
 float4 draw_helm(float2 c, float phase, float glow, float4 col, float3 hub) {
+    // col.a above 1.5: a rusted iron helm (the deep sea's), its alpha is what's left
+    float rust = step(1.5, col.a);
+    col.a -= rust * 2.0;
     float2 p = c * 1.05;
     float ca = cos(phase), sa = sin(phase);
     p = float2(p.x * ca - p.y * sa, p.x * sa + p.y * ca);
@@ -1618,12 +1793,21 @@ float4 draw_helm(float2 c, float phase, float glow, float4 col, float3 hub) {
     float spoke = max(abs(q.y) - 0.035, max(0.15 - q.x, q.x - 0.68));
     float handle = sd_seg(q, float2(0.7, 0.0), float2(0.95, 0.0)) - mix(0.05, 0.07, smoothstep(0.72, 0.9, q.x));
     float wood = min(min(rim, inner), min(spoke, handle));
+    wood += rust * (vnoise(p * 28.0) - 0.45) * 0.03;                    // rust eats the edges
     float d = min(wood, hubD);
     float aa = fwidth(d) + 1e-4;
     float inW = 1.0 - smoothstep(-aa, aa, wood);
     float inH = 1.0 - smoothstep(-aa, aa, hubD);
     float grain = 0.85 + 0.15 * sin(q.x * 40.0 + vnoise(q * 6.0) * 4.0);
     float3 woodC = col.rgb * grain * (0.75 + 0.35 * smoothstep(-0.8, 0.8, c.y));
+    if (rust > 0.5) {
+        // dark iron under blotches of orange rust, pitted, with pale flakes
+        float blot = smoothstep(0.35, 0.7, vnoise(p * 7.0) * 0.7 + vnoise(p * 19.0) * 0.3);
+        float3 iron = float3(0.2, 0.16, 0.14), orange = float3(0.62, 0.3, 0.12);
+        woodC = mix(iron, orange, blot) * (0.75 + 0.35 * smoothstep(-0.8, 0.8, c.y)) * (0.8 + 0.4 * vnoise(p * 40.0));
+        woodC = mix(woodC, float3(0.75, 0.55, 0.38), step(0.86, vnoise(p * 34.0 + 3.0)) * 0.6);
+        woodC *= dot(col.rgb, float3(0.33)) / 0.4;                        // the scene's light (col is the helm's color, lit)
+    }
     float3 hubC = hub * (0.8 + 0.4 * (1.0 - r / 0.15)) + float3(0.25) * (1.0 - smoothstep(0.0, 0.07, length(p - float2(-0.04, 0.05))));
     float3 c3 = woodC * inW + hubC * inH;
     float inside = max(inW, inH);
@@ -1634,9 +1818,9 @@ float4 draw_helm(float2 c, float phase, float glow, float4 col, float3 hub) {
 
 float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, float4 extra) {
     switch (kind) {
-        case 25: return draw_shark(c, phase, glow, col);
+        case 25: return draw_shark(c, phase, glow, col, extra.z);   // extra.z: 1 is the hammerhead
         case 26: return draw_submarine(c, phase, glow, col);
-        case 27: return draw_bottle(c, phase, glow, col);
+        case 27: return draw_bottle(c, phase, glow, col, extra.z);  // extra.z: 1 is the deep sea's
         case 28: return draw_hourglass(c, phase, glow, col, extra.y);
         case 29: return draw_anchor(c, phase, glow, col);
         case 31: return draw_helm(c, phase, glow, col, extra.yzw);
@@ -1646,6 +1830,115 @@ float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, fl
 
 // Frost on the glass (a theme's "frost"): over the whole window, ice growing in from the sides and the corners in
 // feathery crystals, thicker at the very edge, breathing a little. c: -1…1 over the window, amount 0…1, aspect w/h.
+// anglerfish (deep sea): a round dark body with a huge toothy mouth and a glowing lure dangling in front of it.
+// phase: time; open (0…1): how wide the mouth is; col: the body's color.
+float4 draw_anglerfish(float2 c, float phase, float open, float4 col) {
+    float2 p = c * float2(1.3, 1.0);
+    float sway = sin(phase * 1.3) * 0.04;
+    p.y -= sway * smoothstep(0.0, -1.2, p.x);                                     // the tail sways
+    float body = (length((p - float2(0.1, -0.05)) / float2(0.72, 0.56)) - 1.0) * 0.4;
+    float jaw = (length((p - float2(0.48, -0.32 - open * 0.12)) / float2(0.5, 0.2)) - 1.0) * 0.15;   // the underbite
+    body = smin_k(body, jaw, 0.08);
+    float tail = sd_tri(p, float2(-0.45, 0.18), float2(-0.45, -0.24), float2(-1.0, -0.02)) - 0.04;
+    float2 tp = p - float2(-0.95, -0.02);
+    float fin = sd_tri(tp, float2(0.05, 0.0), float2(-0.3, 0.28 + sway), float2(-0.3, -0.26 + sway)) - 0.03;
+    float dorsal = sd_tri(p, float2(-0.1, 0.42), float2(-0.45, 0.4), float2(-0.3, 0.6)) - 0.02;
+    float d = min(min(body, smin_k(tail, fin, 0.05)), dorsal);
+    // the mouth: a wedge cut into the front, gaping as it opens
+    float2 m0 = float2(0.18, -0.1), mu = float2(0.95, 0.02 + open * 0.12), ml = float2(0.98, -0.2 - open * 0.3);
+    float mouth = sd_tri(p, m0, mu, ml);
+    float inMouth = (1.0 - smoothstep(-0.01, 0.01, mouth)) * step(d, 0.0);
+    // teeth: thin needles along both jaws, pointing into the mouth
+    float teeth = 0.0;
+    for (int j = 0; j < 2; j++) {
+        float2 a = m0 + (j == 0 ? float2(0.15, 0.03) : float2(0.15, -0.04)), b = j == 0 ? mu : ml;
+        float2 ab = b - a; float h = clamp(dot(p - a, ab) / dot(ab, ab), 0.0, 1.0);
+        float2 n = normalize(float2(-ab.y, ab.x)) * (j == 0 ? -1.0 : 1.0);
+        float into = dot(p - (a + ab * h), n);
+        float saw = 1.0 - abs(fract(h * 7.0) * 2.0 - 1.0);
+        teeth = max(teeth, step(0.0, into) * (1.0 - smoothstep(saw * (0.05 + 0.04 * h) - 0.01, saw * (0.05 + 0.04 * h), into)));
+    }
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    // rough dark skin, lighter where the lure lights it, a pale little eye
+    float3 c3 = col.rgb * (0.7 + 0.5 * vnoise(p * 9.0)) * (0.8 + 0.4 * smoothstep(-0.5, 0.4, p.y));
+    c3 *= 1.0 - 0.35 * step(0.82, vnoise(p * 26.0));
+    // the lure: a stalk arching up from the forehead, a bulb swinging at its tip, pulsing
+    float2 base = float2(0.35, 0.42), mid = float2(0.62, 0.92), tip = float2(0.9 + sin(phase * 0.9) * 0.05, 0.66 + sin(phase * 1.4) * 0.04);
+    float stalk = min(sd_seg(p, base, mid), sd_seg(p, mid, tip)) - 0.012;
+    float pulse = 0.75 + 0.25 * sin(phase * 2.2) * sin(phase * 0.7 + 1.0);
+    float bulbR = length(p - tip);
+    float bulb = 1.0 - smoothstep(0.045, 0.06, bulbR);
+    float3 lureCol = float3(0.55, 1.0, 0.85);
+    float lit = exp(-dot(p - tip, p - tip) * 3.0) * pulse;
+    c3 += lureCol * lit * 0.35 * a;
+    c3 = mix(c3, float3(0.07, 0.01, 0.02), inMouth);
+    c3 = mix(c3, float3(0.85, 0.85, 0.78) * (0.5 + 0.6 * lit), teeth * inMouth);
+    float eye = 1.0 - smoothstep(0.03, 0.045, length(p - float2(0.4, 0.18)));
+    c3 = mix(c3, float3(0.75, 0.8, 0.7) * (0.6 + 0.6 * lit), eye);
+    float sa = 1.0 - smoothstep(-0.006, 0.006, stalk);
+    float3 rgb = c3 * a;
+    float alpha = a;
+    rgb = mix(rgb, col.rgb * 1.4 + lureCol * lit * 0.2, sa * (1.0 - a)); alpha = max(alpha, sa);
+    rgb = mix(rgb, lureCol * (0.8 + 0.6 * pulse), bulb); alpha = max(alpha, bulb);
+    float halo = exp(-bulbR * bulbR * 18.0) * pulse * 0.75 * (1.0 - bulb) * (1.0 - smoothstep(0.8, 1.0, abs(c.y))) * (1.0 - smoothstep(0.85, 1.0, abs(c.x)));
+    rgb += lureCol * halo; alpha = max(alpha, halo * 0.4);
+    return float4(rgb, alpha);
+}
+
+// ocean sunfish (mola): a huge flat pale disc that seems to have no tail, with a tall fin above and one below
+// sculling together, and a scalloped rim behind. phase: time.
+float4 draw_sunfish(float2 c, float phase, float4 col) {
+    float2 p = c * float2(1.0, 1.25);
+    float scull = sin(phase * 0.9) * 0.14;
+    float body = (length((p - float2(0.05, 0.0)) / float2(0.66, 0.52)) - 1.0) * 0.4;
+    // the clavus: the rim that replaces a tail, scalloped
+    float rim = -0.62 - 0.035 * (0.5 + 0.5 * cos(p.y * 22.0));
+    float clavus = max(rim - p.x, max(p.x + 0.45, abs(p.y) - 0.42 + 0.25 * smoothstep(-0.45, -0.7, p.x)));
+    body = max(body, -0.66 - p.x);
+    body = smin_k(body, clavus, 0.06);
+    float top = sd_tri(p, float2(-0.08, 0.4), float2(-0.42, 0.4), float2(-0.3 + scull, 1.2)) - 0.04;
+    float bot = sd_tri(p, float2(-0.08, -0.4), float2(-0.42, -0.4), float2(-0.3 - scull, -1.2)) - 0.04;
+    float pect = (length((p - float2(0.22, 0.0)) / float2(0.1, 0.05 + 0.02 * sin(phase * 2.0))) - 1.0) * 0.05;
+    float d = smin_k(smin_k(body, top, 0.05), bot, 0.05);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa * 1.5, d);
+    float inBody = 1.0 - smoothstep(-0.01, 0.01, body);
+    // round: the disc bulges, lit from above and a little in front, the edges falling into shadow
+    float2 bq = (p - float2(0.05, 0.0)) / float2(0.66, 0.52);
+    float bulge = sqrt(max(0.0, 1.0 - min(1.0, dot(bq, bq))));
+    float3 nrm = normalize(float3(bq * 0.9, bulge + 0.2));
+    float diff = 0.35 + 0.75 * max(0.0, dot(nrm, normalize(float3(0.25, 0.7, 0.65))));
+    // silvery skin: darker back, pale belly, mottled with soft grey patches and fine sandpaper grain
+    float3 c3 = col.rgb * mix(0.7, 1.25, smoothstep(0.45, -0.5, p.y));
+    float blot = smoothstep(0.45, 0.75, vnoise(p * 4.5 + 2.0));
+    c3 = mix(c3, c3 * 0.72, blot * 0.6);
+    c3 *= 0.9 + 0.2 * vnoise(p * 55.0);
+    c3 = mix(c3, c3 * 1.15 + 0.03, step(0.8, vnoise(p * 22.0 + 7.0)) * 0.5);          // pale freckles
+    c3 *= mix(1.0, diff, inBody);
+    // the fins: darker, with rays running along them, a pale trailing edge
+    float finM = (1.0 - inBody) * step(abs(p.y), 1.3);
+    float fy = abs(p.y);
+    float rays = 0.85 + 0.15 * sin((p.x + 0.3 + (p.y > 0.0 ? -scull : scull) * fy) * 70.0);
+    c3 = mix(c3, col.rgb * 0.55 * rays * (0.8 + 0.4 * smoothstep(1.1, 0.4, fy)), finM * step(0.36, fy));
+    // the clavus: wrinkled with ridges ending in the scallops
+    float clav = smoothstep(-0.5, -0.6, p.x) * inBody;
+    c3 = mix(c3, c3 * (0.72 + 0.18 * sin(p.y * 22.0)), clav);
+    // the pectoral fin, a gill slit before it
+    c3 = mix(c3, c3 * 0.7, 1.0 - smoothstep(0.0, 0.01, pect));
+    c3 *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.012, abs(length(p - float2(0.4, 0.0)) - 0.12))) * step(abs(p.y), 0.07) * step(p.x, 0.3);
+    // a rim of light along the back, a small round mouth, a big dark eye with a pale ring and a glint
+    c3 += col.rgb * 0.3 * (1.0 - smoothstep(0.0, 0.05, -d)) * smoothstep(-0.2, 0.4, p.y);
+    float mouthD = length(p - float2(0.68, -0.02));
+    c3 *= 1.0 - 0.6 * (1.0 - smoothstep(0.03, 0.045, mouthD));
+    float er = length(p - float2(0.43, 0.12));
+    c3 = mix(c3, col.rgb * 1.3, 1.0 - smoothstep(0.06, 0.075, er));
+    c3 = mix(c3, float3(0.04, 0.05, 0.07), 1.0 - smoothstep(0.035, 0.05, er));
+    c3 = mix(c3, float3(0.85), 1.0 - smoothstep(0.006, 0.012, length(p - float2(0.445, 0.135))));
+    float aw = a * 0.88;
+    return float4(c3 * aw, aw);
+}
+
 float4 draw_frost(float2 c, float t, float amount, float aspect) {
     float2 px = float2(c.x * aspect, c.y);
     // patches growing in from the left and right sides, longer at the corners, absent in some stretches
@@ -1759,6 +2052,14 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float border = 1.0 - smoothstep(0.5, 1.0, max(abs(c.x), abs(c.y)));
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
+    } else if (k > 41.5) {             // a sunken ship far away (the deep sea's)
+        outc = draw_wreck(c, in.phase, in.color);
+    } else if (k > 40.5) {             // scenery: an old diving helmet (the deep sea's)
+        outc = draw_diving_helmet(c, in.phase, in.color);
+    } else if (k > 39.5) {             // sunfish passing (built-in creature)
+        outc = draw_sunfish(c, in.phase, in.color);
+    } else if (k > 38.5) {             // anglerfish (built-in creature; extra.y: how open its mouth is)
+        outc = draw_anglerfish(c, in.phase, in.extra.y, in.color);
     } else if (k > 37.5) {             // frost on the glass (glow: how much; extra.y: the window's aspect)
         outc = draw_frost(c, u.time, in.glow, in.extra.y);
     } else if (k > 36.5) {             // a pack's presence (extra.z: its index, extra.w: its state)
@@ -1780,7 +2081,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
     } else if (k > 23.5) {             // a music note rising from the music fish
         outc = draw_note(c, in.glow, in.color);
     } else if (k > 22.5) {             // scenery: chest
-        outc = draw_chest(c, in.phase, in.glow, in.color, in.extra.y);
+        outc = in.extra.z > 0.5 ? draw_safe(c, in.phase, in.glow, in.color, in.extra.y)    // extra.z: the deep sea's safe
+                                : draw_chest(c, in.phase, in.glow, in.color, in.extra.y);
     } else if (k > 21.5) {             // scenery: big shell
         outc = in.extra.y > 0.5 ? draw_oyster(c, in.phase, in.color) : draw_shell(c, in.phase, in.color);   // extra.y: the oyster
     } else if (k > 20.5) {             // scenery: rock

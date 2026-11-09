@@ -19,6 +19,7 @@ final class Fauna {
     private(set) static var kinds: [(id: String, make: () -> Creature)] = [
         ("crab", { Crabs() }), ("starfish", { Starfish() }), ("turtle", { TurtleSwimmer() }),
         ("snail", { Snail() }), ("lanternfish", { Lanterns() }), ("whale", { WhaleSwimmer() }), ("grouper", { Grouper() }),
+        ("anglerfish", { Anglerfish() }), ("sunfish", { Sunfish() }),
     ]
 
     static func register(_ id: String, _ make: @escaping () -> Creature) {
@@ -377,5 +378,103 @@ final class Grouper: Creature {
         let c = mix(SIMD3<Float>(0.55, 0.47, 0.36) * (0.55 + 0.45 * t.light), water, t: 0.3)
         return [Sprite(pos: pos, dir: [dir, 0], size: 46, kind: 0, glow: 0, phase: phase * 3.2, color: SIMD4(c, 0.95),
                        extra: [dir, 2, Float(FishKinds.index(of: "oval")), 0.55], aux: [0, 0, 0.3, 0])]
+    }
+}
+
+/// The deep sea's anglerfish: it lives near the bottom, drifting slowly from spot to spot with its lure glowing in
+/// front of it, and snaps its mouth open when a fish comes close to the light (it never catches one).
+final class Anglerfish: Creature {
+    let id = "anglerfish"
+    private var pos: SIMD2<Float>?
+    private var goal: SIMD2<Float> = .zero
+    private var vel: SIMD2<Float> = .zero
+    private var dir: Float = 1
+    private var phase: Float = 0
+    private var open: Float = 0
+    private var snapUntil: Double = 0
+    private var calmUntil: Double = 0
+    private var restUntil: Double = 0
+    private let size: Float = 40
+
+    private func spot(_ t: Tank) -> SIMD2<Float> {
+        let w = t.size.x, h = t.size.y
+        let x = w * Float.random(in: 0.08...0.92)
+        return [x, h * t.sand(x / max(1, w)) + size * Float.random(in: 0.9...2.6)]
+    }
+
+    func update(_ t: Tank, dt: Float) {
+        let w = t.size.x
+        guard w > 10 else { return }
+        if pos == nil {
+            let from: Float = Bool.random() ? -60 : w + 60
+            pos = [from, t.size.y * t.sand(0.5) + size * 1.6]
+            goal = spot(t)
+        }
+        guard var p = pos else { return }
+        phase += dt
+        // drift to a spot, linger there a while, pick another
+        let d = goal - p
+        if simd_length(d) < 12 {
+            if restUntil < t.time { restUntil = t.time + Double.random(in: 8...25); goal = spot(t) }
+        }
+        let resting = restUntil > t.time
+        let want: SIMD2<Float> = resting || simd_length(d) < 1 ? .zero : simd_normalize(d) * 9
+        vel += (want - vel) * min(1, dt * 0.6)
+        p += vel * dt
+        p.y += sinf(phase * 0.8) * 0.06
+        if abs(vel.x) > 1.5 { dir = vel.x > 0 ? 1 : -1 }
+        pos = p
+        // a fish near the lure: the mouth snaps open, then closes slowly
+        let lure = p + SIMD2<Float>(dir * size * 0.9, size * 0.6)
+        if t.time > calmUntil, t.fish.contains(where: { simd_distance($0.pos, lure) < size * 1.8 }) {
+            snapUntil = t.time + 0.35; calmUntil = t.time + 6
+        } else if t.time > calmUntil, Float.random(in: 0...1) < dt * 0.01 {
+            snapUntil = t.time + 1.2; calmUntil = t.time + 10          // now and then a slow yawn
+        }
+        let target: Float = t.time < snapUntil ? 1 : 0
+        open += (target - open) * min(1, dt * (target > open ? 14 : 1.5))
+    }
+
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
+        guard layer == .middle, let p = pos else { return [] }
+        let c = SIMD3<Float>(0.2, 0.15, 0.14) * (0.6 + 0.4 * t.light)
+        return [Sprite(pos: p, dir: [dir, 0], size: size, kind: 39, glow: 1, phase: phase, color: SIMD4(c, 1),
+                       extra: [dir, open, 0, 0], aux: [1.3, 1.0, 0, 0])]
+    }
+}
+
+/// The ocean sunfish: rare, huge and slow, it crosses the deep water now and then, a little in the distance.
+final class Sunfish: Creature {
+    let id = "sunfish"
+    private var pos: SIMD2<Float>?
+    private var dir: Float = 1
+    private var y0: Float = 0
+    private var phase: Float = 0
+    private var next: Double?
+
+    func update(_ t: Tank, dt: Float) {
+        let w = t.size.x, h = t.size.y
+        if next == nil { next = t.time + Double.random(in: 40...150) * Tank.scale }
+        if pos == nil, let n = next, t.time > n {
+            next = t.time + Double.random(in: 600...1500) * Tank.scale
+            dir = Bool.random() ? 1 : -1
+            y0 = h * Float.random(in: 0.42...0.68)
+            pos = [dir > 0 ? -h * 0.2 : w + h * 0.2, y0]
+        }
+        guard var p = pos else { return }
+        phase += dt
+        p.x += dir * max(14, w / 75) * dt
+        p.y = y0 + sinf(phase * 0.25) * h * 0.02
+        pos = p
+        if p.x < -h * 0.3 || p.x > w + h * 0.3 { pos = nil }
+    }
+
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
+        guard layer == .background, let p = pos else { return [] }
+        let c = SIMD3<Float>(0.5, 0.56, 0.62) * (0.45 + 0.55 * t.light)
+        // a gentle tilt now and then, as sunfish do
+        let tilt = sinf(phase * 0.15) * 0.12
+        return [Sprite(pos: p, dir: [cosf(tilt), sinf(tilt) * dir], size: t.size.y * 0.11, kind: 40, glow: 0, phase: phase,
+                       color: SIMD4(c, 1), extra: [dir, 0, 0, 0], aux: [1.0, 1.25, 0, 0])]
     }
 }

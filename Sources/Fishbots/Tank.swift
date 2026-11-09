@@ -777,6 +777,8 @@ final class Tank {
         SceneryItem(id: "rock", kind: 21, u: 0.17, scale: 0.075, color: [0.42, 0.4, 0.36], seed: 0.3),
         SceneryItem(id: "rock", kind: 21, u: 0.235, scale: 0.042, color: [0.36, 0.38, 0.41], seed: 1.7),
         SceneryItem(id: "chest", kind: 23, u: 0.335, scale: 0.06, color: [0.5, 0.31, 0.16], seed: 0),
+        // only where a theme lists it (the deep sea)
+        SceneryItem(id: "helmet", kind: 41, u: 0.6, scale: 0.068, color: [0.75, 0.75, 0.75], seed: 0),
         SceneryItem(id: "shell", kind: 22, u: 0.66, scale: 0.04, color: [0.66, 0.6, 0.56], seed: 0),   // the oyster
         SceneryItem(id: "rock", kind: 21, u: 0.8, scale: 0.058, color: [0.4, 0.37, 0.35], seed: 2.9),
         // corals (seed: 0 branching, 1 sea fan, 2 brain), muted by the water
@@ -792,7 +794,7 @@ final class Tank {
     private(set) var scenery: [SceneryItem] = Tank.scenery(for: nil, looks: [:])
 
     private static func scenery(for ids: [String]?, looks: [String: String]) -> [SceneryItem] {
-        var out = allScenery.filter { ids?.contains($0.id) ?? true }.map { s -> SceneryItem in
+        var out = allScenery.filter { ids?.contains($0.id) ?? ($0.id != "helmet") }.map { s -> SceneryItem in
             // another look for a built-in piece: the pack's drawing, extent and color, in the same place
             guard let look = looks[s.id], let i = SceneryKinds.index(of: look) else { return s }
             let k = SceneryKinds.all[i]
@@ -1976,7 +1978,14 @@ final class Tank {
         var out: [Sprite] = []
         out.reserveCapacity(fish.count + particles.count + 1)
 
-        // the whale in the distance, behind everything
+        // a sunken ship far away (a theme that lists "wreck" in its scenery), then the whale in the distance
+        if sceneryKinds?.contains("wreck") == true {
+            let s = size.y * 0.14
+            let d = Themes.current.uniforms.deep, sh = Themes.current.uniforms.shallow
+            let c = mix(SIMD3(d.x, d.y, d.z), SIMD3(sh.x, sh.y, sh.z), t: 0.3) * (0.6 + 0.4 * light)
+            out.append(Sprite(pos: [size.x * 0.74, size.y * 0.11 + s * 0.5], dir: [1, 0], size: s, kind: 42, glow: 0, phase: 0,
+                              color: SIMD4(c, 0.8), extra: [1, 0, 0, 0], aux: [2.2, 1.0, 0, 0]))
+        }
         out += dressFauna(fauna.background(self))
         // jellyfish (pad): the theme may leave it out or draw it its own way
         if Themes.current.jellyfish {
@@ -2016,9 +2025,12 @@ final class Tank {
                                   aux: [s.extent.x, s.extent.y, 0, 0]))
                 continue
             }
+            // the deep sea dresses the chest as a ship's safe (extra.z)
+            let safe: Float = s.id == "chest" && FishKinds.dressByTheme && Themes.current.looks["chest"] == "safe" ? 1 : 0
             out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 + chestLid * 0.6 : 0,
                               phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed, color: SIMD4(color, 1),
-                              extra: [1, s.id == "chest" ? min(1, chestLid) : s.id == "shell" ? 1 : 0, 0, 0]))
+                              extra: [1, s.id == "chest" ? min(1, chestLid) : s.id == "shell" ? 1 : 0, safe, 0],
+                              aux: s.kind > 40.5 ? [1, 1, 0, 0] : .zero))
         }
         // pebbles and little shells on the sand (the theme may draw them its own way: "pebble", "seashell")
         let looks = FishKinds.dressByTheme ? Themes.current.looks : [:]

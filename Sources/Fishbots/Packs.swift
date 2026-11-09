@@ -383,6 +383,7 @@ enum Packs {
                 guard let k = Scene.kinds[from], k.pack == nil, SceneryKinds.index(of: to) == nil,
                       !FishKinds.all.contains(where: { $0.id == to }) else { continue }
                 if let d = Scene.kinds[to], d.pack != nil, d.motion == k.motion { continue }
+                if Scene.variants[to]?.of == from { continue }           // a built-in variant ("shark": "hammerhead")
                 problems.append(tr("%@: no tema, %@ não pode virar %@ (precisa ser uma presença de pacote que se move igual)", name, from, to))
             }
         }

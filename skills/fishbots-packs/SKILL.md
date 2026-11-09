@@ -128,7 +128,8 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
   window: keep it cheap (skip pixels early, e.g. `if (uv.y > 0.6) return float4(0.0);`).
 - **Looks:** `"looks"` on a theme dresses built-in things by id, keeping what they mean: a piece (`rock shell chest
   coral`) → one of the pack's scenery ids (a chest gets how open it is in `extra.y` and glows while open); a presence
-  kind (`"bottle": "floating-lantern"`) → one of the pack's presences that moves the same way (checked); a fish kind
+  kind (`"bottle": "floating-lantern"`) → one of the pack's presences that moves the same way (checked), or a built-in variant (`"shark": "hammerhead"`,
+  `"helm": "rusty-helm"`, `"bottle": "deep-bottle"`, `"chest": "safe"`); a fish kind
   (`"oval": "koi"`; `"betta"` is the music fish, `"lanternfish"` the night one) → one of the pack's fish (a kind picked
   by hand stays); a built-in creature (`crab turtle snail starfish whale jellyfish`) → one of the pack's creatures.
   Users can turn dressing off.
@@ -156,7 +157,7 @@ A **theme** in `pack.json`:
   `causticsStrength` (0…0.2, light patterns), `surface` (the water line), `murk` (the color of murky water).
 - `weeds`: `count` (0…16 blades in front), `farCount` (blades far behind), `far`, `low` (base color), `high` (tip
   color). `sand`: `dark`, `light`.
-- `fauna`: built-ins `crab starfish turtle snail lanternfish whale grouper` and the pack's creature ids.
+- `fauna`: built-ins `crab starfish turtle snail lanternfish whale grouper anglerfish sunfish` and the pack's creature ids.
   `scenery`: built-ins `rock shell chest coral` and the pack's scenery ids. Leave a list out for all built-ins.
 - `visualizer`: `plankton`, `aurora`, `surface`, `score`, `constellation` or `fireworks`. `music`: a style id.
 - `names`: `{"en": "…"}`, the name in other languages. Colors are `"#rrggbb"` or `[r, g, b]` (0…1).

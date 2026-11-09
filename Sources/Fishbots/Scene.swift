@@ -629,6 +629,14 @@ final class Scene {
     var themeLooks: [String: String] = [:]
     var dressByTheme = true
 
+    /// Built-in variants a theme can dress a built-in kind in ("looks": {"shark": "hammerhead"}): of which kind, and
+    /// the number its drawing gets (extra.z).
+    static let variants: [String: (of: String, n: Float)] = ["hammerhead": ("shark", 1), "rusty-helm": ("helm", 1), "deep-bottle": ("bottle", 1), "safe": ("chest", 1)]
+    func variant(_ p: Presence) -> Float {
+        guard dressByTheme, !p.overrideTheme, let id = themeLooks[p.kind.id], let v = Self.variants[id], v.of == p.kind.id else { return 0 }
+        return v.n
+    }
+
     /// The kind whose drawing this presence wears: a pack kind the theme dresses it in (same motion), or its own.
     func dressed(_ p: Presence) -> PresenceKind? {
         guard dressByTheme, !p.overrideTheme, p.kind.pack == nil, let id = themeLooks[p.kind.id],
@@ -708,12 +716,13 @@ final class Scene {
                 let hub: SIMD3<Float> = color(of: p.state) ?? (p.state == .idle ? [0.5, 0.52, 0.55]
                                                                 : p.state == .busy ? [0.45, 0.75, 1] : [0.35, 0.85, 0.5])
                 let wobble: Float = p.state == .error ? sinf(p.phase * 7) * 0.06 : sinf(p.phase * 0.6) * 0.03
+                // (alpha above 1.5: rusted)
                 out.append(Sprite(pos: pos + [0, p.onWall ? 0 : p.kind.size * 1.0], dir: [1, 0], size: p.kind.size, kind: 31, glow: glow,
-                                  phase: p.spin + wobble, color: SIMD4(c, a), extra: [1, hub.x * lit, hub.y * lit, hub.z * lit]))
+                                  phase: p.spin + wobble, color: SIMD4(c, a + 2 * variant(p)), extra: [1, hub.x * lit, hub.y * lit, hub.z * lit]))
             case 23:     // chest: glows when done or waiting
                 let open: Float = p.state == .done || p.state == .waiting ? 1 : 0.25
                 out.append(Sprite(pos: pos + [0, p.kind.size * 0.55], dir: [1, 0], size: p.kind.size, kind: 23, glow: open, phase: Float(t.time),
-                                  color: SIMD4(c, a), extra: [1, open > 0.5 ? 1 : 0, 0, 0]))
+                                  color: SIMD4(c, a), extra: [1, open > 0.5 ? 1 : 0, variant(p), 0]))
             case 37:     // a pack's presence: its own drawing (extra.z: its index, extra.w: its state)
                 guard let i = p.kind.pack, i < PackPresences.all.count else { break }
                 let mirrored = p.kind.motion == .swim || p.kind.motion == .hover
@@ -735,7 +744,7 @@ final class Scene {
                 let theta = !mirrored || p.dir >= 0 ? tilt : .pi - tilt
                 out.append(Sprite(pos: pos + [0, p.kind.size * up], dir: [cosf(theta), sinf(theta)],
                                   size: p.kind.size, kind: p.kind.sprite, glow: glow, phase: p.phase * (p.state == .busy ? 1.8 : 1),
-                                  color: SIMD4(c, a), extra: [mirrored ? p.dir : 1, value, 0, 0]))
+                                  color: SIMD4(c, a), extra: [mirrored ? p.dir : 1, value, variant(p), 0]))
             }
         }
         if front {
