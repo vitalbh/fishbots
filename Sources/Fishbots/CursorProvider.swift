@@ -6,6 +6,7 @@ import Foundation
 /// So it's translated to Claude Code's shape and handed to `ClaudeCodeHook`.
 final class CursorProvider: TerminalAgentProvider, SessionProvider {
     let id = "cursor"
+    let name = "Cursor"
     let profile = SourceProfile(isAgent: true, timbre: .pluck, fishKind: { _ in "angelfish" })
     let routes = ["/cursor"]
     let processNames = ["cursor-agent"]

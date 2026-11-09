@@ -13,6 +13,8 @@ enum Capability {
 protocol SessionProvider: AnyObject {
     /// The protocol `source` of its fish ("claude-code", "codex"…).
     var id: String { get }
+    /// Its name for people (Preferences → Agents).
+    var name: String { get }
     var profile: SourceProfile { get }
     /// HTTP routes it answers (POST), e.g. "/claude-code".
     var routes: [String] { get }
@@ -31,6 +33,7 @@ protocol SessionProvider: AnyObject {
 }
 
 extension SessionProvider {
+    var name: String { id }
     var routes: [String] { [] }
     var handlesPermissions: Bool { false }
     var processNames: [String] { [] }
@@ -140,6 +143,7 @@ class TerminalAgentProvider {
 /// Claude Code: hooks posted to /claude-code (plugins/claude-code/hook.sh), the transcript for title and context.
 final class ClaudeCodeProvider: TerminalAgentProvider, SessionProvider {
     let id = "claude-code"
+    let name = "Claude Code"
     let profile = SourceProfile(isAgent: true, timbre: .pluck, fishKind: TerminalAgentProvider.fishKind)
     let routes = ["/claude-code"]
     let handlesPermissions = true
@@ -167,6 +171,7 @@ final class ClaudeCodeProvider: TerminalAgentProvider, SessionProvider {
 /// Codex: the same hook format at /codex (plugins/codex/hook.sh); its conversation name lives in an index file.
 final class CodexProvider: TerminalAgentProvider, SessionProvider {
     let id = "codex"
+    let name = "Codex"
     let profile = SourceProfile(isAgent: true, timbre: .pluck, prefersLogTitle: true, fishKind: { _ in "stingray" })
     let routes = ["/codex"]
     let handlesPermissions = true

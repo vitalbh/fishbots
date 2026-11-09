@@ -117,7 +117,7 @@ bin/fishbots pack dev my-pack                 # link it: the aquarium reloads it
 bin/fishbots pack preview my-pack             # all its drawings on a sheet, big and at their real size
 bin/fishbots pack zip my-pack                 # my-pack.fishbotspack, to share (double-click installs it)
 bin/fishbots pack install <file|url>          # or install one someone shared
-bin/fishbots skill install                    # teach your coding agent to make packs
+bin/fishbots skill install                    # teach your coding agent to make packs (and connect agents)
 ```
 
 A theme can also **dress** what plugins send and the fish its own way (in the Japanese pond a bottle floats as a paper lantern and the plain fish are koi); turn it off in Preferências → Aparência, and a plugin can keep its own drawing with `"override_theme": true`. **Tema → Explorar pacotes…** is the community catalog: install with a click, and the app tells you when a pack you have gets a new version. Sending one is a pull request ([community/README.md](community/README.md)); the catalog's address can be changed with `"catalog": "https://…/index.json"` in `config.json`. A pack whose drawings slow the aquarium down is paused by itself (**Tema → Reativar**).
@@ -304,14 +304,23 @@ opencode loads plugins from `~/.config/opencode/plugins/`; `scripts/install-hook
 
 ### Your own agent
 
-Any agent with hooks can join without touching the app: have its hook (or plugin) post Claude Code-shaped events to `POST /agent/<id>` — `hook_event_name` (SessionStart, UserPromptSubmit, PreToolUse with `tool_name`/`tool_input`, PostToolUse, Notification, Stop with `last_assistant_message`, StopFailure, SessionEnd…), `session_id`, `cwd` and optionally `session_title`. `plugins/common/hook.sh <route>` forwards a hook's stdin with the `X-Where-*` headers, so the click and reply/Esc find its terminal. Optionally, describe it in `~/Library/Application Support/Fishbots/agents/<id>.json` (or a pack's `"agents"`):
+Any agent with hooks can join without touching the app: have its hook (or plugin) post Claude Code-shaped events to `POST /agent/<id>` — `hook_event_name` (SessionStart, UserPromptSubmit, PreToolUse with `tool_name`/`tool_input`, PostToolUse, Notification, Stop with `last_assistant_message`, StopFailure, SessionEnd…), `session_id`, `cwd` and optionally `session_title`. `plugins/common/hook.sh <route>` forwards a hook's stdin with the `X-Where-*` headers, so the click and reply/Esc find its terminal. Optionally, describe it in `~/Library/Application Support/Fishbots/agents/<id>.json` (read when the app opens; after changing it, Preferences → Agents → Reload, or `POST /agents/reload`):
 
 ```json
 {"id": "aider", "name": "Aider", "processNames": ["aider"], "fish": "slender", "timbre": "pluck",
  "events": {"turn_start": "UserPromptSubmit"}, "tools": {"run_command": "Bash"}}
 ```
 
-The maps rename its events and tools to Claude Code's, so a hook that already sends JSON in its own words may need no translation at all. See `Sources/Fishbots/AgentManifests.swift` and `docs/extensions.md`.
+The maps rename its events and tools to Claude Code's, so a hook that already sends JSON in its own words may need no translation at all. To try it:
+
+```sh
+bin/fishbots agent new aider "Aider"          # a starting manifest
+bin/fishbots agent reload                     # after changing a manifest (or Preferences → General → Agents → Reload)
+bin/fishbots agent test aider                 # a fake session: prompt, tools, a reply, the end
+bin/fishbots agent list                       # every agent (built in, /agent/<id>) and manifest problems
+```
+
+The whole guide: [docs/agents.md](docs/agents.md). `bin/fishbots skill install` also teaches your coding agent to do it (the `fishbots-agents` skill).
 
 ### MCP, lists and skills
 

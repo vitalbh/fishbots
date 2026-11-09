@@ -3,7 +3,7 @@
 # (Rex, Herdr, iTerm, Terminal, tmux, WezTerm, kitty…), so clicking the fish takes you to it.
 # Never blocks or fails the session.
 #   hook.sh <route> [process patterns…]
-#     route              the provider's route, without the slash ("claude-code", "codex"…)
+#     route              the provider's route, without the leading slash ("claude-code", "codex", "agent/<id>"…)
 #     process patterns   globs for the agent's executable, used to find its pid outside Rex/iTerm/tmux…
 #                        (default: Claude Code's)
 #   FISHBOTS_HOOK_LOG=1  keeps the last event in ~/Library/Logs/Fishbots/<route>-last.json (to check a new format)
@@ -14,7 +14,8 @@ patterns="${*:-*/claude/versions/* */bin/claude */claude-code/*/claude}"
 input=$(cat)
 
 if [ -n "$FISHBOTS_HOOK_LOG" ]; then
-  mkdir -p "$HOME/Library/Logs/Fishbots" && printf '%s\n' "$input" > "$HOME/Library/Logs/Fishbots/$route-last.json"
+  # "agent/aider" → agent-aider-last.json
+  mkdir -p "$HOME/Library/Logs/Fishbots" && printf '%s\n' "$input" > "$HOME/Library/Logs/Fishbots/$(printf '%s' "$route" | tr / -)-last.json"
 fi
 
 tty=""; app=""; pid=""
