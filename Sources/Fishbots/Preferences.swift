@@ -217,6 +217,8 @@ private struct LookTab: View {
                     Text(tr("Forte")).tag(1.6)
                 }
                 Toggle(tr("Cores da hora (amanhecer, fim de tarde, noite)"), isOn: prefs.flag("hourColors", default: true))
+                Toggle(tr("Cores da capa do álbum na luz da água e na aurora"), isOn: prefs.flag("albumColors", default: true))
+                    .help(tr("Enquanto o Spotify ou o Música tocam, as duas cores mais marcantes da capa tingem os raios de luz, as cáusticas e a aurora."))
                 Toggle(tr("Neve marinha"), isOn: prefs.flag("marineSnow", default: true))
             }
             Section(tr("Visualizador")) {

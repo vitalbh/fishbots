@@ -19,7 +19,7 @@ final class NowPlaying {
     private var current: Track?
     private var leaveTimer: Timer?
     /// Where the song is: the position read at the last change, counted forward by the clock while it plays.
-    private var clock: (pos: Double, at: CFTimeInterval, dur: Double, running: Bool)?
+    fileprivate var clock: (pos: Double, at: CFTimeInterval, dur: Double, running: Bool)?
     /// Listens to the player so the visualizers dance with it (opt-in, SongEars.swift).
     let ears: SongEars
 
@@ -111,6 +111,11 @@ final class NowPlaying {
             f.mood = ears.mood
             f.progress = { [weak self] in self?.progress }
             if changed {
+                // its album art: on the card, and its colors in the water's light and the aurora
+                f.art = nil
+                AlbumArt.load(player: t.player) { [weak self] img in
+                    self?.tank.fish(source: Self.source, entity: Self.entity)?.art = img
+                }
                 // a new song: a glow, a ring of light and a burst of notes
                 f.glow = 1
                 tank.ring(at: f.pos, color: f.color, size: f.size * 0.5, grow: 130, life: 0.8)
@@ -135,6 +140,7 @@ final class NowPlaying {
 
     private func clear() {
         Self.playing = false
+        AlbumArt.clear()
         clock = nil
         ears.follow(nil)
         leaveTimer?.invalidate()
@@ -154,7 +160,7 @@ final class NowPlaying {
     }
 
     /// Asks the player where it is (once per change: play, pause, a new track, a jump), off the main thread.
-    private func syncClock(_ player: String, running: Bool) {
+    fileprivate func syncClock(_ player: String, running: Bool) {
         if var c = clock {    // meanwhile, the clock stops or goes on at once
             if !running, c.running { c.pos += CACurrentMediaTime() - c.at }
             c.at = CACurrentMediaTime(); c.running = running
@@ -186,6 +192,24 @@ final class NowPlaying {
         end tell
         """
         return run(script)
+    }
+
+    /// Jump to a point in the song (clicking or dragging the card's bar), then read the clock again.
+    static func seek(_ player: String, to seconds: Double) {
+        guard ["Spotify", "Music"].contains(player), seconds.isFinite, seconds >= 0 else { return }
+        if var c = shared?.clock {                       // the bar moves at once; the player confirms after
+            c.pos = seconds; c.at = CACurrentMediaTime(); shared?.clock = c
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = run("tell application \"\(player)\" to set player position to \(String(format: "%.2f", seconds))")
+            DispatchQueue.main.async { shared?.syncClock(player, running: playing) }
+        }
+    }
+
+    /// The player's buttons on the music fish's card: "playpause", "next track", "previous track".
+    static func control(_ player: String, _ command: String) {
+        guard ["playpause", "next track", "previous track"].contains(command), ["Spotify", "Music"].contains(player) else { return }
+        DispatchQueue.global(qos: .userInitiated).async { _ = run("tell application \"\(player)\" to \(command)") }
     }
 
     private static func run(_ script: String) -> String {

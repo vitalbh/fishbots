@@ -175,6 +175,8 @@ final class Fish {
     var moment: (text: String, until: Double)?
     /// Its own way of saying how it is, in place of the state's name (the music fish: "🎶 na vibe" rather than "working").
     var mood: String?
+    /// The album art of what it's playing (the music fish), for its card.
+    var art: CGImage?
     var stateLabel: String { mood ?? state.label }
     /// How far along it is (seconds), for the card's bar: the music fish's song.
     var progress: (() -> (pos: Double, dur: Double, playing: Bool)?)?

@@ -57,7 +57,15 @@ final class Visual {
     private var day: Bool { light > 0.92 }
 
     /// Style palette: (top color, bottom color).
+    /// The album art's colors (what's playing) and how much they take over the aurora (0…1).
+    var art: (SIMD3<Float>, SIMD3<Float>) = ([1, 1, 1], [1, 1, 1])
+    var artMix: Float = 0
     var palette: (SIMD3<Float>, SIMD3<Float>) {
+        let base = stylePalette
+        guard artMix > 0.001 else { return base }
+        return (mix(base.0, art.0, t: artMix * 0.8), mix(base.1, art.1, t: artMix * 0.8))
+    }
+    private var stylePalette: (SIMD3<Float>, SIMD3<Float>) {
         if day { return ([1.0, 0.85, 0.45], [1.0, 0.95, 0.72]) }
         switch style {
         case "lullaby": return ([0.75, 0.6, 1.0], [1.0, 0.6, 0.82])

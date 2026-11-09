@@ -82,45 +82,141 @@ final class Journal {
     }
 }
 
-/// The summary card, on top of the aquarium.
+/// The summary card, on top of the aquarium: a logbook. A header (title, the time range, a close button), a
+/// scoreboard of what mattered (tasks done, errors, waiting for you, merged PRs) and a timeline of what happened,
+/// newest first, each with its time, a dot in its fish's color and an icon.
 final class SummaryView: NSView {
     var close: (() -> Void)?
+    private let w: CGFloat = 460
 
-    init(title: String, lines: [String]) {
+    init(title: String, since: Date, until: Date, list: [Happening], color: (String?) -> NSColor?) {
         super.init(frame: .zero)
+        appearance = NSAppearance(named: .darkAqua)
         wantsLayer = true
-        layer?.backgroundColor = NSColor(calibratedRed: 0.03, green: 0.07, blue: 0.12, alpha: 0.88).cgColor
-        layer?.cornerRadius = 14
+        layer?.cornerRadius = 16
         layer?.borderWidth = 1
-        layer?.borderColor = NSColor(white: 1, alpha: 0.12).cgColor
-        let t = NSTextField(labelWithString: title)
-        t.font = .systemFont(ofSize: 15, weight: .semibold)
-        t.textColor = NSColor(white: 1, alpha: 0.95)
-        var views: [NSView] = [t]
-        for l in lines {
-            let f = NSTextField(wrappingLabelWithString: l)
-            f.font = .systemFont(ofSize: 13)
-            f.textColor = NSColor(white: 1, alpha: 0.82)
-            f.preferredMaxLayoutWidth = 420
-            views.append(f)
+        layer?.borderColor = NSColor(white: 1, alpha: 0.1).cgColor
+        layer?.masksToBounds = true
+        let bg = CAGradientLayer()
+        bg.colors = [NSColor(calibratedRed: 0.05, green: 0.16, blue: 0.22, alpha: 0.95).cgColor,
+                     NSColor(calibratedRed: 0.02, green: 0.06, blue: 0.11, alpha: 0.95).cgColor]
+        bg.startPoint = CGPoint(x: 0.5, y: 1); bg.endPoint = CGPoint(x: 0.5, y: 0)
+        layer?.addSublayer(bg)
+        gradient = bg
+
+        func label(_ s: String, _ size: CGFloat, _ weight: NSFont.Weight = .regular, _ color: NSColor = .white, mono: Bool = false) -> NSTextField {
+            let t = NSTextField(labelWithString: s)
+            t.font = mono ? .monospacedDigitSystemFont(ofSize: size, weight: weight) : rounded(size, weight)
+            t.textColor = color
+            t.lineBreakMode = .byTruncatingTail
+            return t
         }
-        let ok = NSButton(title: tr("Ok"), target: self, action: #selector(closeClicked))
-        ok.bezelStyle = .rounded
-        ok.keyEquivalent = "\u{1b}"
-        views.append(ok)
+
+        // header: an icon, the title and the time range; a close button
+        let icon = NSImageView(image: NSImage(systemSymbolName: "water.waves", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 20, weight: .semibold)) ?? NSImage())
+        icon.contentTintColor = NSColor(calibratedRed: 0.45, green: 0.9, blue: 0.95, alpha: 1)
+        let fmt = DateFormatter(); fmt.timeStyle = .short; fmt.dateStyle = .none; fmt.locale = L10n.locale
+        let head = NSStackView(views: [label(title, 16, .semibold), label(fmt.string(from: since) + " – " + fmt.string(from: until), 11, .medium, NSColor(white: 1, alpha: 0.5))])
+        head.orientation = .vertical; head.alignment = .leading; head.spacing = 2
+        let x = ClosureButton { [weak self] in self?.close?() }
+        x.isBordered = false
+        x.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: tr("Fechar"))?.withSymbolConfiguration(.init(pointSize: 17, weight: .regular))
+        x.contentTintColor = NSColor(white: 1, alpha: 0.45)
+        x.keyEquivalent = "\u{1b}"
+        let spacer = NSView(); spacer.setContentHuggingPriority(.init(1), for: .horizontal)
+        let top = NSStackView(views: [icon, head, spacer, x])
+        top.alignment = .centerY; top.spacing = 10
+        top.widthAnchor.constraint(equalToConstant: w).isActive = true
+        var views: [NSView] = [top]
+
+        // the scoreboard
+        func unique(_ k: Happening.Kind) -> Int { Set(list.filter { $0.kind == k }.map(\.label)).count }
+        let tiles: [(Int, String, String, NSColor)] = [
+            (list.filter { $0.kind == .done }.count, "checkmark.circle.fill", tr("terminadas"), .systemGreen),
+            (unique(.error), "xmark.octagon.fill", tr("com erro"), .systemRed),
+            (unique(.waiting), "hand.raised.fill", tr("esperaram você"), .systemOrange),
+            (unique(.merge), "party.popper.fill", tr("PRs mergeados"), .systemPurple),
+        ].filter { $0.0 > 0 }
+        if !tiles.isEmpty {
+            let row = NSStackView(views: tiles.map { n, sym, name, c in
+                let num = label("\(n)", 24, .bold, c)
+                let ic = NSImageView(image: NSImage(systemSymbolName: sym, accessibilityDescription: nil)?.withSymbolConfiguration(.init(pointSize: 12, weight: .semibold)) ?? NSImage())
+                ic.contentTintColor = c
+                let line = NSStackView(views: [ic, label(name, 11, .medium, NSColor(white: 1, alpha: 0.7))])
+                line.spacing = 4
+                let box = NSStackView(views: [num, line])
+                box.orientation = .vertical; box.alignment = .leading; box.spacing = 0
+                box.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 10, right: 12)
+                box.wantsLayer = true
+                box.layer?.backgroundColor = c.withAlphaComponent(0.13).cgColor
+                box.layer?.cornerRadius = 10
+                box.layer?.borderWidth = 1
+                box.layer?.borderColor = c.withAlphaComponent(0.25).cgColor
+                return box
+            })
+            row.distribution = .fillEqually
+            row.spacing = 8
+            row.widthAnchor.constraint(equalToConstant: w).isActive = true
+            views.append(row)
+        }
+
+        // the timeline, newest first
+        let shown = list.filter { $0.kind != .event || list.count < 12 }.reversed().prefix(10)
+        if shown.isEmpty {
+            let calm = label(tr("🫧  Nada de novo. O aquário ficou tranquilo."), 13, .medium, NSColor(white: 1, alpha: 0.75))
+            let box = NSStackView(views: [calm])
+            box.edgeInsets = NSEdgeInsets(top: 18, left: 14, bottom: 18, right: 14)
+            box.wantsLayer = true
+            box.layer?.backgroundColor = NSColor(white: 1, alpha: 0.05).cgColor
+            box.layer?.cornerRadius = 10
+            box.widthAnchor.constraint(equalToConstant: w).isActive = true
+            views.append(box)
+        } else {
+            let line = NSBox(); line.boxType = .separator
+            line.widthAnchor.constraint(equalToConstant: w).isActive = true
+            views.append(line)
+            let kindIcon: [Happening.Kind: (String, NSColor)] = [.done: ("✓", .systemGreen), .error: ("✗", .systemRed), .waiting: ("✋", .systemOrange),
+                                                                 .merge: ("🎉", .systemPurple), .event: ("🍤", NSColor(white: 1, alpha: 0.6))]
+            for h in shown {
+                let time = label(fmt.string(from: h.when), 11, .regular, NSColor(white: 1, alpha: 0.4), mono: true)
+                time.widthAnchor.constraint(equalToConstant: 66).isActive = true
+                let dot = NSView()
+                dot.wantsLayer = true
+                dot.layer?.cornerRadius = 4
+                dot.layer?.backgroundColor = (color(h.fishId) ?? kindIcon[h.kind]!.1).cgColor
+                dot.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([dot.widthAnchor.constraint(equalToConstant: 8), dot.heightAnchor.constraint(equalToConstant: 8)])
+                let (ch, c) = kindIcon[h.kind]!
+                let mark = label(ch, 12, .bold, c)
+                mark.widthAnchor.constraint(equalToConstant: 18).isActive = true
+                let name = label(h.label, 13, .regular, NSColor(white: 1, alpha: 0.88))
+                name.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+                let r = NSStackView(views: [time, dot, mark, name])
+                r.spacing = 8; r.alignment = .centerY
+                r.widthAnchor.constraint(equalToConstant: w).isActive = true
+                views.append(r)
+            }
+            if list.count > shown.count {
+                views.append(label(tr("+ %d antes disso", list.count - shown.count), 11, .medium, NSColor(white: 1, alpha: 0.4)))
+            }
+        }
+
         let stack = NSStackView(views: views)
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 16, left: 20, bottom: 16, right: 20)
+        stack.spacing = 10
+        stack.setCustomSpacing(14, after: top)
+        stack.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 18, right: 20)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            stack.widthAnchor.constraint(equalToConstant: 460),
         ])
+        shadow = { let s = NSShadow(); s.shadowBlurRadius = 24; s.shadowColor = NSColor.black.withAlphaComponent(0.5); return s }()
     }
+    private var gradient: CAGradientLayer?
+    override func layout() { super.layout(); gradient?.frame = bounds }
     required init?(coder: NSCoder) { fatalError() }
-    @objc private func closeClicked() { close?() }
 }

@@ -104,6 +104,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private var port: UInt16 = 7777
     private let notifier = Notifier()
     private let visual = Visual()
+    /// The album art's tint (0…1) and its two colors, eased.
+    private var artTint: Float = 0
+    private var artA: SIMD3<Float> = [1, 1, 1]
+    private var artB: SIMD3<Float> = [1, 1, 1]
     private let permissions = Permissions()
     private let journal = Journal()
     private var outsideButton: NSButton?
@@ -845,7 +849,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private func summary(since: Date, until: Date, title: String) {
         let list = journal.between(since, until)
         card?.removeFromSuperview()
-        let c = SummaryView(title: title, lines: journal.text(list))
+        let c = SummaryView(title: title, since: since, until: until, list: list) { [weak self] id in
+            guard let id, let f = self?.tank.fish.first(where: { $0.id == id }) else { return nil }
+            return NSColor(red: CGFloat(f.color.x), green: CGFloat(f.color.y), blue: CGFloat(f.color.z), alpha: 1)
+        }
         c.close = { [weak self] in self?.card?.removeFromSuperview(); self?.card = nil; self?.tank.highlighted = nil; self?.tank.chestOpen = false }
         c.translatesAutoresizingMaskIntoConstraints = false
         window.contentView!.addSubview(c)
@@ -1361,6 +1368,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // dressing by the theme turned on or off in the Preferences
         if dressedWith.on != FishKinds.dressByTheme { applyTheme() }
         let sprites = packGuard.filter(visual.sprites() + tank.sprites())
+        // the album art's colors, while music plays: the water's light and the aurora take them, slowly
+        let artGoal: Float = AlbumArt.enabled && NowPlaying.playing && AlbumArt.colors != nil ? 1 : 0
+        artTint += (artGoal - artTint) * min(1, dt * 0.4)
+        if let c = AlbumArt.colors {
+            artA += (c.0 - artA) * min(1, dt * 0.5)
+            artB += (c.1 - artB) * min(1, dt * 0.5)
+        }
+        let baseU = Themes.current.uniforms
+        func tint(_ b: SIMD4<Float>, _ c: SIMD3<Float>, _ k: Float) -> SIMD4<Float> { SIMD4(mix(SIMD3(b.x, b.y, b.z), c, t: k * artTint), b.w) }
+        renderer.theme.rays = tint(baseU.rays, artA, 0.5)
+        renderer.theme.caustics = tint(baseU.caustics, artB, 0.45)
+        renderer.theme.surface = tint(baseU.surface, artA, 0.3)
+        renderer.theme.shallow = tint(baseU.shallow, artB * 0.45, 0.2)
+        visual.art = (artA, artB)
+        visual.artMix = artTint
         // the theme's background from a pack: counted by the guard, and left out while it's being tested
         let theme = Themes.current
         if theme.uniforms.pack.x > 0.5, let bg = PackBackgrounds.all.first(where: { $0.id == theme.id }) {
