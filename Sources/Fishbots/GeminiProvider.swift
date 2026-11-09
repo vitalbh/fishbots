@@ -7,6 +7,7 @@ import Foundation
 /// real session.
 final class GeminiProvider: TerminalAgentProvider, SessionProvider {
     let id = "gemini"
+    let name = "Gemini CLI"
     let profile = SourceProfile(isAgent: true, timbre: .pluck, fishKind: TerminalAgentProvider.fishKind)
     let routes = ["/gemini"]
     let processNames = ["gemini"]
@@ -61,6 +62,7 @@ final class GeminiProvider: TerminalAgentProvider, SessionProvider {
 /// reply isn't in any event (only in an undocumented transcript). Written from Antigravity's hook docs, not yet tried.
 final class AntigravityProvider: TerminalAgentProvider, SessionProvider {
     let id = "antigravity"
+    let name = "Antigravity"
     let profile = SourceProfile(isAgent: true, timbre: .pluck, prefersLogTitle: true, fishKind: TerminalAgentProvider.fishKind)
     let routes = ["/antigravity"]
     let processNames = ["agy", "antigravity"]

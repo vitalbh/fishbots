@@ -144,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         Renderer.packPresenceFailed = Packs.presenceFailed
         Renderer.packBackgroundFailed = Packs.backgroundFailed
         TankProtocol.stateExtras = { ["packs": Packs.loaded.map { ["id": $0.id, "name": $0.name, "contents": $0.contents] },
-                                      "packProblems": Packs.problems + AgentManifests.problems, "fishKinds": FishKinds.all.map(\.id),
+                                      "packProblems": Packs.problems, "agentProblems": AgentManifests.problems, "fishKinds": FishKinds.all.map(\.id),
                                       "notifications": self.notifier.permission, "onScreen": self.onScreen] }
         notifier.prepare()
         if let p = Env.value("PORT"), let n = UInt16(p) { port = n }
@@ -685,6 +685,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 case ("POST", "/summary"):
                     self.recentSummary()
                     return (200, Data(#"{"ok":true}"#.utf8))
+                case ("POST", "/agents/reload"), ("GET", "/agents"):
+                    if method == "POST" { self.reloadAgents() }
+                    return (200, (try? JSONSerialization.data(withJSONObject: AgentManifests.json, options: [.prettyPrinted, .sortedKeys])) ?? Data())
                 case ("POST", "/packs/reload"):
                     self.reloadPacks()
                     return (200, self.packsJSON())
@@ -707,7 +710,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 case ("GET", "/state"), ("GET", "/estado"):
                     return (200, TankProtocol.state(self.tank))
                 case ("GET", "/"):
-                    let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /packs", "POST /packs/reload", "POST /packs/install"]
+                    let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload"]
                     return (200, (try? JSONSerialization.data(withJSONObject: ["fishbots": "ok", "routes": routes])) ?? Data())
                 case ("POST", _):
                     if let (p, isPermission) = Providers.route(route), !isPermission {
@@ -1603,6 +1606,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         setVolume: { [unowned self] in self.volume = Float($0) },
         applyTheme: { [unowned self] in self.applyTheme() },
         applyLanguage: { L10n.setting = $0 },
+        reloadAgents: { [unowned self] in self.reloadAgents() },
         plugins: { [unowned self] in
             let files = ((try? FileManager.default.contentsOfDirectory(atPath: Plugins.folder.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
             let fmt = RelativeDateTimeFormatter(); fmt.locale = L10n.locale
@@ -1734,7 +1738,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             it.isEnabled = false
             m.addItem(it)
         }
-        for problem in Packs.problems + AgentManifests.problems {
+        for problem in Packs.problems {
             let it = NSMenuItem(title: "⚠︎ " + problem, action: nil, keyEquivalent: "")
             it.isEnabled = false
             m.addItem(it)
@@ -1820,10 +1824,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private func watchPacks() {
         packsSignature = Packs.signature()
         packsWatch = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            guard let self, UserDefaults.standard.object(forKey: "watchPacks") as? Bool ?? true else { return }
-            let sig = Packs.signature()
-            if sig != self.packsSignature { self.packsSignature = sig; Packs.resumeLinked(); self.reloadPacks() }
+            guard let self else { return }
+            if UserDefaults.standard.object(forKey: "watchPacks") as? Bool ?? true {
+                let sig = Packs.signature()
+                if sig != self.packsSignature { self.packsSignature = sig; Packs.resumeLinked(); self.reloadPacks() }
+            }
         }
+    }
+
+    /// Reads agents/*.json again (the Agents section's button, POST /agents/reload): manifests rarely change, so
+    /// there's no watching; the app also reads them when it opens.
+    func reloadAgents() {
+        AgentManifests.load(fish: tank.fish)
+        let n = AgentManifests.problems.count
+        tank.notice = (n == 0 ? tr("agentes recarregados") : tr("agentes recarregados, %@ problema(s): veja Preferências → Geral", "\(n)"), tank.time)
     }
 
     /// A .fishbotspack opened in the Finder (or dragged onto the app): installed and loaded.

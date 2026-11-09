@@ -20,6 +20,7 @@ final class Prefs: ObservableObject {
         var setVolume: (Double) -> Void
         var applyTheme: () -> Void
         var applyLanguage: (String) -> Void
+        var reloadAgents: () -> Void
         var plugins: () -> [(name: String, ok: Bool, detail: String)]
     }
     let a: Actions
@@ -150,6 +151,21 @@ private struct GeneralTab: View {
                         .font(.footnote).foregroundStyle(.orange)
                 default: EmptyView()
                 }
+            }
+            Section(tr("Agentes")) {
+                // built in (Swift) and through /agent/<id> (AgentManifests.swift)
+                LabeledContent(tr("Integrados"), value: AgentManifests.builtIn.map(\.name).joined(separator: ", "))
+                let others = AgentManifests.viaRoute
+                LabeledContent(tr("Por /agent/<id>"),
+                               value: others.isEmpty ? tr("nenhum ainda")
+                                   : others.map { $0.name + ($0.manifest ? "" : tr(" (sem manifesto)")) }.joined(separator: ", "))
+                ForEach(AgentManifests.problems, id: \.self) { Text(tr("⚠︎ ") + $0).font(.footnote).foregroundStyle(.orange) }
+                HStack {
+                    Button(tr("Abrir pasta de agentes")) { AgentManifests.openFolder() }
+                    Button(tr("Recarregar")) { prefs.a.reloadAgents(); prefs.refresh() }
+                }
+                Text(tr("Outros agentes entram mandando eventos para /agent/<id>; um manifesto aqui dá nome, peixe e timbre. Depois de mudar um, Recarregar (ou POST /agents/reload). Veja o README."))
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section(tr("Foco")) {
                 Toggle(tr("Modo foco (só o que pede atenção)"), isOn: prefs.bind({ Attention.focus }, { Attention.focus = $0 }))
@@ -323,7 +339,7 @@ private struct ExtrasTab: View {
                         if !p.contents.isEmpty { Text(p.contents.joined(separator: ", ")).font(.footnote).foregroundStyle(.secondary) }
                     }
                 }
-                ForEach(Packs.problems + AgentManifests.problems, id: \.self) { Text(tr("⚠︎ ") + $0).font(.footnote).foregroundStyle(.orange) }
+                ForEach(Packs.problems, id: \.self) { Text(tr("⚠︎ ") + $0).font(.footnote).foregroundStyle(.orange) }
                 Button(tr("Abrir a pasta de pacotes")) { NSWorkspace.shared.open(Packs.folder) }
                 Text(tr("Pacotes novos entram ao reabrir o app.")).font(.footnote).foregroundStyle(.secondary)
             }

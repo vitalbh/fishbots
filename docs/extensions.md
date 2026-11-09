@@ -13,7 +13,7 @@ visualizers, fish…) gets a clear seam, so that it can grow from two places wit
   code: dylib plugins clash with code signing and the hardened runtime, and xbar-style script plugins already cover
   "run my own code" for sources.
 - **Packs on disk.** `~/Library/Application Support/Fishbots/packs/<id>/pack.json` declares themes, music styles,
-  fish, scenery and creatures (each drawing a `.metal` file) and agents (manifests). Packs are data and GPU code only:
+  fish, scenery and creatures (each drawing a `.metal` file). Packs are data and GPU code only:
   they can't run anything on the Mac. Everything is validated on load; a broken piece is skipped and reported in the
   menu, and a pack that slows the aquarium down is paused. How to make one: [packs.md](packs.md); the community
   catalog: [../community/README.md](../community/README.md).
@@ -44,10 +44,13 @@ The card, the fish menu and the music only ask the fish's provider what it can d
 **Agents without Swift** (`AgentManifests.swift`): an agent whose hook or plugin posts Claude Code-shaped events to
 `POST /agent/<id>` becomes a full agent fish (tool animations, fry, the card and its last reply, where it runs,
 reply/Esc in the exact terminal). A manifest is optional (`~/Library/Application Support/Fishbots/agents/<id>.json`,
-or a pack's `"agents"` list): `name`, `processNames`, `fish`, `timbre`, and `events`/`tools` maps from the agent's
+read when the app opens and reloaded from Preferences → Agents or `POST /agents/reload`; it travels with the agent's
+hook, not in packs, which are only the look):
+`name`, `processNames`, `fish` (any kind id, a pack's too), `timbre`, and `events`/`tools` maps from the agent's
 names to Claude Code's. Without one, `<id>` is the process name and the fish follows the terminal. Built-in ids
 can't be taken. The translation lives in the agent's hook (any language): opencode's plugin
-(`plugins/opencode/fishbots.js`) is the reference. What still needs Swift: reading the agent's own conversation files
+(`plugins/opencode/fishbots.js`) is the reference. How to connect one: [agents.md](agents.md); the
+`fishbots-agents` skill teaches a coding agent to do it. What still needs Swift: reading the agent's own conversation files
 (title, context, branch), renaming conversations, and answering permissions.
 
 **Adding a built-in agent** (as implemented in `Providers.swift`):

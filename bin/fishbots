@@ -18,10 +18,17 @@
 #   fishbots pack zip <folder> [out]         make a .fishbotspack to share
 #   fishbots pack install <file|url>         install a .fishbotspack (or double-click it in the Finder)
 #   fishbots pack list | reload              what's installed (and its problems) | read the packs again
-#   fishbots skill install                   teach your coding agent to make packs (~/.claude/skills)
+#
+#   fishbots agent new <id> [name]           a manifest for another agent (name, fish, timbre, event/tool maps)
+#   fishbots agent list | reload             every agent (built in, /agent/<id>) and manifest problems | read them again
+#   fishbots agent test <id>                 a fake session at /agent/<id>: prompt, tools, a reply, the end
+#   fishbots agent send <id> <json>          one event, as the agent's hook would send it (docs/agents.md)
+#
+#   fishbots skill install                   teach your coding agent to make packs and connect agents (~/.claude/skills)
 URL="http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 PACKS="$HOME/Library/Application Support/Fishbots/packs"
+AGENTS="$HOME/Library/Application Support/Fishbots/agents"
 
 # the app's binary (it also previews and checks packs, without opening the aquarium)
 app_bin() {
@@ -93,11 +100,68 @@ pack() {
   esac
 }
 
+# agents without Swift: events at POST /agent/<id>, an optional manifest in agents/<id>.json (docs/agents.md)
+agent() {
+  sub="$1"; [ $# -gt 0 ] && shift
+  case "$sub" in
+    new)
+      id="$1"
+      printf '%s' "$id" | grep -Eq '^[a-z0-9][a-z0-9-]{0,39}$' || { echo "usage: fishbots agent new <id> [name]   (id: lowercase letters, digits, -)" >&2; exit 2; }
+      f="$AGENTS/$id.json"
+      [ -e "$f" ] && { echo "fishbots: $f already exists" >&2; exit 1; }
+      mkdir -p "$AGENTS"
+      cat > "$f" <<JSON
+{
+  "id": "$id",
+  "name": "${2:-$id}",
+  "processNames": ["$id"],
+  "timbre": "pluck",
+  "events": {},
+  "tools": {}
+}
+JSON
+      echo "✓ $f"
+      echo "  fish: add \"fish\": \"<kind>\" (oval, slender, puffer, angelfish, stingray, octopus… or a pack's); default: by the terminal"
+      echo "  events/tools: map the agent's names to Claude Code's, e.g. \"events\": {\"turn_end\": \"Stop\"}, \"tools\": {\"run\": \"Bash\"}"
+      echo "  its hook: plugins/common/hook.sh agent/$id   (forwards stdin and where the session runs)"
+      echo "  then: fishbots agent reload   and   fishbots agent test $id"
+      running && curl -s -m 5 -X POST "$URL/agents/reload" >/dev/null && echo "  (reloaded)" ;;
+    list)   curl -s -m 2 "$URL/agents" || { echo "fishbots: is the app running?" >&2; exit 1; }; echo ;;
+    reload) curl -s -m 5 -X POST "$URL/agents/reload" || { echo "fishbots: is the app running?" >&2; exit 1; }; echo ;;
+    send)
+      [ $# -ge 2 ] || { echo "usage: fishbots agent send <id> '<json>'" >&2; exit 2; }
+      curl -s -m 2 -H 'Expect:' -H 'Content-Type: application/json' -H "X-Where-Term: ${TERM_PROGRAM:-}" \
+        --data-binary "$2" "$URL/agent/$1" || { echo "fishbots: is the app running?" >&2; exit 1; }; echo ;;
+    test)
+      [ $# -ge 1 ] || { echo "usage: fishbots agent test <id>" >&2; exit 2; }
+      running || { echo "fishbots: is the app running?" >&2; exit 1; }
+      s="test-$(date +%s)"; c="$(pwd)"
+      # ev <event> [extra JSON fields]: the JSON is built in a variable (inside "$(…)" its braces got expanded)
+      ev() {
+        body=$(printf '{"hook_event_name":"%s","session_id":"%s","cwd":"%s"%s}' "$1" "$s" "$(esc "$c")" "${2:+,$2}")
+        code=$(curl -s -m 2 -o /dev/null -w "%{http_code}" -H 'Content-Type: application/json' --data-binary "$body" "$URL/agent/$id")
+        printf '  %-28s %s\n' "$1${3:+ $3}" "$code"
+      }
+      id="$1"
+      ev SessionStart; sleep 1
+      ev UserPromptSubmit '"session_title":"Fishbots test"'; sleep 1
+      for t in Read Edit Bash; do ev PreToolUse "\"tool_name\":\"$t\",\"tool_input\":{}" "$t"; sleep 1.2; done
+      ev Stop '"last_assistant_message":"Done: this was a Fishbots test. All good?"' "(a reply)"
+      echo "  the fish $id:$s is waiting now (its reply ends with a question): look at it and its card"
+      echo "  it leaves in 10 s (Ctrl-C keeps it there)"
+      sleep 10; ev SessionEnd ;;
+    *) sed -n '/^#   fishbots agent new/,/^#   fishbots agent send/p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  esac
+}
+
 skill() {
   case "$1" in
     install)
-      dest="${2:-$HOME/.claude/skills}/fishbots-packs"
-      mkdir -p "$dest" && cp -R "$HERE/skills/fishbots-packs/"* "$dest/" && echo "✓ $dest (your agent now knows how to make Fishbots packs)" ;;
+      root="${2:-$HOME/.claude/skills}"
+      for s in fishbots-packs fishbots-agents; do
+        mkdir -p "$root/$s" && cp -R "$HERE/skills/$s/"* "$root/$s/" && echo "✓ $root/$s"
+      done
+      echo "  your agent now knows how to make Fishbots packs and connect other agents" ;;
     *) echo "usage: fishbots skill install [skills folder]   (default: ~/.claude/skills)" >&2; exit 2 ;;
   esac
 }
@@ -132,6 +196,7 @@ case "$cmd" in
          fi ;;
   show)  curl -s -m 2 "$URL/state" || { echo "fishbots: is the app running?" >&2; exit 1; } ;;
   pack)  pack "$@" ;;
+  agent) agent "$@" ;;
   skill) skill "$@" ;;
-  *)     sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *)     sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
