@@ -19,7 +19,7 @@ final class Fauna {
     private(set) static var kinds: [(id: String, make: () -> Creature)] = [
         ("crab", { Crabs() }), ("starfish", { Starfish() }), ("turtle", { TurtleSwimmer() }),
         ("snail", { Snail() }), ("lanternfish", { Lanterns() }), ("whale", { WhaleSwimmer() }), ("grouper", { Grouper() }),
-        ("anglerfish", { Anglerfish() }), ("sunfish", { Sunfish() }),
+        ("anglerfish", { Anglerfish() }), ("sunfish", { Sunfish() }), ("manatee", { Manatee() }), ("seahorses", { Seahorses() }),
     ]
 
     static func register(_ id: String, _ make: @escaping () -> Creature) {
@@ -474,7 +474,116 @@ final class Sunfish: Creature {
         let c = SIMD3<Float>(0.5, 0.56, 0.62) * (0.45 + 0.55 * t.light)
         // a gentle tilt now and then, as sunfish do
         let tilt = sinf(phase * 0.15) * 0.12
-        return [Sprite(pos: p, dir: [cosf(tilt), sinf(tilt) * dir], size: t.size.y * 0.11, kind: 40, glow: 0, phase: phase,
+        let th = dir > 0 ? tilt : .pi - tilt                 // facing left: turned around and mirrored, like the fish
+        return [Sprite(pos: p, dir: [cosf(th), sinf(th)], size: t.size.y * 0.11, kind: 40, glow: 0, phase: phase,
                        color: SIMD4(c, 1), extra: [dir, 0, 0, 0], aux: [1.0, 1.25, 0, 0])]
+    }
+}
+
+/// The lagoon's manatee: now and then it drifts slowly across, and halfway it may rise to the surface to breathe
+/// (a ring spreads where its snout touches it) and sink back.
+final class Manatee: Creature {
+    let id = "manatee"
+    private var pos: SIMD2<Float>?
+    private var dir: Float = 1
+    private var y0: Float = 0
+    private var phase: Float = 0
+    private var next: Double?
+    private var breath: Float = 0          // 0 cruising … 1 at the surface
+    private var breathes = false
+    private var breathed = false
+    private var tilt: Float = 0
+    private var lastY: Float?
+
+    func update(_ t: Tank, dt: Float) {
+        let w = t.size.x, h = t.size.y
+        if next == nil { next = t.time + Double.random(in: 40...150) * Tank.scale }
+        if pos == nil, let n = next, t.time > n {
+            next = t.time + Double.random(in: 480...1200) * Tank.scale
+            dir = Bool.random() ? 1 : -1
+            y0 = h * Float.random(in: 0.3...0.55)
+            breathes = Float.random(in: 0...1) < 0.7
+            breathed = false
+            pos = [dir > 0 ? -h * 0.2 : w + h * 0.2, y0]
+        }
+        guard var p = pos else { return }
+        phase += dt
+        p.x += dir * max(10, w / 110) * dt
+        // halfway across, up to breathe
+        let u = dir > 0 ? p.x / w : 1 - p.x / w
+        let wantUp: Float = breathes && u > 0.35 && u < 0.6 ? 1 : 0
+        breath += (wantUp - breath) * min(1, dt * 0.35)
+        let top = h * 0.93 - h * 0.035
+        p.y = mix(y0 + sinf(phase * 0.3) * h * 0.015, top, t: breath)
+        if breath > 0.95 && !breathed {
+            breathed = true
+            t.ring(at: [p.x + dir * h * 0.11, h * 0.965], color: [0.9, 1, 0.95], size: 10, grow: 60, life: 1.6)
+        }
+        // the nose follows where it's heading, easing in and out (up as it rises, down as it sinks)
+        if let ly = lastY, dt > 0 {
+            let vy = (p.y - ly) / dt, vx = max(10, w / 110)
+            let want = max(-0.3, min(0.35, atan2f(vy, vx)))
+            tilt += (want - tilt) * min(1, dt * 0.6)
+        }
+        lastY = p.y
+        pos = p
+        if p.x < -h * 0.3 || p.x > w + h * 0.3 { pos = nil; lastY = nil; tilt = 0 }
+    }
+
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
+        guard layer == .background, let p = pos else { return [] }
+        let c = SIMD3<Float>(0.5, 0.48, 0.44) * (0.5 + 0.5 * t.light)
+        let th = dir > 0 ? tilt : .pi - tilt
+        return [Sprite(pos: p, dir: [cosf(th), sinf(th)], size: t.size.y * 0.075, kind: 44, glow: 0, phase: phase,
+                       color: SIMD4(c, 1), extra: [dir, 0, 0, 0], aux: [1.7, 0.8, 0, 0])]
+    }
+}
+
+private func mix(_ a: Float, _ b: Float, t: Float) -> Float { a + (b - a) * t }
+
+/// The lagoon's seahorses: a few hold on to the seaweed with their tails, bobbing upright, and now and then let go
+/// and drift slowly to another blade.
+final class Seahorses: Creature {
+    let id = "seahorses"
+    private struct Horse { var pos: SIMD2<Float>; var goal: SIMD2<Float>; var dir: Float; var phase: Float; var until: Double; var color: SIMD3<Float> }
+    private var horses: [Horse] = []
+
+    private func perch(_ t: Tank) -> SIMD2<Float> {
+        let spots = t.weedSpots
+        guard let s = spots.randomElement() else { return [t.size.x * 0.5, t.size.y * 0.3] }
+        let y = t.size.y * (0.055 + s.h * Float.random(in: 0.35...0.75))
+        return [s.x * t.size.x + Float.random(in: -6...6), y]
+    }
+
+    func update(_ t: Tank, dt: Float) {
+        guard t.size.x > 10 else { return }
+        if horses.isEmpty {
+            let colors: [SIMD3<Float>] = [[1.0, 0.68, 0.35], [0.95, 0.85, 0.45], [0.85, 0.45, 0.4]]
+            horses = (0..<3).map { i in
+                let p = perch(t)
+                return Horse(pos: p, goal: p, dir: Bool.random() ? 1 : -1, phase: Float.random(in: 0...6),
+                             until: t.time + Double.random(in: 20...60), color: colors[i])
+            }
+        }
+        for i in horses.indices {
+            var hz = horses[i]
+            hz.phase += dt
+            if t.time > hz.until { hz.goal = perch(t); hz.until = t.time + Double.random(in: 30...90) }
+            let d = hz.goal - hz.pos, l = simd_length(d)
+            if l > 2 {
+                hz.pos += d / l * min(l, 9 * dt)               // slow, upright, fins fluttering
+                if abs(d.x) > 3 { hz.dir = d.x > 0 ? 1 : -1 }
+            }
+            horses[i] = hz
+        }
+    }
+
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
+        guard layer == .middle else { return [] }
+        return horses.map { hz in
+            let bob = sinf(hz.phase * 1.2) * 2
+            return Sprite(pos: hz.pos + [0, bob], dir: [hz.dir, 0], size: 15, kind: 13, glow: 0.1, phase: hz.phase,
+                          color: SIMD4(hz.color * (0.6 + 0.4 * t.light), 1), extra: [hz.dir, 0, 0, 0])
+        }
     }
 }

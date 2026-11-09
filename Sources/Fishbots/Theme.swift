@@ -171,10 +171,13 @@ enum Themes {
                        "caustics": "#4a7fb0", "causticsStrength": 0.03, "surface": "#123a5c", "murk": "#0d1420"],
              "weeds": ["count": 5, "farCount": 8, "far": "#0b1f33", "low": "#06202a", "high": "#1d5a6b"],
              "sand": ["dark": "#1c1d24", "light": "#3a3a44"]],
-            ["id": "lagoon", "name": "Lagoa", "description": "Água verde e clara, muitas algas, caranguejos, a tartaruga e a superfície viva.", "visualizer": "surface", "fauna": ["crab", "turtle", "snail", "starfish"], "scenery": ["rock", "shell"],
+            ["id": "lagoon", "name": "Lagoa", "description": "Água verde e clara de lagoa costeira, raízes de mangue nas margens, capim-marinho, cavalos-marinhos agarrados nas algas, um covo de pesca na areia, caranguejos, a tartaruga e, de vez em quando, um peixe-boi que sobe para respirar.", "visualizer": "surface", "fauna": ["crab", "turtle", "snail", "starfish", "seahorses", "manatee"], "scenery": ["rock", "shell", "mangrove", "chest"],
+             "looks": ["chest": "fish-trap"],
+             "effects": ["fireworks": "#ffe38a", "sparkle": "#e8ffb0", "ring": "#c8f5dc"],
              "water": ["deep": "#06231f", "shallow": "#2f8c7a", "rays": "#7fd1b0", "raysStrength": 0.3,
                        "caustics": "#bff2d8", "causticsStrength": 0.09, "surface": "#6cc2a8", "murk": "#3a3a1c"],
-             "weeds": ["count": 14, "farCount": 16, "far": "#1f4a2a", "low": "#1a4a1c", "high": "#5c9a32"],
+             "weeds": ["count": 14, "farCount": 16, "far": "#1f4a2a", "low": "#1a4a1c", "high": "#5c9a32",
+                       "shapes": ["ribbon", "blade", "ribbon", "leafy", "ribbon"]],
              "sand": ["dark": "#7a6a46", "light": "#c9b27a"]],
         ]
         var out: [Theme] = []

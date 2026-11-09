@@ -644,7 +644,7 @@ final class Scene {
 
     /// Built-in variants a theme can dress a built-in kind in ("looks": {"shark": "hammerhead"}): of which kind, and
     /// the number its drawing gets (extra.z).
-    static let variants: [String: (of: String, n: Float)] = ["hammerhead": ("shark", 1), "rusty-helm": ("helm", 1), "deep-bottle": ("bottle", 1), "safe": ("chest", 1)]
+    static let variants: [String: (of: String, n: Float)] = ["hammerhead": ("shark", 1), "rusty-helm": ("helm", 1), "deep-bottle": ("bottle", 1), "safe": ("chest", 1), "fish-trap": ("chest", 2)]
     func variant(_ p: Presence) -> Float {
         guard dressByTheme, !p.overrideTheme, let id = themeLooks[p.kind.id], let v = Self.variants[id], v.of == p.kind.id else { return 0 }
         return v.n

@@ -1104,6 +1104,8 @@ final class Tank {
                       color: [0, 0, 0, 1], extra: [1, 0, 0, 0])
     }
     private lazy var weeds = Self.weeds(weedCount)
+    /// Where the seaweed stands (x 0…1, height as a fraction of the screen), for creatures that hold on to it.
+    var weedSpots: [(x: Float, h: Float)] { weeds }
 
     /// The shader's seaweed (same formula): x position (0…1) and height (fraction of the screen), rising from y = 0.055.
     private static func weeds(_ n: Int) -> [(x: Float, h: Float)] { (0..<n).map { k in
@@ -2003,6 +2005,17 @@ final class Tank {
         var out: [Sprite] = []
         out.reserveCapacity(fish.count + particles.count + 1)
 
+        // mangrove roots coming down at the sides (a theme that lists "mangrove" in its scenery)
+        if sceneryKinds?.contains("mangrove") == true {
+            let d = Themes.current.uniforms.shallow
+            let water = SIMD3(d.x, d.y, d.z) * (0.5 + 0.5 * light)
+            let s = size.y * 0.5
+            out.append(Sprite(pos: [size.y * 0.3, size.y * 0.5], dir: [1, 0], size: s, kind: 43, glow: 0, phase: Float(time),
+                              color: SIMD4(water, 1), extra: [1, 0, 0, 0], aux: [0.7, 1.0, 0, 0]))
+            // a smaller clump on the other side, mirrored
+            out.append(Sprite(pos: [size.x - size.y * 0.24, size.y * 0.5], dir: [-1, 0], size: s * 0.85, kind: 43, glow: 0, phase: Float(time),
+                              color: SIMD4(water, 1), extra: [-1, 0, 0, 0], aux: [0.7, 1.0, 0, 0]))
+        }
         // a sunken ship far away (a theme that lists "wreck" in its scenery), then the whale in the distance
         if sceneryKinds?.contains("wreck") == true {
             let s = size.y * 0.14
@@ -2051,7 +2064,9 @@ final class Tank {
                 continue
             }
             // the deep sea dresses the chest as a ship's safe (extra.z)
-            let safe: Float = s.id == "chest" && FishKinds.dressByTheme && Themes.current.looks["chest"] == "safe" ? 1 : 0
+            // the theme's own chest, a built-in variant (the deep sea's safe, the lagoon's fish trap) in extra.z
+            let look = Themes.current.looks["chest"].flatMap { Scene.variants[$0] }
+            let safe: Float = s.id == "chest" && FishKinds.dressByTheme && look?.of == "chest" ? look!.n : 0
             out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 + chestLid * 0.6 : 0,
                               phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed, color: SIMD4(color, 1),
                               extra: [1, s.id == "chest" ? min(1, chestLid) : s.id == "shell" ? 1 : 0, safe, 0],

@@ -1424,6 +1424,107 @@ float4 draw_safe(float2 c, float phase, float glow, float4 col, float open) {
     return float4(c3 * inside + float3(1.0, 0.8, 0.4) * halo, max(inside, halo * 0.6));
 }
 
+// mangrove prop roots (the lagoon's): arching down from the trunk above the water into the sand, bark gone grey,
+// oysters and barnacles crusting them at the waterline, green algae fuzz below. The quad spans the tank's height;
+// the surface is near c.y = 0.93. col: the water's tint for the parts further down.
+float4 draw_mangrove(float2 c, float t, float4 col) {
+    float2 p = c * float2(0.7, 1.0);
+    float d = sd_box(p - float2(-0.7, 1.12), float2(0.07, 0.16), 0.03), along = 0.0, which = 0.0;   // the trunk
+    // the trunk stands above the water at the bank (left); the roots spring from it just over the surface and arch
+    // down to the sand, the longer ones reaching further out
+    for (int r = 0; r < 7; r++) {
+        float fr = float(r);
+        float2 a = float2(-0.68 + 0.02 * fr, 1.0 - 0.04 * fract(fr * 0.618));
+        float2 b = float2(-0.6 + 0.18 * fr + 0.05 * sin(fr * 5.3), -0.86 + 0.03 * sin(fr * 1.7));
+        float2 m = float2(b.x + 0.04, 1.02 + 0.02 * fr);                 // out first, then the knee, then down
+        float2 prev = a;
+        for (int i = 1; i <= 8; i++) {
+            float u = float(i) / 8.0;
+            float2 q = mix(mix(a, m, u), mix(m, b, u), u);
+            float w = mix(0.04, 0.022, u) * (1.0 - 0.2 * fr / 6.0);
+            float2 pa = p - prev, ba = q - prev;
+            float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+            float dd = length(pa - ba * h) - w;
+            if (dd < d) { d = dd; along = (float(i) - 1.0 + h) / 8.0; which = fr; }
+            prev = q;
+        }
+    }
+    float aa = fwidth(d) * 1.5 + 0.004;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    if (a <= 0.001) return float4(0.0);
+    // bark: grey-brown, ridged along the root, lit from above, rounder in the middle
+    float3 bark = float3(0.36, 0.3, 0.24) * (0.8 + 0.25 * vnoise(float2(along * 40.0, which * 7.0)));
+    bark *= 0.75 + 0.35 * smoothstep(0.0, -0.03, d);
+    // oysters and barnacles crusting the roots around the waterline; green fuzz below it
+    float band = smoothstep(0.7, 0.82, p.y) * (1.0 - smoothstep(0.9, 0.95, p.y));
+    float2 cg = p * 60.0 + float2(vnoise(p * 9.0), vnoise(p * 9.0 + 4.0)) * 2.0;
+    float2 cj = float2(hash21(floor(cg)), hash21(floor(cg) + 3.7)) * 0.4 + 0.3;
+    float crust = (1.0 - smoothstep(0.2, 0.35, length(fract(cg) - cj))) * step(0.45, hash21(floor(cg) + which));
+    bark = mix(bark, float3(0.6, 0.58, 0.52), band * crust * 0.7);
+    float fuzz = smoothstep(0.7, 0.2, p.y) * smoothstep(0.4, 0.7, vnoise(p * 50.0 + 3.0));
+    bark = mix(bark, float3(0.22, 0.36, 0.16), fuzz * 0.5);
+    // further back than the fish: the water in between takes its color, more the deeper
+    float under = smoothstep(0.93, 0.4, p.y);
+    bark = mix(bark, col.rgb, 0.2 + under * 0.4);
+    float aw = a * mix(0.95, 0.75, under);
+    return float4(bark * aw, aw);
+}
+
+// a manatee (the lagoon's): a big, slow, grey-brown body with a round paddle tail, small flippers, a whiskery snout,
+// wrinkled skin with algae and old scars. phase: time; faces +x.
+float4 draw_manatee(float2 c, float phase, float4 col) {
+    float2 p = c * float2(1.7, 0.8);
+    // the whole body undulates gently; the paddle tail moves the most
+    float wave = sin(phase * 0.9);
+    p.y -= wave * 0.035 * (p.x * p.x * 0.25) + wave * 0.09 * smoothstep(-0.3, -1.6, p.x) * smoothstep(-0.3, -1.6, p.x);
+    float fat = 0.42 + 0.05 * smoothstep(0.6, -0.3, p.x) - 0.1 * smoothstep(-0.7, -1.2, p.x);
+    float body = (length((p - float2(-0.05, 0.0)) / float2(1.18, fat)) - 1.0) * 0.4;
+    float head = (length((p - float2(1.1, -0.04)) / float2(0.36, 0.28)) - 1.0) * 0.2;
+    float snout = (length((p - float2(1.36, -0.1)) / float2(0.19, 0.18)) - 1.0) * 0.12;
+    float tail = (length((p - float2(-1.4, 0.02)) / float2(0.3, 0.17)) - 1.0) * 0.15;
+    float d = smin_k(smin_k(body, head, 0.14), snout, 0.08);
+    d = smin_k(d, tail, 0.12);
+    float2 fp = p - float2(0.6, -0.26);
+    float fa = -1.0 + sin(phase * 0.7) * 0.18;
+    fp = float2(fp.x * cos(fa) - fp.y * sin(fa), fp.x * sin(fa) + fp.y * cos(fa));
+    float flip = (length((fp - float2(0.17, 0.0)) / float2(0.21, 0.075)) - 1.0) * 0.06;
+    d = min(d, flip);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    if (a <= 0.001) return float4(0.0);
+    // round: a normal from the body's ellipse, lit from above and a little ahead
+    float2 bq = (p - float2(-0.05, 0.0)) / float2(1.18, fat);
+    float z = sqrt(max(0.0, 1.0 - min(1.0, dot(bq, bq))));
+    float diff = 0.4 + 0.7 * max(0.0, dot(normalize(float3(bq.x * 0.5, bq.y, z + 0.15)), normalize(float3(0.2, 0.75, 0.6))));
+    // smooth grey-brown skin: big soft blotches, a faint fine grain, the belly paler
+    float3 c3 = col.rgb * mix(0.95, 1.12, smoothstep(0.1, -0.5, bq.y));
+    c3 *= 0.9 + 0.14 * vnoise(p * 3.5 + 1.0);
+    c3 *= 0.97 + 0.05 * vnoise(p * 30.0);
+    c3 *= diff;
+    // a light dusting of green algae on the back, and two old pale scars
+    float algae = smoothstep(0.55, 0.8, vnoise(p * 4.0 + 7.0)) * smoothstep(0.1, 0.6, bq.y);
+    c3 = mix(c3, float3(0.32, 0.42, 0.24) * diff * dot(col.rgb, float3(0.7)), algae * 0.35);
+    for (int i = 0; i < 2; i++) {
+        float fi = float(i);
+        float sc = abs(p.y - (0.18 + fi * 0.08) - 0.04 * sin(p.x * 3.0 + fi)) ;
+        c3 = mix(c3, col.rgb * 1.3, (1.0 - smoothstep(0.004, 0.012, sc)) * step(-0.7 + fi * 0.3, p.x) * step(p.x, -0.2 + fi * 0.25) * 0.45);
+    }
+    // soft neck folds
+    c3 *= 1.0 - 0.06 * (0.5 + 0.5 * sin(p.x * 30.0)) * smoothstep(0.55, 0.85, p.x) * (1.0 - smoothstep(0.85, 1.05, p.x));
+    if (flip < 0.0 && body > 0.0) c3 = col.rgb * 0.75 * (0.85 + 0.15 * vnoise(fp * 20.0));
+    // the face: a small dark eye with a glint, a nostril on top of the snout, a few whisker dots
+    float er = length(p - float2(1.17, 0.05));
+    c3 = mix(c3, float3(0.04), 1.0 - smoothstep(0.022, 0.03, er));
+    c3 = mix(c3, float3(0.8), 1.0 - smoothstep(0.004, 0.008, length(p - float2(1.177, 0.058))));
+    c3 *= 1.0 - 0.45 * (1.0 - smoothstep(0.014, 0.022, length((p - float2(1.47, 0.0)) / float2(1.0, 0.6))));
+    for (int i = 0; i < 6; i++) {
+        float2 wpos = float2(1.38 + 0.035 * float(i % 3), -0.12 - 0.04 * float(i / 3) + 0.01 * float(i % 2));
+        c3 *= 1.0 - 0.35 * (1.0 - smoothstep(0.006, 0.011, length(p - wpos)));
+    }
+    c3 += col.rgb * 0.18 * (1.0 - smoothstep(0.0, 0.04, -d)) * smoothstep(0.0, 0.6, bq.y);
+    return float4(c3 * a, a);
+}
+
 // a sunken ship far away (the deep sea's): a dark silhouette lying tilted on the bottom, its bow raised, a mast
 // standing, another broken and fallen, a hole in the hull, the keel buried. Soft and faded by the distance.
 float4 draw_wreck(float2 c, float phase, float4 col) {
@@ -1448,6 +1549,68 @@ float4 draw_wreck(float2 c, float phase, float4 col) {
     c3 += col.rgb * 0.5 * (1.0 - smoothstep(0.0, 0.04, -d)) * smoothstep(0.0, 0.3, p.y);
     float aw = a * col.a;
     return float4(c3 * aw, aw);
+}
+
+// a fishermen's trap (the lagoon's chest): a woven basket lying on the sand, its strips crossing over and under,
+// three hoops, a funnel mouth at one end and a hatch on top tied shut. Light glows through the gaps between the strips;
+// open (0…1), the hatch swings up on shells and pearls. Sand line at y ≈ -0.3 like the chest's.
+float4 draw_fish_trap(float2 c, float phase, float glow, float4 col, float open) {
+    float2 p = c;
+    float lum = dot(col.rgb, float3(0.33)) / 0.32;
+    float body = sd_seg(p, float2(-0.5, -0.3), float2(0.5, -0.3)) - 0.36 + 0.05 * smoothstep(0.3, 0.8, p.x);
+    float aa = fwidth(body) + 1e-4;
+    float inB = 1.0 - smoothstep(-aa, aa, body);
+    // the weave: two sets of strips crossing diagonally, over and under; dark gaps where the inside shows
+    float2 w = float2(p.x + p.y, p.x - p.y) * 7.0;
+    float2 f = fract(w), cell = floor(w);
+    float gap = max(smoothstep(0.78, 0.9, f.x), smoothstep(0.78, 0.9, f.y));
+    float over = step(0.5, fract((cell.x + cell.y) * 0.5));
+    float strip = over > 0.5 ? f.x : f.y;
+    float3 straw = mix(float3(0.62, 0.52, 0.34), float3(0.5, 0.5, 0.46), 0.35) * lum;
+    float3 c3 = straw * (0.78 + 0.3 * sin(strip * 3.1416)) * (0.85 + 0.25 * hash21(cell));
+    // round: lit from above, darker toward the sand; green algae creeping up from below
+    c3 *= 0.65 + 0.45 * smoothstep(-0.66, 0.06, p.y);
+    c3 = mix(c3, float3(0.24, 0.36, 0.18) * lum, smoothstep(-0.45, -0.66, p.y) * smoothstep(0.4, 0.7, vnoise(p * 14.0)) * 0.7);
+    // light from inside, through the gaps (a little when closed, a lot when open)
+    float pulse = (0.6 + 0.4 * sin(phase * 1.3)) * glow;
+    float3 inside = float3(0.06, 0.05, 0.03) + float3(1.0, 0.8, 0.4) * pulse * (0.08 + 0.45 * open);
+    c3 = mix(c3, inside, gap * 0.85);
+    // three hoops binding it, and the funnel mouth at the right end (rings narrowing inward)
+    float hoop = 1e3;
+    for (int i = 0; i < 3; i++) hoop = min(hoop, abs(p.x - (-0.5 + 0.5 * float(i))) - 0.035);
+    c3 = mix(c3, straw * 0.7 * (0.8 + 0.3 * smoothstep(-0.6, 0.0, p.y)), (1.0 - smoothstep(0.0, 0.01, hoop)));
+    float2 mq = (p - float2(0.78, -0.3)) / float2(0.12, 0.33);
+    float mr = length(mq);
+    float mouth = 1.0 - smoothstep(0.95, 1.0, mr);
+    float rings = 0.75 + 0.25 * sin(mr * 22.0);
+    c3 = mix(c3, mix(inside, straw * rings * 0.8, smoothstep(0.15, 0.5, mr)), mouth * inB);
+    // the hatch on top, hinged at its left end; tied shut with a cord when closed, swinging up when open
+    float ang = open * 1.9;
+    float2 hp = p - float2(-0.3, 0.06);
+    hp = float2(hp.x * cos(ang) + hp.y * sin(ang), -hp.x * sin(ang) + hp.y * cos(ang));
+    float hatch = sd_box(hp - float2(0.3, 0.0), float2(0.3, 0.045), 0.02);
+    float inH = 1.0 - smoothstep(-aa, aa, hatch);
+    float3 hatchC = straw * (0.8 + 0.25 * sin(fract(hp.x * 14.0) * 3.1416)) * (0.9 + 0.2 * smoothstep(-0.05, 0.05, hp.y));
+    float cord = (1.0 - smoothstep(0.008, 0.016, abs(p.x - 0.26))) * step(-0.02, p.y) * step(p.y, 0.1) * (1.0 - smoothstep(0.05, 0.2, open));
+    // open: the hole on top shows the shells and pearls inside, glowing
+    float hole = sd_box(p - float2(0.0, 0.03), float2(0.29, 0.05), 0.02);
+    float inHole = (1.0 - smoothstep(-aa, aa, hole)) * smoothstep(0.05, 0.3, open);
+    float2 pg = p * float2(16.0, 18.0);
+    float pearl = 1.0 - smoothstep(0.28, 0.42, length(fract(pg) - 0.5));
+    float hue = hash21(floor(pg));
+    float3 treasure = mix(float3(0.95, 0.9, 0.82), float3(1.0, 0.75, 0.6), step(0.6, hue)) * (0.6 + 0.6 * pearl) * lum
+                    + float3(1.0, 0.85, 0.5) * pulse * 0.4;
+    float3 outc = c3 * inB;
+    float a = inB;
+    outc = mix(outc, treasure, inHole);
+    a = max(a, inHole);
+    outc = mix(outc, hatchC, inH);
+    a = max(a, inH);
+    outc = mix(outc, float3(0.35, 0.28, 0.18) * lum, cord);
+    outc *= 1.0 - (1.0 - smoothstep(0.0, 0.04, -min(body, hatch))) * 0.3 * a;
+    float halo = exp(-max(p.y - 0.06, 0.0) * 5.0) * step(0.06, p.y) * (1.0 - smoothstep(0.2, 0.5, abs(p.x))) * open * pulse * 0.45 * (1.0 - a);
+    outc += float3(1.0, 0.82, 0.45) * halo;
+    return float4(outc, max(a, halo * 0.6));
 }
 
 // an old diving helmet lying on the sand (the deep sea's, only scenery): copper gone green, a round grilled faceplate,
@@ -2055,6 +2218,10 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float border = 1.0 - smoothstep(0.5, 1.0, max(abs(c.x), abs(c.y)));
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
+    } else if (k > 43.5) {             // a manatee (the lagoon's)
+        outc = draw_manatee(c, in.phase, in.color);
+    } else if (k > 42.5) {             // mangrove roots (the lagoon's)
+        outc = draw_mangrove(c, in.phase, in.color);
     } else if (k > 41.5) {             // a sunken ship far away (the deep sea's)
         outc = draw_wreck(c, in.phase, in.color);
     } else if (k > 40.5) {             // scenery: an old diving helmet (the deep sea's)
@@ -2084,7 +2251,9 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
     } else if (k > 23.5) {             // a music note rising from the music fish
         outc = draw_note(c, in.glow, in.color);
     } else if (k > 22.5) {             // scenery: chest
-        outc = in.extra.z > 0.5 ? draw_safe(c, in.phase, in.glow, in.color, in.extra.y)    // extra.z: the deep sea's safe
+        // extra.z: the theme's chest (1 the deep sea's safe, 2 the lagoon's fish trap)
+        outc = in.extra.z > 1.5 ? draw_fish_trap(c, in.phase, in.glow, in.color, in.extra.y)
+             : in.extra.z > 0.5 ? draw_safe(c, in.phase, in.glow, in.color, in.extra.y)
                                 : draw_chest(c, in.phase, in.glow, in.color, in.extra.y);
     } else if (k > 21.5) {             // scenery: big shell
         outc = in.extra.y > 0.5 ? draw_oyster(c, in.phase, in.color) : draw_shell(c, in.phase, in.color);   // extra.y: the oyster

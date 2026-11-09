@@ -144,9 +144,11 @@ A pack theme can draw its own far background and give the built-in pieces anothe
     the same way (checked on load), keeping its label, state, link and sound. A plugin that wants its own drawing
     sends `"override_theme": true`;
     The app's own variants work too: `"shark": "hammerhead"`, `"helm": "rusty-helm"`, `"bottle": "deep-bottle"`
-    (the deep sea's barnacle-crusted bottle, plankton glowing in the state's color), and `"chest": "safe"` (a ship's
-    safe, for the chest piece and the chest presence). Built-in scenery only for themes that list it: `helmet` (an old
-    diving helmet on the sand) and `wreck` (a sunken ship far away).
+    (the deep sea's barnacle-crusted bottle, plankton glowing in the state's color), `"chest": "safe"` (a ship's
+    safe) and `"chest": "fish-trap"` (a woven fishermen's trap), for the chest piece and the chest presence. Built-in
+    scenery only for themes that list it: `helmet` (an old diving helmet on the sand), `wreck` (a sunken ship far away)
+    and `mangrove` (prop roots coming down at the sides). Built-in creatures for a theme's `fauna`: `anglerfish`,
+    `sunfish`, `manatee`, `seahorses`.
   - a **fish kind** (`"oval": "koi"`): the fish of that kind are drawn as the pack's fish. A kind someone picked by hand
     in the fish menu stays as picked. `"betta"` is the music fish (it keeps dancing and letting out notes);
     `"lanternfish"` the night lanternfish;
