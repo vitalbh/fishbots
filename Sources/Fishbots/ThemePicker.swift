@@ -1,5 +1,11 @@
 import AppKit
 
+/// A window that Esc closes (the themes window, Preferences), unless something inside takes Esc first (recording a
+/// shortcut cancels the recording instead).
+final class EscClosingWindow: NSWindow {
+    override func cancelOperation(_ sender: Any?) { close() }
+}
+
 /// The "Escolher tema…" window (E): the installed themes with a big picture, where each comes from, what it brings
 /// and a button to use it; a surprise mode that picks another theme by itself every hour or every day; and a way to
 /// the catalog for more.
@@ -15,7 +21,7 @@ final class ThemePickerWindow: NSObject, NSWindowDelegate {
 
     func show() {
         if let w = window { refresh(); w.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 660), styleMask: [.titled, .closable, .resizable],
+        let w = EscClosingWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 660), styleMask: [.titled, .closable, .resizable],
                          backing: .buffered, defer: false)
         w.title = tr("Temas")
         w.isReleasedWhenClosed = false
@@ -74,6 +80,7 @@ final class ThemePickerWindow: NSObject, NSWindowDelegate {
     }
 
     private final class Flipped: NSView { override var isFlipped: Bool { true } }
+
 
     /// From the top (once the window has laid itself out).
     private func scrollToTop() {

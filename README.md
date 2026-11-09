@@ -256,7 +256,7 @@ Executables in `~/Library/Application Support/Fishbots/plugins/`, where each std
 - `name.5m.sh` runs every 5 min (accepts `s`, `m`, `h`, `d`). Entities that disappear from one run to the next leave the aquarium, but only if the run succeeded.
 - `name.sh` (no interval) keeps running, and is restarted if it exits.
 
-The **Plugins** menu shows each one's state. Examples in `plugins/examples/`:
+The **Plugins** menu shows each one's state; click one to open its log (`~/Library/Logs/Fishbots/plugins/<name>.log`): every run with its exit code and whole stderr, a continuous plugin's stderr as it comes, and every output line the aquarium refused, with why (`line 2: unknown state: workin · {…}`). A plugin whose lines are refused shows ✗ even when it exits with 0. From the terminal: `bin/fishbots plugin log <name>`. Examples in `plugins/examples/`:
 - **github:** your PRs by CI and reviews requested from you (waiting); clicking opens the PR.
 - **mac:** CPU and battery. The battery becomes an old battery lying in the sand, with its charge in bars, glowing when plugged in.
 - **k8s:** every kubectl context becomes a ship's wheel on the sand (docs/scene.md), its hub in the state's color: green when healthy, turning while Flux reconciles, amber with pods in CrashLoopBackOff/ImagePullBackOff, red when a Kustomization or HelmRelease fails, gray when it can't be reached. A shark patrols while some cluster is broken; a cluster that recovers sets off fireworks, one that breaks a lightning. Read-only (`kubectl get`); `FISHBOTS_K8S_CONTEXTS` picks the clusters and `FISHBOTS_K8S_TRIM` shortens their names.

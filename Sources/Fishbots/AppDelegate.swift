@@ -535,13 +535,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         for (name, e) in states {
             var t = (e.ok ? "✓ " : "✗ ") + name
             if let d = e.lastRun { t += "  (\(fmt.localizedString(for: d, relativeTo: Date())))" }
-            let i = NSMenuItem(title: t, action: nil, keyEquivalent: "")
-            i.isEnabled = false
-            if let err = e.error { i.toolTip = err }
+            // clicking a plugin opens its log (every run, its stderr, the lines it got wrong)
+            let i = NSMenuItem(title: t, action: #selector(openPluginLog(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = name
+            i.toolTip = e.error ?? tr("abrir o log")
             menu.addItem(i)
             if let err = e.error {
-                let ei = NSMenuItem(title: "    " + String(err.prefix(70)), action: nil, keyEquivalent: "")
-                ei.isEnabled = false
+                let ei = NSMenuItem(title: "    " + String(err.prefix(70)), action: #selector(openPluginLog(_:)), keyEquivalent: "")
+                ei.target = self
+                ei.representedObject = name
                 menu.addItem(ei)
             }
         }
@@ -549,6 +552,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let open = NSMenuItem(title: tr("Abrir pasta de plugins"), action: #selector(openPlugins), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
+        if !states.isEmpty {
+            let logs = NSMenuItem(title: tr("Abrir pasta de logs"), action: #selector(openPluginLogs), keyEquivalent: "")
+            logs.target = self
+            menu.addItem(logs)
+        }
     }
 
     @objc func openPlugins() { Plugins.openFolder() }
@@ -1292,6 +1300,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         FishKinds.setOverride(i.representedObject as? String, for: f.projectKey)
         for o in tank.fish where o.projectKey == f.projectKey { Providers.refresh(o) }
     }
+    @objc private func openPluginLog(_ i: NSMenuItem) { if let n = i.representedObject as? String { Plugins.openLog(n) } }
+    @objc private func openPluginLogs() {
+        try? FileManager.default.createDirectory(at: Plugins.logFolder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(Plugins.logFolder)
+    }
     @objc private func toggleSongEars() { SongEars.enabled.toggle() }
     @objc private func menuGo() { if let f = menuFish { Whereabouts.go(f) } }
     @objc private func menuAction(_ i: NSMenuItem) {
@@ -1626,6 +1639,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         volume: { [unowned self] in Double(self.volume) },
         setVolume: { [unowned self] in self.volume = Float($0) },
         applyTheme: { [unowned self] in self.applyTheme() },
+        openThemePicker: { [unowned self] in self.openThemePicker() },
         applyLanguage: { L10n.setting = $0 },
         reloadAgents: { [unowned self] in self.reloadAgents() },
         refreshFish: { [unowned self] in for f in self.tank.fish where !f.decor { Providers.refresh(f) } },
@@ -1908,6 +1922,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         Themes.current = Themes.named(id)
         applyTheme()
         tank.notice = (tr("tema: ") + Themes.current.displayName, tank.time)
+        preferences.refresh()   // its Theme row shows the current one
     }
 
     /// The themes window (E): pictures, where each comes from, what it brings; the surprise mode; the catalog.

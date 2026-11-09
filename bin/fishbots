@@ -24,6 +24,9 @@
 #   fishbots agent test <id>                 a fake session at /agent/<id>: prompt, tools, a reply, the end
 #   fishbots agent send <id> <json>          one event, as the agent's hook would send it (docs/agents.md)
 #
+#   fishbots plugin log <name> [lines]      the end of a plugin's log: its runs, stderr and refused lines
+#   fishbots plugin logs                     the logs folder (~/Library/Logs/Fishbots/plugins)
+#
 #   fishbots skill install                   teach your coding agent to make packs and connect agents (~/.claude/skills)
 URL="http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -154,6 +157,20 @@ JSON
   esac
 }
 
+# script plugins (~/Library/Application Support/Fishbots/plugins): their logs
+plugin() {
+  logs="$HOME/Library/Logs/Fishbots/plugins"
+  case "$1" in
+    log)
+      [ -n "$2" ] || { echo "usage: fishbots plugin log <name> [lines]   (e.g. github.5m.sh)" >&2; exit 2; }
+      f="$logs/$2.log"
+      [ -f "$f" ] || { echo "fishbots: no log for $2 yet ($f)"; ls "$logs" 2>/dev/null | sed 's/\.log$//' | sed 's/^/  /'; exit 1; }
+      tail -n "${3:-40}" "$f" ;;
+    logs) echo "$logs"; ls -1 "$logs" 2>/dev/null ;;
+    *) sed -n '/^#   fishbots plugin log/,/^#   fishbots plugin logs/p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  esac
+}
+
 skill() {
   case "$1" in
     install)
@@ -197,6 +214,7 @@ case "$cmd" in
   show)  curl -s -m 2 "$URL/state" || { echo "fishbots: is the app running?" >&2; exit 1; } ;;
   pack)  pack "$@" ;;
   agent) agent "$@" ;;
+  plugin) plugin "$@" ;;
   skill) skill "$@" ;;
-  *)     sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *)     sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

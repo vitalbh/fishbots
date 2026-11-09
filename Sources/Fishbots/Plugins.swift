@@ -6,6 +6,8 @@ import AppKit
 ///   is a protocol JSON. Entities that disappear from one run to the next leave the aquarium.
 /// - `name.sh` (no interval) keeps running. Each line is applied right away, and if the plugin exits it is restarted.
 /// Only executable files run. The folder is rescanned every 20 s.
+/// Each plugin has a log in ~/Library/Logs/Fishbots/plugins/<name>.log: every run (exit code, its whole stderr) and
+/// every output line the protocol rejected, with why (`fishbots plugin log <name>`, or "Ver log" in the menu).
 final class Plugins {
     struct RunState {
         var lastRun: Date?
@@ -30,6 +32,48 @@ final class Plugins {
         try? FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
         sync()
         scan = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in self?.sync() }
+    }
+
+    // MARK: logs
+
+    static var logFolder: URL {
+        FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs/Fishbots/plugins", isDirectory: true)
+    }
+    static func logFile(_ name: String) -> URL { logFolder.appendingPathComponent(name + ".log") }
+
+    private static let logQueue = DispatchQueue(label: "fishbots.plugin-logs")
+    private static let stamp: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; return f }()
+
+    /// Appends to the plugin's log (at most ~256 KB; the older half goes to <name>.log.1).
+    static func log(_ name: String, _ text: String) {
+        let line = text.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { stamp.string(from: Date()) + "  " + $0 }.joined(separator: "\n") + "\n"
+        logQueue.async {
+            let fm = FileManager.default
+            try? fm.createDirectory(at: logFolder, withIntermediateDirectories: true)
+            let url = logFile(name)
+            if let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? Int, size > 256_000 {
+                let old = URL(fileURLWithPath: url.path + ".1")
+                try? fm.removeItem(at: old)
+                try? fm.moveItem(at: url, to: old)
+            }
+            if let h = try? FileHandle(forWritingTo: url) {
+                h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+            } else {
+                try? Data(line.utf8).write(to: url)
+            }
+        }
+    }
+
+    /// Opens the plugin's log in Console.
+    static func openLog(_ name: String) {
+        let url = logFile(name)
+        if !FileManager.default.fileExists(atPath: url.path) { log(name, tr("(ainda sem nada no log)")) }
+        logQueue.async { DispatchQueue.main.async {
+            NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Console.app"),
+                                    configuration: NSWorkspace.OpenConfiguration())
+        } }
     }
 
     static func openFolder() {
@@ -126,14 +170,22 @@ final class Plugins {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.inProgress.remove(name)
-                let seen = self.apply(lines: data)
+                let (seen, rejected) = self.apply(lines: data)
                 // only remove the entities that disappeared if the run succeeded (otherwise a network failure would empty the aquarium)
                 if status == 0 {
                     for e in (self.entities[name] ?? []).subtracting(seen) { self.remove(e) }
                     self.entities[name] = seen
                 }
-                let msg = String(decoding: stderrData, as: UTF8.self).split(separator: "\n").last.map(String.init)
-                self.states[name] = RunState(lastRun: Date(), ok: status == 0, error: status == 0 ? nil : (msg ?? tr("saiu com %d", Int(status))))
+                let stderr = String(decoding: stderrData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                Self.log(name, "▶ " + (status == 0 ? "ok" : tr("saiu com %d", Int(status)))
+                         + (stderr.isEmpty ? "" : "\n" + stderr) + (rejected.isEmpty ? "" : "\n" + rejected.joined(separator: "\n")))
+                let msg = stderr.split(separator: "\n").last.map(String.init)
+                if status != 0 {
+                    self.states[name] = RunState(lastRun: Date(), ok: false, error: msg ?? tr("saiu com %d", Int(status)))
+                } else {
+                    // ran fine but some lines were refused: a warning, so it doesn't look healthy
+                    self.states[name] = RunState(lastRun: Date(), ok: rejected.isEmpty, error: rejected.first)
+                }
             }
         }
     }
@@ -142,9 +194,16 @@ final class Plugins {
 
     private func startContinuous(_ name: String, wait: TimeInterval) {
         let p = process(name)
-        let out = Pipe()
+        let out = Pipe(), err = Pipe()
         p.standardOutput = out
-        p.standardError = FileHandle.nullDevice
+        p.standardError = err
+        // its stderr goes to its log as it comes
+        err.fileHandleForReading.readabilityHandler = { h in
+            let d = h.availableData
+            guard !d.isEmpty else { return }
+            let t = String(decoding: d, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !t.isEmpty { Self.log(name, t) }
+        }
         var rest = Data()
         out.fileHandleForReading.readabilityHandler = { [weak self] h in
             let d = h.availableData
@@ -154,10 +213,18 @@ final class Plugins {
             let ready = rest[rest.startIndex...last]
             rest = Data(rest[rest.index(after: last)...])
             let copy = Data(ready)
-            DispatchQueue.main.async { _ = self?.apply(lines: copy) }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let rejected = self.apply(lines: copy).rejected
+                guard !rejected.isEmpty else { return }
+                Self.log(name, rejected.joined(separator: "\n"))
+                self.states[name] = RunState(lastRun: Date(), ok: false, error: rejected.last)
+            }
         }
         p.terminationHandler = { [weak self] proc in
             out.fileHandleForReading.readabilityHandler = nil
+            err.fileHandleForReading.readabilityHandler = nil
+            Self.log(name, "■ " + tr("saiu com %d; reinicio em breve", Int(proc.terminationStatus)))
             DispatchQueue.main.async {
                 guard let self, self.running[name] === proc else { return }
                 self.running[name] = nil
@@ -174,8 +241,10 @@ final class Plugins {
             try p.run()
             running[name] = p
             states[name] = RunState(lastRun: Date(), ok: true, error: nil)
+            Self.log(name, "▶ " + tr("iniciado (contínuo)"))
         } catch {
             states[name] = RunState(lastRun: Date(), ok: false, error: "\(error)")
+            Self.log(name, "✗ \(error)")
         }
     }
 
@@ -186,11 +255,19 @@ final class Plugins {
     // MARK: apply
 
     /// Applies each JSON line and returns the entities seen (that didn't leave).
-    private func apply(lines d: Data) -> Set<String> {
+    /// Applies each output line; returns what it shows and the lines the protocol refused ("linha 3: why · the line").
+    private func apply(lines d: Data) -> (seen: Set<String>, rejected: [String]) {
         var seen = Set<String>()
-        for line in d.split(separator: UInt8(ascii: "\n")) where !line.isEmpty {
+        var rejected: [String] = []
+        for (n, line) in d.split(separator: UInt8(ascii: "\n")).enumerated() where !line.isEmpty {
             let l = Data(line)
-            _ = TankProtocol.apply(l, at: tank)
+            let (status, answer) = TankProtocol.apply(l, at: tank)
+            if status != 200 {
+                let j = (try? JSONSerialization.jsonObject(with: answer)) as? [String: Any]
+                let why = (j?["errors"] as? [String])?.joined(separator: "; ") ?? (j?["error"] as? String) ?? "HTTP \(status)"
+                let text = String(decoding: l, as: UTF8.self)
+                rejected.append(tr("linha %d: %@", n + 1, why) + " · " + String(text.prefix(160)))
+            }
             if let raw = (try? JSONSerialization.jsonObject(with: l)) as? [String: Any],
                case let m = TankProtocol.normalized(raw),
                let f = m["source"] as? String, !State.isEnd(m["state"] as? String ?? "") {
@@ -199,7 +276,7 @@ final class Plugins {
                 if let g = m["gauge"] as? String, !(m["value"] is NSNull) { seen.insert("@gauge\t\(f)\t\(g)") }
             }
         }
-        return seen
+        return (seen, rejected)
     }
 
     private func remove(_ projectKey: String) {

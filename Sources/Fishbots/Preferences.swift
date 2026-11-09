@@ -19,6 +19,7 @@ final class Prefs: ObservableObject {
         var volume: () -> Double
         var setVolume: (Double) -> Void
         var applyTheme: () -> Void
+        var openThemePicker: () -> Void
         var applyLanguage: (String) -> Void
         var reloadAgents: () -> Void
         /// The fish take their kind again (after choosing an agent's fish).
@@ -198,8 +199,12 @@ private struct LookTab: View {
         let a = prefs.a
         Form {
             Section(tr("Cena")) {
-                Picker(tr("Tema"), selection: prefs.bind({ Themes.current.id }, { Themes.current = Themes.named($0); a.applyTheme() })) {
-                    ForEach(Themes.all, id: \.id) { Text($0.displayName).tag($0.id) }
+                // the theme window shows each one with its picture and what it brings (a list of names didn't)
+                LabeledContent(tr("Tema")) {
+                    HStack {
+                        Text(Themes.current.displayName).foregroundStyle(.secondary)
+                        Button(tr("Escolher tema…")) { a.openThemePicker() }
+                    }
                 }
                 Toggle(tr("Aurora de fundo"), isOn: prefs.flag("auroraBackground", default: true))
                 Toggle(tr("Vestir presenças e peixes com o tema"), isOn: prefs.flag("dressByTheme", default: true))
@@ -339,6 +344,7 @@ private struct ExtrasTab: View {
                         Text(p.name)
                         Spacer()
                         Text(p.detail).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                        Button(tr("Ver log")) { Plugins.openLog(p.name) }.controlSize(.small)
                     }
                 }
                 Button(tr("Abrir a pasta de plugins")) { Plugins.openFolder() }
@@ -372,12 +378,14 @@ final class PreferencesWindow {
     private let prefs: Prefs
 
     init(_ a: Prefs.Actions) { prefs = Prefs(a) }
+    /// Something changed outside the window (a theme chosen in the themes window): show it.
+    func refresh() { prefs.refresh() }
 
     func show(tab: Int? = nil) {
         if let tab { prefs.tab = tab }
         if window == nil {
             let host = NSHostingController(rootView: PrefsView(prefs: prefs))
-            let w = NSWindow(contentViewController: host)
+            let w = EscClosingWindow(contentViewController: host)
             w.styleMask = [.titled, .closable]
             w.isReleasedWhenClosed = false
             // size it before placing it: otherwise SwiftUI grows it upward after centering, and the title bar
