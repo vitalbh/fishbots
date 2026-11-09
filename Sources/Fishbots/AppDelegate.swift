@@ -1402,10 +1402,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let hourColors = d.object(forKey: "hourColors") as? Bool ?? true
         // the quake also moves the background (the sprites move in Tank.sprites)
         let u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
-                         gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? Tank.grade(hour: hourNow(), sky: Themes.current.sky ?? Sky()) : [1, 1, 1, 0],
+                         gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? (Themes.current.sky ?? Sky()).grade(hour: hourNow()) : [1, 1, 1, 0],
                          scene: [tank.sceneGauge("waves") ?? 0, tank.sceneGauge("rain") ?? 0,
                                  tank.sceneGauge("temperature") ?? 0.5, tank.sceneGauge("fog") ?? 0],
-                         sky: Tank.sky(hour: hourNow(), sky: Themes.current.sky ?? Sky()),
+                         sky: (Themes.current.sky ?? Sky()).disc(hour: hourNow()),
                          flashColor: SIMD4(tank.scene.flashColor, 0))
         visual.size = tank.size
         if visual.sway == nil {

@@ -10,7 +10,7 @@ mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 swiftc -O -swift-version 5 -module-name FishbotsSaver -emit-library -Xlinker -bundle \
   -target "$(uname -m)-apple-macos15.0" \
   -o "$OUT/Contents/MacOS/FishbotsSaver" \
-  $SRC/Renderer.swift $SRC/Shaders.swift $SRC/Tank.swift $SRC/Motifs.swift $SRC/Synth.swift $SRC/Visual.swift $SRC/Fauna.swift $SRC/Scene.swift $SRC/Env.swift $SRC/Theme.swift $SRC/Visualizers.swift $SRC/FishKinds.swift $SRC/ToolBehaviors.swift $SRC/PackFauna.swift $SRC/Packs.swift $SRC/Generator.swift $SRC/L10n.swift $SRC/L10nEnglish.swift \
+  $SRC/Renderer.swift $SRC/Shaders.swift $SRC/Tank.swift $SRC/Fish.swift $SRC/Math.swift $SRC/Sky.swift $SRC/Motifs.swift $SRC/Synth.swift $SRC/Visual.swift $SRC/Fauna.swift $SRC/Scene.swift $SRC/Env.swift $SRC/Theme.swift $SRC/Visualizers.swift $SRC/FishKinds.swift $SRC/ToolBehaviors.swift $SRC/PackFauna.swift $SRC/Packs.swift $SRC/Generator.swift $SRC/L10n.swift $SRC/L10nEnglish.swift \
   Saver/FishbotsSaver.swift \
   -framework ScreenSaver -framework MetalKit -framework Metal -framework AppKit -framework AVFoundation
 cat > "$OUT/Contents/Info.plist" <<PLIST

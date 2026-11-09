@@ -219,10 +219,10 @@ final class FishbotsSaverView: ScreenSaverView {
         if !isPreview { updateLabels() }
         renderer?.weeds = tank.weedUniforms()
         if let r = renderer { tank.shaderTime = r.shaderTime }
-        return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Tank.grade(hour: h),
+        return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Sky().grade(hour: h),
                          scene: [tank.sceneGauge("waves") ?? 0, tank.sceneGauge("rain") ?? 0,
                                  tank.sceneGauge("temperature") ?? 0.5, tank.sceneGauge("fog") ?? 0],
-                         sky: Tank.sky(hour: h)),
+                         sky: Sky().disc(hour: h)),
                 visual.sprites() + tank.sprites())
     }
 

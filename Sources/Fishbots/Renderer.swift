@@ -12,11 +12,11 @@ struct Uniforms {
     var gaze: SIMD2<Float> = .zero
     /// Lightning (the scene's effect): how bright the water is, 0…1.
     var flash: Float = 0
-    /// The hour's color (Tank.grade): rgb multiplies the image, w is how much moonlight (the rays turn blue).
+    /// The hour's color (Sky.grade): rgb multiplies the image, w is how much moonlight (the rays turn blue).
     var grade: SIMD4<Float> = [1, 1, 1, 0]
     /// The scene's continuous controls, from gauges (docs/scene.md): waves, rain, water temperature (0.5 neutral), fog.
     var scene: SIMD4<Float> = [0, 0, 0.5, 0]
-    /// The sun or moon seen through the surface (Tank.sky): x (0…1), how strong, and its warmth (0 cold moon … 1 low sun).
+    /// The sun or moon seen through the surface (Sky.disc): x (0…1), how strong, and its warmth (0 cold moon … 1 low sun).
     var sky: SIMD4<Float> = [0.5, 0, 0, 0]
     /// The lightning's color.
     var flashColor: SIMD4<Float> = [0.55, 0.65, 0.85, 0]
