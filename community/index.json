@@ -4,7 +4,7 @@
     {
       "id": "koi",
       "name": "Lago japonês",
-      "version": "1.7",
+      "version": "1.8",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -43,7 +43,7 @@
     {
       "id": "coral",
       "name": "Recife de coral",
-      "version": "2.6",
+      "version": "2.7",
       "author": "Fishbots",
       "license": "MIT",
       "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -78,12 +78,12 @@
     {
       "id": "arctic",
       "name": "Ártico",
-      "version": "1.6",
+      "version": "1.7",
       "author": "Fishbots",
       "license": "MIT",
-      "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
+      "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo e um iceberg ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
       "descriptions": {
-        "en": "Under the ice: a cracked ice ceiling letting the light through, ice cliffs far away, schools of polar cod, a seal passing by, a rare narwhal, the frozen chest and a cold music of bells, with the aurora."
+        "en": "Under the ice: a cracked ice ceiling letting the light through, ice cliffs and an iceberg far away, schools of polar cod, a seal passing by, a rare narwhal, the frozen chest and a cold music of bells, with the aurora."
       },
       "names": {
         "en": "Arctic"
@@ -103,7 +103,7 @@
         "themes": 1,
         "styles": 1,
         "fish": 2,
-        "scenery": 5,
+        "scenery": 6,
         "fauna": 3,
         "presences": 4
       }

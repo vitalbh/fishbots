@@ -1331,7 +1331,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                          gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? Tank.grade(hour: hourNow(), sky: Themes.current.sky ?? Sky()) : [1, 1, 1, 0],
                          scene: [tank.sceneGauge("waves") ?? 0, tank.sceneGauge("rain") ?? 0,
                                  tank.sceneGauge("temperature") ?? 0.5, tank.sceneGauge("fog") ?? 0],
-                         sky: Tank.sky(hour: hourNow(), sky: Themes.current.sky ?? Sky()))
+                         sky: Tank.sky(hour: hourNow(), sky: Themes.current.sky ?? Sky()),
+                         flashColor: SIMD4(tank.scene.flashColor, 0))
         visual.size = tank.size
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))

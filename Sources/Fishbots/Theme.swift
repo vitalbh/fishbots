@@ -54,6 +54,12 @@ struct Theme {
     var foreground: SIMD3<Float>? = [0.02, 0.065, 0.065]
     /// Frost on the glass, growing in from the sides and corners (0: none … 1: a lot).
     var frost: Float = 0
+    /// The effects plugins ask for, the theme's way: a default color, or another effect in its place
+    /// ("effects": {"fireworks": "#ff9ec8", "lightning": {"as": "sparkle", "color": "#a0ffd0"}}).
+    struct EffectLook { var color: SIMD3<Float>?; var as_: String? }
+    var effects: [String: EffectLook] = [:]
+    /// How fish swim here ("*": every kind, or a kind's id), on top of each kind's own way.
+    var swim: [String: SwimTweak] = [:]
     /// The scene's voices, renamed: another built-in voice or a pack's sound, by the voice's name ("chime": "koto").
     var voices: [String: String] = [:]
     /// The seaweed's shapes ("weeds": {"shapes": ["reed", "blade"]}): blade, kelp, leafy, reed, ribbon (nil: the usual mix).
@@ -111,6 +117,15 @@ struct Theme {
         jellyfish = json["jellyfish"] as? Bool ?? true
         voices = json["voices"] as? [String: String] ?? [:]
         frost = max(0, min(1, (json["frost"] as? NSNumber)?.floatValue ?? 0))
+        for (kind, v) in json["swim"] as? [String: Any] ?? [:] {
+            if let o = v as? [String: Any] { swim[kind] = SwimTweak(json: o) }
+        }
+        for (name, v) in json["effects"] as? [String: Any] ?? [:] {
+            if let c = Theme.color(v) { effects[name] = EffectLook(color: [c.x, c.y, c.z], as_: nil); continue }
+            guard let o = v as? [String: Any] else { continue }
+            let c = Theme.color(o["color"])
+            effects[name] = EffectLook(color: c.map { [$0.x, $0.y, $0.z] }, as_: o["as"] as? String)
+        }
         if (json["foreground"] as? Bool) == false { foreground = nil }
         else if let c = Theme.color(json["foreground"]) { foreground = [c.x, c.y, c.z] }
         let shapeNames = ["blade": 0, "kelp": 1, "leafy": 2, "reed": 3, "ribbon": 4]
@@ -150,6 +165,8 @@ enum Themes {
             ["id": "classic", "name": "Aquário", "description": "O aquário de sempre: água azul, algas verdes, pedras, a ostra e o baú."],
             ["id": "abyss", "name": "Fundo do mar", "description": "Quase escuro, poucas plantas, um peixe-abissal com sua isca acesa perto do fundo, tubarões-martelo, timões enferrujados, garrafas cobertas de cracas, um cofre de navio, um escafandro antigo, um navio naufragado ao longe, peixes-lanterna à noite, e o peixe-lua e a baleia passando ao longe.", "visualizer": "constellation", "fauna": ["starfish", "snail", "lanternfish", "whale", "anglerfish", "sunfish"], "scenery": ["rock", "chest", "helmet", "wreck"],
              "looks": ["shark": "hammerhead", "helm": "rusty-helm", "bottle": "deep-bottle", "chest": "safe"],
+             "swim": ["*": ["speed": 0.75, "beat": 0.8]],
+             "effects": ["fireworks": "#7fffe0", "lightning": "#5fd8ff", "sparkle": "#9ff0ff", "ring": "#7fd0ff"],
              "water": ["deep": "#010309", "shallow": "#0a2440", "rays": "#2a4d6e", "raysStrength": 0.08,
                        "caustics": "#4a7fb0", "causticsStrength": 0.03, "surface": "#123a5c", "murk": "#0d1420"],
              "weeds": ["count": 5, "farCount": 8, "far": "#0b1f33", "low": "#06202a", "high": "#1d5a6b"],

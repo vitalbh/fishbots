@@ -4,7 +4,7 @@
   "names": {
     "en": "Coral reef"
   },
-  "version": "2.6",
+  "version": "2.7",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
@@ -117,6 +117,11 @@
       "voices": {
         "kalimba": "marimba",
         "chime": "marimba"
+      },
+      "effects": {
+        "fireworks": "#ffb347",
+        "sparkle": "#fff3a0",
+        "ink": "#2a0f3a"
       }
     }
   ],
@@ -197,7 +202,12 @@
         "en": "clownfish"
       },
       "metal": "clownfish.metal",
-      "function": "draw_clownfish"
+      "function": "draw_clownfish",
+      "swim": {
+        "speed": 0.9,
+        "beat": 1.5,
+        "bob": 0.12
+      }
     },
     {
       "id": "mandarin",
@@ -206,7 +216,15 @@
         "en": "mandarinfish"
       },
       "metal": "mandarin.metal",
-      "function": "draw_coral_mandarin"
+      "function": "draw_coral_mandarin",
+      "swim": {
+        "speed": 0.6,
+        "depth": [
+          0.1,
+          0.3
+        ],
+        "beat": 1.8
+      }
     }
   ],
   "sounds": [

@@ -14,6 +14,69 @@ struct FishKind {
     let call: String
     /// The pack it came from (nil: built-in).
     var pack: String? = nil
+    /// How it swims (a pack fish's "swim"; the built-in kinds swim the usual way).
+    var swim = FishSwim()
+}
+
+/// A theme's touch on how fish swim (the theme's "swim": {"*": {...}, "<kind>": {...}}): speed and beat multiply
+/// the kind's own, the rest replaces it. The quad stays the kind's (it's set when the shader compiles).
+struct SwimTweak {
+    var speed: Float?, beat: Float?, bob: Float?
+    var depth: ClosedRange<Float>?
+    var upright: Bool?
+
+    init(json j: [String: Any]) {
+        let s = FishSwim(json: j)
+        if j["speed"] != nil { speed = s.speed }
+        if j["beat"] != nil { beat = s.beat }
+        if j["bob"] != nil { bob = s.bob }
+        depth = s.depth
+        upright = j["upright"] as? Bool
+    }
+
+    func applied(to s: FishSwim) -> FishSwim {
+        var s = s
+        if let speed { s.speed *= speed }
+        if let beat { s.beat *= beat }
+        if let bob { s.bob = bob }
+        if let depth { s.depth = depth }
+        if let upright { s.upright = upright }
+        return s
+    }
+}
+
+/// How a kind of fish swims: its drawing's proportion, its pace, where it keeps, and its body language.
+struct FishSwim {
+    /// The quad, relative to the size (width, height): c goes -1…1 over it.
+    var extent: SIMD2<Float> = [1.25, 0.8]
+    /// Multiplies its speed (an eel 0.6, a darting fish 1.4).
+    var speed: Float = 1
+    /// The band it keeps to when it's free to roam (0…1 from the bottom; nil: the usual heights).
+    var depth: ClosedRange<Float>? = nil
+    /// Doesn't tilt with its course (a seahorse stays upright).
+    var upright = false
+    /// Bobs up and down as it goes, in body sizes.
+    var bob: Float = 0
+    /// Multiplies how fast phase (the tail, the body's wave) runs.
+    var beat: Float = 1
+
+    init() {}
+    /// From a pack fish's "swim" object (anything missing keeps the usual).
+    init(json j: [String: Any]?) {
+        guard let j else { return }
+        func num(_ k: String) -> Float? { (j[k] as? NSNumber)?.floatValue }
+        if let e = (j["extent"] as? [NSNumber])?.map(\.floatValue), e.count == 2 {
+            extent = [max(0.2, min(4, e[0])), max(0.2, min(4, e[1]))]
+        }
+        if let v = num("speed") { speed = max(0.1, min(3, v)) }
+        if let d = (j["depth"] as? [NSNumber])?.map(\.floatValue), d.count == 2 {
+            let lo = max(0.05, min(0.95, min(d[0], d[1]))), hi = max(0.05, min(0.95, max(d[0], d[1])))
+            depth = lo...hi
+        }
+        upright = j["upright"] as? Bool ?? false
+        if let v = num("bob") { bob = max(0, min(2, v)) }
+        if let v = num("beat") { beat = max(0.1, min(4, v)) }
+    }
 }
 
 /// The registry of fish kinds. A fish stores its kind as an index into `all` (that's what goes to the shader).
@@ -116,6 +179,12 @@ enum FishKinds {
         gen += "\n\nfloat4 draw_kind(int k, float2 c, float phase, float glow, float4 col, float4 extra, float4 aux) {\n    switch (k) {\n"
         for (i, k) in all.enumerated() { gen += "    case \(i): return \(k.call);\n" }
         gen += "    default: return \(all[0].call);\n    }\n}\n"
+        // each kind's quad (a pack fish's "swim": "extent")
+        gen += "\nfloat2 fish_extent(int k) {\n    switch (k) {\n"
+        for (i, k) in all.enumerated() where k.swim.extent != FishSwim().extent {
+            gen += "    case \(i): return float2(\(k.swim.extent.x), \(k.swim.extent.y));\n"
+        }
+        gen += "    default: return float2(1.25, 0.8);\n    }\n}\n"
         // the packs' scenery: their functions and a dispatch on their index (extra.z)
         // (a file shared by several pieces, or by a fish, goes in once)
         var seen = Set(all.compactMap(\.source))

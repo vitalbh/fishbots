@@ -69,10 +69,9 @@ with another `if` chain (`draw_fish`, `draw_octo`, `draw_ray`).
 
 ```swift
 struct FishKind {
-    let id: String              // "neon", "octopus", "stingray"…
-    let metal: String           // a Metal function: float4 draw_<id>(float2 c, float phase, float glow, float4 col, float4 extra)
-    let extent: SIMD2<Float>    // quad size relative to the fish size
-    let swim: SwimStyle         // speed, wiggle, depth preference
+    let id: String              // "oval", "octopus", "koi"…
+    let call: String            // the Metal call: a pack's float4 draw_<id>(float2 c, float phase, float glow, float4 col, float4 extra)
+    var swim: FishSwim          // the quad (extent), speed, depth band, beat, bob, upright (a pack fish's "swim", docs/packs.md)
 }
 ```
 
@@ -171,6 +170,12 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   Without it, the usual neons, tetras and silversides.
 - `jellyfish`: `false` leaves out the jellyfish that drifts around.
 - `frost`: 0…1, ice creeping in on the glass from the sides and corners, as if the tank were freezing (the arctic uses 0.6).
+- `effects`: the effects plugins ask for, the theme's way: a default color (`{"fireworks": "#ff9ec8"}`), or another
+  effect in its place (`{"lightning": {"as": "sparkle", "color": "#a0ffd0"}}`). A color the plugin sends still wins.
+  The quake's dust takes the theme's sand.
+- `swim`: how fish swim here, on top of each kind's own way: `{"*": {"speed": 0.8, "beat": 0.85}, "puffer": {"bob": 0.2}}`.
+  `"*"` is every kind (built-in ones too), a kind's id just that kind. `speed` and `beat` multiply; `depth`, `bob` and
+  `upright` replace. The quad (`extent`) stays the kind's.
 - `voices`: the scene's voices (what presences and effects sound like, docs/scene.md) given another voice or one of the
   packs' recorded sounds: `{"chime": "koto", "kalimba": "marimba"}`. The crossing school effect uses the theme's first
   school.

@@ -80,6 +80,7 @@ let english: [String: String] = [
     "baleia": "whale",
     "garoupa": "grouper",
     "peixe-abissal": "anglerfish",
+    "%@: o tema tem um efeito que não existe: %@": "%@: the theme has an effect that doesn't exist: %@",
     "peixe-lua": "ocean sunfish",
     "ainda não rodou": "hasn't run yet",
     "rodou %@": "ran %@",

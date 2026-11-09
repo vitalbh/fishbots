@@ -175,7 +175,7 @@ enum PackPreview {
             let i = FishKinds.index(of: k.id)
             for (n, f) in frames.enumerated() {
                 out.append(Cell(call: "draw_kind(\(i), c, \(f), 0.0, float4(0.92, 0.32, 0.2, 1), float4(1, 0, \(i), 0.2), float4(0))",
-                                aspect: 1.25 / 0.8, label: n == 0 ? "\(k.id)" : "\(f)", sand: false))
+                                aspect: k.swim.extent.x / k.swim.extent.y, label: n == 0 ? "\(k.id)" : "\(f)", sand: false))
             }
         }
         for (i, k) in SceneryKinds.all.enumerated() {
@@ -201,12 +201,12 @@ enum PackPreview {
             let i = FishKinds.index(of: k.id)
             for v in 0..<4 {
                 out.append(Cell(call: "draw_kind(\(i), c, 1.3, 0.0, \(palette[v]), float4(1, \(v), \(i), 0.2), float4(0.5, 0.2, 0, 0))",
-                                aspect: 1.25 / 0.8, label: "\(k.id) · pattern \(v)", sand: false))
+                                aspect: k.swim.extent.x / k.swim.extent.y, label: "\(k.id) · pattern \(v)", sand: false))
             }
             out.append(Cell(call: "draw_kind(\(i), c, 1.3, 0.0, \(palette[0]), float4(1, 0, \(i), 2.2), float4(0))",
-                            aspect: 1.25 / 0.8, label: "\(k.id) · asleep", sand: false))
+                            aspect: k.swim.extent.x / k.swim.extent.y, label: "\(k.id) · asleep", sand: false))
             out.append(Cell(call: "draw_kind(\(i), c, 1.3, 0.8, \(palette[1]), float4(1, 0, \(i), 0.2), float4(0))",
-                            aspect: 1.25 / 0.8, label: "\(k.id) · glowing", sand: false))
+                            aspect: k.swim.extent.x / k.swim.extent.y, label: "\(k.id) · glowing", sand: false))
         }
         for (i, k) in SceneryKinds.all.enumerated() {
             let col = "float4(\(k.color.x), \(k.color.y), \(k.color.z), 1)"

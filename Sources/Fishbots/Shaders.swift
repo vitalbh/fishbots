@@ -16,6 +16,7 @@ struct Uniforms {
     float4 grade;     // the hour's color (rgb) and moonlight (w)
     float4 scene;     // continuous controls from gauges: waves, rain, temperature (0.5 neutral), fog
     float4 sky;       // the sun or moon through the surface: x, strength, warmth
+    float4 flashColor; // the lightning's color (the plugin's or the theme's)
 };
 
 // Water temperature and fog, applied to everything (background and sprites).
@@ -360,7 +361,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     col += (1.0 - smoothstep(0.0, 0.03, abs((uv.x * 0.6 + uv.y) - 1.25))) * 0.035;
     col += float3(0.6, 0.06, 0.05) * u.alert * (1.0 - vig) * 0.9;
     // lightning: a cold flash, stronger near the surface
-    col += float3(0.55, 0.65, 0.85) * u.flash * (0.45 + 0.55 * uv.y);
+    col += u.flashColor.rgb * u.flash * (0.45 + 0.55 * uv.y);
 
     col = scene_tint(col, 1.0, u);
     Frag2 o;
@@ -396,13 +397,15 @@ float2 presence_extent(int kind) {
     }
 }
 
+float2 fish_extent(int k);           // each kind of fish's quad (generated with the kinds)
+
 vertex SpOut sprite_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
                            const device Sprite* sp [[buffer(0)]], constant Uniforms& u [[buffer(1)]]) {
     float2 corners[6] = { float2(-1, -1), float2(1, -1), float2(-1, 1), float2(-1, 1), float2(1, -1), float2(1, 1) };
     Sprite s = sp[iid];
     float2 c = corners[vid];
     float2 ext;
-    if (s.kind < 0.5) ext = float2(1.25, 0.8) * s.size * (int(s.extra.z + 0.5) == LANTERN_KIND ? LANTERN_ROOM : 1.0); // the lanternfish: room for its light
+    if (s.kind < 0.5) ext = fish_extent(int(s.extra.z + 0.5)) * s.size * (int(s.extra.z + 0.5) == LANTERN_KIND ? LANTERN_ROOM : 1.0); // the lanternfish: room for its light
     else if (s.kind > 34.5) ext = s.aux.xy * s.size;                  // a pack's scenery or creature: its own extent
     else if (s.kind > 33.5) ext = float2(s.size);                     // coral
     else if (s.kind > 32.5) ext = float2(s.size);                     // mote (marine snow)

@@ -55,8 +55,9 @@ float a = 1.0 - smoothstep(-aa, aa, d);
 return float4(color * a, a);
 ```
 
-- **Fish** `float4 f(float2 c, float phase, float glow, float4 col, float4 extra)`: quad is 1.25 × 0.8 of the size;
-  use `float2 p = c * float2(1.25, 0.8)` for square units. Faces +x (the app mirrors it). `phase` = swim cycle;
+- **Fish** `float4 f(float2 c, float phase, float glow, float4 col, float4 extra)`: quad is 1.25 × 0.8 of the size
+  (or `"swim": {"extent": [w, h]}`); use `float2 p = c * float2(1.25, 0.8)` for square units. `"swim"` also takes
+  `speed` (×, 0.1…3), `depth` ([lo, hi] from the bottom), `beat` (× phase rate), `bob` (body sizes), `upright`. Faces +x (the app mirrors it). `phase` = swim cycle;
   `col.rgb` = the project's color, `col.a` = opacity (multiply it in); `extra.y` = pattern (0…7) + cut × 8 (offer
   variety by `int(extra.y + 0.5) % 4`); `extra.w` = fullness 0…1, + 2 while asleep (close the eye); `glow` 0…1:
   add `col.rgb * glow * 0.45` and an outer halo.
@@ -141,6 +142,10 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
 - **Schools and jellyfish:** `"schools": [{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}]`
   (up to 3: middle, high, low and far) replaces the tropical neons; `"jellyfish": false` removes the drifting one.
 - **Frost:** `"frost": 0.6` (0…1) grows ice on the glass from the sides and corners.
+- **Effects:** `"effects": {"fireworks": "#ff9ec8", "lightning": {"as": "sparkle", "color": "#a0ffd0"}}`: default
+  colors for the effects plugins send, or another effect in its place.
+- **Swim:** `"swim": {"*": {"speed": 0.8, "beat": 0.85}, "oval": {"bob": 0.2}}` on a theme tunes how every kind
+  (built-in too) or one kind swims there: speed and beat multiply, depth/bob/upright replace.
 - **Presences** (`"presences"`): kinds plugins can send (`"kind": "<id>"`), with `motion` (swim drift hover walk sit
   float), `size`, `extent`, `band`, `meter`, `sound`. Function like a creature's; `extra.y` is the value (0…1) and
   `extra.w` the state (0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born): show it (color, light,

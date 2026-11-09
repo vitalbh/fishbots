@@ -1870,7 +1870,7 @@ final class Tank {
                     }
                 }
             case .busy:
-                target = wanderPoint(f, yRange: (h * 0.4, h * 0.85), every: 2.5...5)
+                target = wanderPoint(f, yRange: band(f, 0.4, 0.85), every: 2.5...5)
                 speed = 75 * (1 + min(1, Float(f.toolTimes.count) / 15)) * (1 - f.fat * 0.35)   // pace; a fat fish swims slowly
                 speed *= burst(f)
             case .error:
@@ -1879,7 +1879,7 @@ final class Tank {
                 target = [f.pos.x + sinf(Float(time) * 0.4 + Float(f.phase)) * 10, max(background, f.pos.y - 18)]
                 speed = 10
             case .alert:
-                target = wanderPoint(f, yRange: (h * 0.25, h * 0.8), every: 1.5...3)
+                target = wanderPoint(f, yRange: band(f, 0.25, 0.8), every: 1.5...3)
                 speed = 55
             case .done where time - f.since < 2.5:
                 // comes a bit closer to the glass to knock: almost stops in place and grows a tiny bit
@@ -1896,7 +1896,7 @@ final class Tank {
                     target = [f.pos.x + sinf(Float(time) * 0.2 + Float(f.phase)) * 6, size.y * sand(f.pos.x / max(1, w)) + f.size * 0.85]
                     speed = 14
                 } else {
-                    target = wanderPoint(f, yRange: (h * 0.14, h * 0.36), every: 5...10)
+                    target = wanderPoint(f, yRange: band(f, 0.14, 0.36), every: 5...10)
                     speed = 24 * burst(f)
                     // a sibling from the same project also idle: they swim side by side (the newer one alongside the older)
                     if let mate = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && $0.projectKey == f.projectKey
@@ -1921,6 +1921,11 @@ final class Tank {
                 speed = 150
             }
         }
+
+        // its kind's pace and bob
+        let sw = swim(f)
+        speed *= sw.speed
+        if sw.bob > 0 { target.y += sinf(Float(time) * 1.3 + Float(f.phase)) * sw.bob * f.size }
 
         // the scenery: they go around it instead of through it
         if !f.leaving && f.jumpPhase == 0 {
@@ -1959,8 +1964,27 @@ final class Tank {
         let speedNow = simd_length(f.vel)
         let push = max(0, (speedNow - f.lastSpeed) / max(dt, 0.001))
         f.lastSpeed = speedNow
-        f.tail += dt * (4 + speedNow * 0.1 + min(push * 0.04, 10))
+        f.tail += dt * (4 + speedNow * 0.1 + min(push * 0.04, 10)) * sw.beat
         f.glow *= expf(-dt * 2.5)
+    }
+
+    /// How this fish's kind swims (the kind it's drawn as, dressed by the theme or not).
+    /// (The theme touches it: "*" for every kind, then the kind's own entry.)
+    func swim(_ f: Fish) -> FishSwim {
+        guard FishKinds.all.indices.contains(f.species) else { return FishSwim() }
+        let k = FishKinds.all[f.species]
+        var s = k.swim
+        let tweaks = Themes.current.swim
+        if tweaks.isEmpty { return s }
+        if let t = tweaks["*"] { s = t.applied(to: s) }
+        if let t = tweaks[k.id] { s = t.applied(to: s) }
+        return s
+    }
+
+    /// The heights a free fish roams: its kind's band if it has one, otherwise the usual (fractions of the height).
+    private func band(_ f: Fish, _ lo: Float, _ hi: Float) -> (Float, Float) {
+        let d = swim(f).depth ?? lo...hi
+        return (size.y * d.lowerBound, size.y * d.upperBound)
     }
 
     private func wanderPoint(_ f: Fish, yRange: (Float, Float), every: ClosedRange<Double>) -> SIMD2<Float> {
@@ -2132,7 +2156,8 @@ final class Tank {
             }
             let octopus = f.kindID == "octopus"      // the octopus doesn't tilt or mirror: always stays upright
             let asleep = sleeping(f)
-            var tilt = octopus ? 0 : max(-0.5, min(0.5, atan2f(dy, abs(dx))))
+            let upright = swim(f).upright
+            var tilt = octopus || upright ? 0 : max(-0.5, min(0.5, atan2f(dy, abs(dx))))
             if f.state == .error && !octopus && !f.decor { tilt = -0.6 + 0.08 * sinf(Float(time) * 0.7) }   // sick: nose down
             if asleep && !octopus { tilt = 0 }
             // chatting: facing each other

@@ -4,7 +4,7 @@
   "names": {
     "en": "Japanese pond"
   },
-  "version": "1.7",
+  "version": "1.8",
   "author": "Fishbots",
   "license": "MIT",
   "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
@@ -127,6 +127,11 @@
         "chime": "koto",
         "glass": "koto",
         "kalimba": "koto"
+      },
+      "effects": {
+        "fireworks": "#ff9ec8",
+        "sparkle": "#ffd6e6",
+        "ring": "#e8f5c8"
       }
     }
   ],
@@ -220,7 +225,15 @@
         "en": "koi carp"
       },
       "metal": "koi.metal",
-      "function": "draw_koi"
+      "function": "draw_koi",
+      "swim": {
+        "speed": 0.7,
+        "depth": [
+          0.12,
+          0.5
+        ],
+        "beat": 0.65
+      }
     },
     {
       "id": "ryukin",

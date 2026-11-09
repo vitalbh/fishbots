@@ -18,7 +18,7 @@ The code is in `Sources/Fishbots/Scene.swift` (simulation and sprites), `TankPro
 | `effect` | the effect's name (table below) |
 | `label` | optional: shown at the top for a few seconds, with the effect's icon |
 | `x`, `y` | optional: where (0…1, from the left and from the bottom). Default: somewhere in the middle |
-| `color` | optional: `"#rrggbb"`, for the effects that have a color |
+| `color` | optional: `"#rrggbb"`, for the effects that have a color (without it, the theme's color for that effect, if it has one) |
 | `sound` | optional: another voice (see **Sound**), or `"none"` for silence |
 
 | Effect | What happens |

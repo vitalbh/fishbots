@@ -285,7 +285,7 @@ enum Packs {
                 continue
             }
             FishKinds.register(FishKind(id: id, name: localName(f, id), source: src, call: "\(fn)(c, phase, glow, col, extra)",
-                                        pack: pack.id))
+                                        pack: pack.id, swim: FishSwim(json: f["swim"] as? [String: Any])))
             pack.contents.append(tr("peixe %@", localName(f, id)))
         }
         for sc in json["scenery"] as? [[String: Any]] ?? [] {
@@ -375,6 +375,15 @@ enum Packs {
             k.extent = ext
             Scene.register(k)
             pack.contents.append(tr("presença %@", localName(pr, id)))
+        }
+        // the themes' effects: known names, and "as" one of them
+        for t in json["themes"] as? [[String: Any]] ?? [] {
+            for (k, v) in t["effects"] as? [String: Any] ?? [:] {
+                let other = (v as? [String: Any])?["as"] as? String
+                for n in [k] + (other.map { [$0] } ?? []) where !Scene.effects.contains(n) {
+                    problems.append(tr("%@: o tema tem um efeito que não existe: %@", name, n))
+                }
+            }
         }
         // the themes' looks for presences: the drawing must be a pack's presence that moves the same way
         for t in json["themes"] as? [[String: Any]] ?? [] {

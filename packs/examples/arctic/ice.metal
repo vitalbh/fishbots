@@ -129,3 +129,54 @@ float4 draw_arctic_crystal(float2 c, float t, float glow, float4 col, float4 ext
     float3 c3 = mix(float3(0.75, 0.88, 1.0), float3(1.0), smoothstep(0.2, 0.9, r)) * (0.7 + 0.3 * col.rgb);
     return float4(c3 * a * col.a, a * col.a);
 }
+
+// The underside of an iceberg, coming down out of the ice ceiling: a huge irregular mass of ice, white-blue up top
+// where the light comes through, with melt grooves and soft facets, deeper blue and fading toward its tip. Anchored at
+// the surface (the water line is at p.y = 0.12 in size units); its top blends into the ceiling.
+float4 draw_arctic_iceberg(float2 c, float t, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.3, 2.0);
+    float top = -0.12, depth = 1.85;                                     // starts under the ceiling
+    float k = clamp((top - p.y) / depth, 0.0, 1.0);                       // 0 at the top, 1 at the tip
+    // the outline: each side its own lumps; wide up top, a bulge, then a blunt off-center tip
+    float base = 1.12 * pow(1.0 - k, 0.75) + 0.06;
+    float left = base * (0.8 + 0.35 * vnoise(float2(k * 3.2, 1.3)) + 0.18 * (vnoise(float2(k * 7.0, 3.3)) - 0.5));
+    float right = base * (0.78 + 0.4 * vnoise(float2(k * 2.7, 6.1)) + 0.2 * (vnoise(float2(k * 6.5, 8.2)) - 0.5));
+    float cx = 0.1 * sin(k * 3.0) - 0.05;
+    float d = p.x < cx ? (cx - left) - p.x : p.x - (cx + right);
+    d = max(d, -p.y - (depth - top) - 0.02 + 0.08 * vnoise(float2(p.x * 4.0, 3.0)));
+    float aa = fwidth(d) * 2.5 + 0.01;                                     // soft: it's far away
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    a *= smoothstep(top + 0.3, top - 0.05, p.y);                          // melts into the ceiling up top
+    if (a <= 0.001) return float4(0.0);
+    // soft facets: a voronoi of planes, each lit a little differently, their edges barely there
+    float2 g = p * float2(1.6, 2.2) + float2(0.0, vnoise(p * 2.0) * 0.6);
+    float2 cell = floor(g);
+    float best = 1e3, second = 1e3, id = 0.0;
+    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+        float2 o = cell + float2(i, j);
+        float2 pt = o + float2(hash21(o), hash21(o + 4.7)) * 0.8 + 0.1;
+        float dd = length(g - pt);
+        if (dd < best) { second = best; best = dd; id = hash21(o + 9.1); }
+        else if (dd < second) { second = dd; }
+    }
+    float edge = 1.0 - smoothstep(0.0, 0.05, second - best);
+    float3 hi = float3(0.8, 0.93, 0.99), deep = float3(0.1, 0.32, 0.52);
+    float3 c3 = mix(hi, deep, smoothstep(0.0, 0.85, k));
+    c3 *= 0.9 + 0.16 * id;
+    c3 += float3(0.6, 0.85, 1.0) * edge * 0.04 * (1.0 - k);
+    // melt grooves running down it, and the light from the surface rippling over the upper part
+    float groove = 0.5 + 0.5 * sin(p.x * 11.0 + vnoise(float2(p.x * 3.0, p.y * 0.8)) * 4.0);
+    c3 *= 0.92 + 0.12 * groove;
+    float caust = sin(p.x * 6.0 + t * 0.7) * sin(p.y * 4.0 - t * 0.5 + p.x * 1.7);
+    c3 += float3(0.7, 0.9, 1.0) * max(0.0, caust) * 0.1 * (1.0 - k);
+    // darker toward its far side, air bubbles caught in the ice, a bright rim where it meets the water
+    c3 *= 0.85 + 0.25 * smoothstep(0.8, -0.8, p.x - cx);
+    float bub = (1.0 - smoothstep(0.08, 0.16, length(fract(p * 13.0) - 0.5))) * step(0.94, hash21(floor(p * 13.0) + 2.3));
+    c3 = mix(c3, float3(0.95, 1.0, 1.0), bub * 0.45 * (1.0 - k));
+    c3 += float3(0.75, 0.92, 1.0) * (1.0 - smoothstep(0.0, 0.06, -d)) * 0.3 * (1.0 - 0.6 * k);
+    c3 *= col.rgb;
+    // far behind: the water between takes its color and some of its light
+    c3 = mix(c3, float3(0.12, 0.28, 0.42) * col.rgb, 0.4);
+    a *= mix(0.7, 0.32, k) * (1.0 - smoothstep(0.85, 1.0, k) * 0.6);
+    return float4(c3 * a, a);
+}

@@ -46,11 +46,11 @@ return float4(color * a, a);
 
 | | Signature | `c` | Notes |
 |---|---|---|---|
-| Fish | `(float2 c, float phase, float glow, float4 col, float4 extra)` | quad 1.25 × 0.8 of the size, facing +x | `phase`: the swim; `col`: the project's color; `extra.y`: pattern (0…7) + cut × 8; `extra.w`: fullness, + 2 asleep |
+| Fish | `(float2 c, float phase, float glow, float4 col, float4 extra)` | quad 1.25 × 0.8 of the size (or its `swim.extent`), facing +x | `phase`: the swim; `col`: the project's color; `extra.y`: pattern (0…7) + cut × 8; `extra.w`: fullness, + 2 asleep |
 | Scenery | `(float2 c, float t, float glow, float4 col, float4 extra)` | `extent` × size; on the sand, c.y = -1 is the sand | `t`: seconds; `glow`: at night if `glowAtNight`; `extra.y`: seed per copy; `extra.w`: night |
 | Creature | `(float2 c, float phase, float glow, float4 col, float4 extra)` | `extent` × size, facing +x | `phase`: runs while it moves; `extra.y`: seed; `extra.w`: 1 moving, 0 resting |
 
-For square units, scale `c` by the quad's shape: `float2 p = c * float2(1.25, 0.8)` for a fish, `c * extent` (the
+For square units, scale `c` by the quad's shape: `float2 p = c * float2(1.25, 0.8)` for a fish (its `swim.extent` if it has one), `c * extent` (the
 numbers in pack.json) for scenery and creatures.
 
 Where the ground and the water are, in `c`: scenery on the sand and creatures that crawl, rest or perch stand at
@@ -74,6 +74,25 @@ Rules that keep a pack working:
   same name break both packs.
 - Stay inside the quad: what goes past ±1 is cut off with a straight edge. Fade glows out before the edge.
 - Several pieces can share one `.metal` file; it goes into the shader once.
+
+A fish can say how it swims with `"swim"` (everything optional):
+
+```json
+{ "id": "eel", "name": "moreia", "metal": "eel.metal", "function": "draw_eel",
+  "swim": { "extent": [2.2, 0.45], "speed": 0.6, "depth": [0.08, 0.3], "beat": 0.7, "bob": 0, "upright": false } }
+```
+
+- `extent`: the drawing's quad (width, height) relative to the size, instead of 1.25 × 0.8. A long eel, a tall
+  seahorse. `c` still goes -1…1 over it.
+- `speed`: multiplies its pace (0.1…3): 0.6 an unhurried koi, 1.4 a darting fish.
+- `depth`: the band it keeps to when free to roam, 0…1 from the bottom (`[0.08, 0.3]` near the sand). Without it, the
+  usual heights for each state.
+- `beat`: multiplies how fast `phase` runs (the tail, the body's wave).
+- `bob`: bobs up and down as it goes, in body sizes.
+- `upright`: doesn't tilt with its course (a seahorse, a sea angel).
+
+It follows the drawing: a theme that dresses `oval` as your fish also gives it your fish's way of swimming.
+A theme can tune it too, for every kind or one, built-in kinds included (`"swim"` on the theme, docs/extensions.md).
 
 ## More a pack can bring
 

@@ -18,6 +18,8 @@ struct Uniforms {
     var scene: SIMD4<Float> = [0, 0, 0.5, 0]
     /// The sun or moon seen through the surface (Tank.sky): x (0…1), how strong, and its warmth (0 cold moon … 1 low sun).
     var sky: SIMD4<Float> = [0.5, 0, 0, 0]
+    /// The lightning's color.
+    var flashColor: SIMD4<Float> = [0.55, 0.65, 0.85, 0]
 }
 
 struct Sprite {
@@ -92,7 +94,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     init?(view: MTKView) {
         guard let device = view.device ?? MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
         precondition(MemoryLayout<Sprite>.stride == 80, "Sprite must be 80 bytes")
-        precondition(MemoryLayout<Uniforms>.stride == 96, "Uniforms must be 96 bytes")
+        precondition(MemoryLayout<Uniforms>.stride == 112, "Uniforms must be 112 bytes")
         precondition(MemoryLayout<ThemeUniforms>.stride == 208, "ThemeUniforms must be 208 bytes")
         self.device = device
         self.queue = queue
