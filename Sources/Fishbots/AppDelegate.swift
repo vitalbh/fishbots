@@ -1350,6 +1350,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                          sky: Tank.sky(hour: hourNow(), sky: Themes.current.sky ?? Sky()),
                          flashColor: SIMD4(tank.scene.flashColor, 0))
         visual.size = tank.size
+        if visual.sway == nil {
+            visual.sway = { [unowned self] x, s in self.tank.dance(at: x, strength: s) }
+            visual.weedTips = { [unowned self] in self.tank.weedTips() }
+            visual.flashScene = { [unowned self] s, c in self.tank.scene.flashNow(s, color: c) }
+            visual.stream = { [unowned self] v in self.tank.musicStream(v) }
+        }
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))
         // dressing by the theme turned on or off in the Preferences

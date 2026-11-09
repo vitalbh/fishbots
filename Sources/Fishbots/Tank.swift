@@ -336,6 +336,9 @@ final class Tank {
     private(set) var mails: [Mail] = []
     /// Current (high CPU), in px/s.
     private(set) var current: Float = 0
+    /// A current from the music (the storm visualizer, when it's heavy): it has to be kept up, or it fades.
+    private var musicCurrent: (value: Float, at: Double) = (0, -100)
+    func musicStream(_ v: Float) { musicCurrent = (v, time) }
 
     init() {
         loadPearls()
@@ -842,6 +845,19 @@ final class Tank {
 
     /// Seaweed bending away from whoever swims through it (springs), for the shader with the blades' positions.
     private var weedBend = [Float](repeating: 0, count: 16)
+    /// The seaweed dancing to the music (the "dancing seaweed" visualizer): a wave sweeping across, and kicks.
+    private var danceWave: (start: Double, dir: Float, strength: Float)?
+    private var danceKicks: [(x: Float, when: Double, s: Float)] = []
+    func dance(at x: Float?, strength: Float) {
+        danceKicks.removeAll { time - $0.when > 2.5 }
+        if let w = danceWave, time - w.start > 2.4 { danceWave = nil }
+        if let x { danceKicks.append((x, time, strength)); if danceKicks.count > 12 { danceKicks.removeFirst() } }
+        else { danceWave = (time, Bool.random() ? 1 : -1, strength) }
+    }
+    /// Where each seaweed's tip is now.
+    func weedTips() -> [SIMD2<Float>] {
+        weeds.indices.map { k in [weeds[k].x * size.x + (k < 16 ? weedBend[k] : 0) * size.x, size.y * (0.055 + weeds[k].h)] }
+    }
     private var weedBendVel = [Float](repeating: 0, count: 16)
 
     func weedUniforms() -> [SIMD4<Float>] {
@@ -949,6 +965,17 @@ final class Tank {
                 let dx = x - wp.x, r = size.x * 0.25
                 target += (dx >= 0 ? 1 : -1) * expf(-(dx * dx) / (r * r)) * 0.022 * sinf(Float(time) * 0.9)
             }
+            // dancing to the music: a wave sweeping across the tank on a chord, little kicks on the notes
+            if let w = danceWave {
+                let u = Float(time - w.start) / 1.8
+                let fx = (w.dir > 0 ? u : 1 - u) * size.x, dx = x - fx
+                target += w.strength * 0.04 * w.dir * expf(-(dx * dx) / (130 * 130))
+            }
+            for kick in danceKicks {
+                let age = Float(time - kick.when), dx = x - kick.x
+                target += kick.s * 0.03 * sinf(age * 7) * expf(-age * 2.2) * expf(-(dx * dx) / (170 * 170))
+            }
+            target += current * 0.0011                          // the seaweed leans with the current
             target = max(-0.05, min(0.05, target))
             weedBendVel[k] += ((target - weedBend[k]) * 30 - weedBendVel[k] * 5) * dt
             weedBend[k] += weedBendVel[k] * dt
@@ -1434,7 +1461,8 @@ final class Tank {
 
         // current: high CPU gently pushes everything to one side
         let cpu = gauges["mac:cpu"] ?? 0
-        let currentTarget = smoothstep(0.55, 0.95, cpu) * 26 * (0.7 + 0.3 * sinf(Float(time) * 0.05))
+        var currentTarget = smoothstep(0.55, 0.95, cpu) * 26 * (0.7 + 0.3 * sinf(Float(time) * 0.05))
+        if time - musicCurrent.at < 0.5 { currentTarget += musicCurrent.value }
         current += (currentTarget - current) * min(1, dt * 0.3)
 
         for f in fish where !f.decor {

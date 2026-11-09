@@ -93,6 +93,10 @@ They sit behind the fish and react to each note (at the position and in the colo
 - 🌊 **living surface:** each note makes a wave on the surface;
 - 🎼 **bubble score:** the melody moves right to left, each bubble at the note's height;
 - 🌌 **plankton constellation:** each fish's notes linked by thin lines;
+- 🌿 **dancing seaweed:** each chord sweeps across the seaweed like a wave, each note kicks the blades near whoever played and lights their tips;
+- 🪼 **jellyfish of the harmony:** each chord lets out a jellyfish in its color, which pulses with the notes and drifts up;
+- 📡 **sonar:** rings of sound from whoever played, wide and slow for low notes, small and quick for high ones, with an echo;
+- ⛈️ **storm** (the deep sea's): lightning strikes the surface on chords, the tank flashes with the music, and heavy music sets a current running;
 - 🐟 **school of light:** a school of little bioluminescent fish follows the melody, each note pulling it to its pitch's height and toward whoever played, each chord changing its color, a trail of light behind; a click scatters it;
 - 🎆 **light fireworks:** on each event, in any mode, a burst of dots opens in the water (slowed by it) and rises, fading.
 

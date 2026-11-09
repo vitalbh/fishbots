@@ -39,7 +39,7 @@ extension Visualizer {
 
 /// The registry of visualizers, in menu order.
 enum Visualizers {
-    private(set) static var all: [Visualizer] = [Plankton(), AuroraVisualizer(), LiveSurface(), BubbleScore(), Constellation(), Fireworks(), LightSchool()]
+    private(set) static var all: [Visualizer] = [Plankton(), AuroraVisualizer(), LiveSurface(), BubbleScore(), Constellation(), Fireworks(), LightSchool(), DancingWeeds(), HarmonyJellies(), Sonar(), Storm()]
 
     static func register(_ v: Visualizer) {
         if let i = all.firstIndex(where: { $0.id == v.id }) { all[i] = v } else { all.append(v) }
@@ -253,5 +253,177 @@ final class LightSchool: Visualizer {
                 v.add(Visual.P(pos: f.pos, vel: f.vel * 0.05, maxLife: 0.45, size: 3.5, kind: 4, color: SIMD4(color * awake * 0.45, 1)))
             }
         }
+    }
+}
+
+/// The seaweed dances: each chord sweeps across it like a wave, each note gives the blades near whoever played a
+/// little kick, and lights a few tips, the glow drifting up off them.
+final class DancingWeeds: Visualizer {
+    let id = "weeds"
+    var title: String { tr("🌿 algas que dançam") }
+
+    func note(_ n: VisualNote, in v: Visual) {
+        v.sway?(n.pos.x, 0.6 + 0.6 * n.strength)
+        guard let tips = v.weedTips?(), !tips.isEmpty else { return }
+        let near = tips.sorted { abs($0.x - n.pos.x) < abs($1.x - n.pos.x) }.prefix(2)
+        let c = mix(n.color, [0.75, 1.0, 0.7], t: 0.45)
+        for t in near {
+            for _ in 0..<Int(2 + 3 * n.strength) {
+                v.add(Visual.P(pos: t + SIMD2(Float.random(in: -6...6), Float.random(in: -10...4)), vel: [Float.random(in: -4...4), Float.random(in: 6...14)],
+                               maxLife: Float.random(in: 1.4...2.4), size: Float.random(in: 6...10), kind: 4, color: SIMD4(c, 1), phase: Float.random(in: 0...6)))
+            }
+        }
+    }
+
+    func chord(_ pcs: [Int], in v: Visual) { v.sway?(nil, 1) }
+    func event(at p: SIMD2<Float>, in v: Visual) { v.sway?(p.x, 1.6) }
+}
+
+/// Jellyfish of the harmony: each chord lets out a translucent jellyfish in its color, low in the water; it pulses
+/// with each note, drifts up slowly and fades.
+final class HarmonyJellies: Visualizer {
+    let id = "jellies"
+    var title: String { tr("🪼 águas-vivas da harmonia") }
+    private struct Jelly { var pos: SIMD2<Float>; var color: SIMD3<Float>; var phase: Float; var pulse: Float; var age: Float; var size: Float; var drift: Float }
+    private var jellies: [Jelly] = []
+    private var bornAt: Float = -100
+
+    private func spawn(_ v: Visual, color c: SIMD3<Float>, near x: Float? = nil) {
+        let px = x.map { max(v.size.x * 0.08, min(v.size.x * 0.92, $0 + Float.random(in: -80...80))) } ?? v.size.x * Float.random(in: 0.12...0.88)
+        jellies.append(Jelly(pos: [px, v.size.y * Float.random(in: 0.18...0.4)], color: c,
+                             phase: Float.random(in: 0...6), pulse: 1, age: 0, size: Float.random(in: 20...32), drift: Float.random(in: -1...1)))
+        if jellies.count > 6 { jellies.removeFirst() }
+        bornAt = v.time
+    }
+
+    func chord(_ pcs: [Int], in v: Visual) {
+        guard let root = pcs.first else { return }
+        let h = Float(root % 12) / 12 * 2 * .pi
+        spawn(v, color: SIMD3(0.55 + 0.4 * cosf(h), 0.55 + 0.4 * cosf(h - 2.094), 0.55 + 0.4 * cosf(h + 2.094)) * 0.7 + [0.2, 0.25, 0.35])
+    }
+
+    func note(_ n: VisualNote, in v: Visual) {
+        // few of them about (chords come slowly): a note lets one out too, now and then, in its color
+        if jellies.count < 3 && v.time - bornAt > 3 { spawn(v, color: mix(n.color, [0.8, 0.85, 1], t: 0.4), near: n.pos.x) }
+        // the nearest one pulses
+        guard let i = jellies.indices.min(by: { simd_distance(jellies[$0].pos, n.pos) < simd_distance(jellies[$1].pos, n.pos) }) else { return }
+        jellies[i].pulse = min(1.5, jellies[i].pulse + 0.5 + 0.5 * n.strength)
+    }
+
+    func event(at p: SIMD2<Float>, in v: Visual) {
+        for i in jellies.indices where simd_distance(jellies[i].pos, p) < 200 { jellies[i].pulse = 1.5 }
+    }
+
+    func update(dt: Float, in v: Visual) {
+        for i in jellies.indices {
+            var j = jellies[i]
+            j.age += dt
+            j.pulse *= expf(-dt * 1.5)
+            j.phase += dt * (1.0 + 4 * j.pulse)                 // a note: a quick contraction
+            j.pos.y += (6 + 18 * j.pulse) * dt                   // each pulse pushes it up
+            j.pos.x += sinf(j.age * 0.4 + j.drift * 3) * 6 * dt + j.drift * 3 * dt
+            jellies[i] = j
+        }
+        jellies.removeAll { $0.age > 16 || $0.pos.y > v.size.y * 0.9 }
+        for j in jellies {
+            let fade = min(1, j.age / 1.5) * (1 - smoothstep(12, 16, j.age)) * (1 - smoothstep(v.size.y * 0.8, v.size.y * 0.9, j.pos.y))
+            let c = j.color * fade * (0.75 + 0.35 * j.pulse)
+            v.add(Visual.P(pos: j.pos, vel: .zero, maxLife: max(0.05, dt * 1.5), size: j.size, kind: 5, color: SIMD4(c, 0.8 * fade), phase: j.phase))
+        }
+    }
+
+}
+
+/// Sonar: each note sends out rings of sound from whoever played; low notes make wide, slow rings, high ones small,
+/// quick ones; an echo follows, fainter. A click sends a big ping.
+final class Sonar: Visualizer {
+    let id = "sonar"
+    var title: String { tr("📡 sonar") }
+    private var echoes: [(at: SIMD2<Float>, when: Float, grow: Float, life: Float, color: SIMD3<Float>)] = []
+
+    private func ping(_ v: Visual, at p: SIMD2<Float>, low: Float, color: SIMD3<Float>, strength: Float) {
+        let grow = mix(170, 70, t: low), life = mix(1.0, 3.2, t: low)
+        v.add(Visual.P(pos: p, vel: .zero, maxLife: life, size: 4, grow: grow, kind: 2, color: SIMD4(color * (0.6 + 0.5 * strength), 1)))
+        echoes.append((p, v.time + 0.35 + 0.25 * low, grow, life * 0.8, color * 0.45))
+    }
+
+    func note(_ n: VisualNote, in v: Visual) {
+        let low = 1 - max(0, min(1, Float(n.midi - 48) / 36))
+        ping(v, at: n.pos, low: low, color: mix(n.color, [0.55, 0.95, 1.0], t: 0.5), strength: n.strength)
+    }
+
+    func event(at p: SIMD2<Float>, in v: Visual) { ping(v, at: p, low: 1, color: [0.7, 1, 1], strength: 1.4) }
+
+    func update(dt: Float, in v: Visual) {
+        for e in echoes where v.time >= e.when {
+            v.add(Visual.P(pos: e.at, vel: .zero, maxLife: e.life, size: 4, grow: e.grow, kind: 2, color: SIMD4(e.color, 1)))
+        }
+        echoes.removeAll { v.time >= $0.when }
+    }
+}
+
+private func mix(_ a: Float, _ b: Float, t: Float) -> Float { a + (b - a) * t }
+
+/// A storm: lightning strikes the surface (a jagged bolt down to the water, a burst of light where it hits, a
+/// wobbly streak into the water, a ripple), and the tank flashes with the music: chords strike, strong notes flash
+/// and sometimes strike, soft ones flicker. When the music gets heavy, a current runs through the water.
+final class Storm: Visualizer {
+    let id = "storm"
+    var title: String { tr("⛈️ tempestade") }
+    private var heavy: Float = 0
+    private var dir: Float = 1
+    private var dirAt: Float = 0
+    private var lastBolt: Float = -100
+
+    private func bolt(_ v: Visual, x: Float, strength: Float) {
+        guard v.time - lastBolt > 0.25 else { return }
+        lastBolt = v.time
+        let top = v.size.y + 4, surf = v.surfaceY
+        let white: SIMD4<Float> = [0.92, 0.96, 1, 1]
+        // in the air: a jagged bolt with a branch
+        var p: SIMD2<Float> = [x + Float.random(in: -30...30), top]
+        let steps = 4
+        for i in 1...steps {
+            let q: SIMD2<Float> = [x + Float.random(in: -14...14) * Float(steps - i) / Float(steps), top + (surf - top) * Float(i) / Float(steps)]
+            v.line(from: p, until: q, color: white, life: 0.32, width: 1.6 + strength, vel: .zero)
+            if i == 2 && Float.random(in: 0...1) < 0.6 {
+                let b = q + [Float.random(in: -26...26), (surf - top) * 0.3]
+                v.line(from: q, until: b, color: white * 0.7, life: 0.25, width: 1, vel: .zero)
+            }
+            p = q
+        }
+        // where it hits: a burst of light and a ripple, and a wobbly streak going down into the water, fading
+        v.add(Visual.P(pos: [p.x, surf - 2], vel: .zero, maxLife: 0.5, size: 26 + 20 * strength, kind: 4, color: [0.85, 0.92, 1, 1]))
+        v.wave(x: p.x, strength: 0.8 + strength)
+        var w = p
+        for i in 1...4 {
+            let q: SIMD2<Float> = [w.x + Float.random(in: -18...18), surf - v.size.y * 0.05 * Float(i)]
+            let fade = 1 - Float(i) * 0.18
+            v.line(from: w, until: q, color: SIMD4(SIMD3<Float>(0.9, 0.95, 1) * fade, 1), life: 0.4, width: 1.8, vel: .zero)
+            v.add(Visual.P(pos: q, vel: .zero, maxLife: 0.35, size: 9 * fade, kind: 4, color: SIMD4(SIMD3<Float>(0.8, 0.9, 1) * fade, 1)))
+            w = q
+        }
+        v.flashScene?(0.55 + 0.4 * strength, [0.6, 0.72, 0.95])
+    }
+
+    func note(_ n: VisualNote, in v: Visual) {
+        heavy += n.strength * 0.25
+        if n.strength > 0.7 {
+            v.flashScene?(0.18 + 0.3 * (n.strength - 0.7) / 0.3, mix(n.color, [0.7, 0.8, 1], t: 0.6))
+            if Float.random(in: 0...1) < 0.2 { bolt(v, x: n.pos.x, strength: 0.4) }
+        } else {
+            v.flashScene?(0.06 + 0.08 * n.strength, [0.6, 0.72, 0.95])
+        }
+    }
+
+    func chord(_ pcs: [Int], in v: Visual) { bolt(v, x: v.size.x * Float.random(in: 0.1...0.9), strength: 1) }
+    func event(at p: SIMD2<Float>, in v: Visual) { bolt(v, x: p.x, strength: 1.2) }
+
+    func update(dt: Float, in v: Visual) {
+        heavy *= expf(-dt * 0.8)
+        // a heavy stretch of music: the water runs, now one way, now the other
+        if v.time - dirAt > 25 { dirAt = v.time; dir = Bool.random() ? 1 : -1 }
+        let push = smoothstep(0.9, 2.4, heavy) * 45 * dir
+        if abs(push) > 0.5 { v.stream?(push) }
     }
 }

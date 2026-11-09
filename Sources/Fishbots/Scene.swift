@@ -156,6 +156,12 @@ final class Scene {
     private(set) var flash: Float = 0
     /// The lightning's color: a cold blue, or what the plugin or the theme asked for.
     private(set) var flashColor: SIMD3<Float> = [0.55, 0.65, 0.85]
+    /// Flashes from the music (the storm visualizer): fades fast.
+    private var musicFlash: Float = 0
+    func flashNow(_ strength: Float, color: SIMD3<Float>) {
+        musicFlash = max(musicFlash, min(1, strength))
+        flashColor = color
+    }
     private var lightningAt: Double = -100
     /// Quake: how much the tank shakes right now (0…1).
     private(set) var quake: Float = 0
@@ -530,6 +536,8 @@ final class Scene {
         // lightning: two quick flashes
         let lt = Float(time - lightningAt)
         flash = lt < 0 || lt > 1.2 ? 0 : max(expf(-lt * 9), lt > 0.22 ? 0.75 * expf(-(lt - 0.22) * 6) : 0)
+        musicFlash *= expf(-dt * 7)
+        flash = max(flash, musicFlash)
         // quake: a shake that fades
         quake = time < quakeUntil ? Float(quakeUntil - time) / 2.6 : 0
         shakeOffset = quake > 0 ? [sinf(Float(time) * 53) * 5 * quake, sinf(Float(time) * 41 + 1) * 3 * quake] : .zero

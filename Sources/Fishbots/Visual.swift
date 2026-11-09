@@ -47,6 +47,13 @@ final class Visual {
     private var starAt: Float = 0
     /// Daylight (0.62 at night … 1 by day): by day the aurora becomes golden sunbeams.
     var light: Float = 1
+    /// The tank's seaweed, for visualizers that make it move: sway it (x: a kick there; nil: a wave across the
+    /// tank), and where its tips are.
+    var sway: ((_ x: Float?, _ strength: Float) -> Void)?
+    var weedTips: (() -> [SIMD2<Float>])?
+    /// The tank's light and water, for the storm: a flash of the water (strength, color), a current (points/s).
+    var flashScene: ((Float, SIMD3<Float>) -> Void)?
+    var stream: ((Float) -> Void)?
     private var day: Bool { light > 0.92 }
 
     /// Style palette: (top color, bottom color).
@@ -273,7 +280,7 @@ final class Visual {
             case 4:   // glow: lights up fast, fades slowly, twinkles
                 let input = p.maxLife < 0.2 ? 1 : min(1, p.life / 0.25)   // a very short one (a moving light) is lit at once
                 g = input * k * (p.blink > 0 ? 0.75 + 0.25 * sinf(p.phase * 3) : 0.85 + 0.15 * sinf(p.phase * 9))
-            case 7: g = min(1, p.life / 0.4) * k * 0.55
+            case 7: g = p.maxLife < 0.5 ? k : min(1, p.life / 0.4) * k * 0.55     // a short one (a bolt) is lit at once
             case 1: g = min(1, k * 3)
             default: g = k
             }
