@@ -11,6 +11,7 @@ import Foundation
 ///   {"source":"x","gauge":"disk","value":0.87}                        gauge (0…1; null removes it; silent for 1 h: gone)
 ///   {"source":"x","effect":"fireworks","label":"deploy"}              effect (docs/scene.md)
 ///   {"source":"x","presence":"id","kind":"shark","state":"error","label":"prod","detail":"…"}   presence (docs/scene.md)
+///   {"source":"x","summon":"turtle"}                                  a passing creature comes by now ("all": all of them)
 ///
 /// Accepts one object or a list of objects. The original Portuguese field names and states
 /// ("fonte", "entidade", "estado", "ocupado", "fim"…) are still accepted, since installed hooks and plugins send them.
@@ -87,6 +88,9 @@ enum TankProtocol {
                                      detail: detail, link: link, value: fraction(m["value"]), color: color(m["color"]), x: fraction(m["x"]),
                                      sound: text(m["sound"], max: 40), fallback: text(m["fallback"], max: 40),
                                      overrideTheme: (m["override_theme"] ?? m["overrideTheme"]) as? Bool)
+        }
+        if let c = text(m["summon"], max: 40) {
+            return tank.fauna.summon(tank, c == "all" ? nil : c).isEmpty ? "nothing passes by as \(c) in this theme" : nil
         }
         if let effect = text(m["effect"], max: 40) {
             return tank.scene.effect(effect, tank, source: source, label: label, x: fraction(m["x"]), y: fraction(m["y"]), color: color(m["color"]),

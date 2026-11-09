@@ -10,7 +10,10 @@ protocol Creature: AnyObject {
     var id: String { get }
     func update(_ t: Tank, dt: Float)
     func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite]
+    /// Comes by now, if it's one that passes now and then (`{"summon": …}`); false: it's always around, or never comes.
+    func summon(_ t: Tank) -> Bool
 }
+extension Creature { func summon(_ t: Tank) -> Bool { false } }
 
 /// The tank's creatures: crabs in the sand, a turtle that swims across now and then, a snail on the glass,
 /// starfish, lanternfish at night and, rarely, a whale passing in the distance. The theme can pick which ones live here.
@@ -52,6 +55,8 @@ final class Fauna {
     func maybeWhale(_ t: Tank, tasksToday: Int) { whale?.maybe(t, tasksToday: tasksToday) }
 
     func callWhale(_ t: Tank) { whale?.call(t) }
+    /// Those that pass now and then come by now (nil: all of them); the ids of those that will.
+    func summon(_ t: Tank, _ id: String?) -> [String] { creatures.filter { (id == nil || $0.id == id) && $0.summon(t) }.map(\.id) }
 
     func update(_ t: Tank, dt: Float) { for c in creatures { c.update(t, dt: dt) } }
 
@@ -190,6 +195,7 @@ final class TurtleSwimmer: Creature {
     private struct Turtle { var pos: SIMD2<Float>; var dir: Float; var phase: Float = 0; var y0: Float; var breathes = false; var breathed = false }
     private var turtle: Turtle?
     private var next: Double?
+    func summon(_ t: Tank) -> Bool { next = t.time; return true }
 
     func update(_ t: Tank, dt: Float) {
         let w = t.size.x, h = t.size.y
@@ -303,6 +309,7 @@ final class WhaleSwimmer: Creature {
     private struct Whale { var x: Float; var dir: Float; var y: Float }
     private var whale: Whale?
     private var next: Double?
+    func summon(_ t: Tank) -> Bool { call(t); return true }
     private var today = ""
     var onWhale: (() -> Void)?
     /// Where the whale is now (x, y), for the seaweed to feel it pass.
@@ -451,6 +458,7 @@ final class Sunfish: Creature {
     private var y0: Float = 0
     private var phase: Float = 0
     private var next: Double?
+    func summon(_ t: Tank) -> Bool { next = t.time; return true }
 
     func update(_ t: Tank, dt: Float) {
         let w = t.size.x, h = t.size.y
@@ -489,6 +497,7 @@ final class Manatee: Creature {
     private var y0: Float = 0
     private var phase: Float = 0
     private var next: Double?
+    func summon(_ t: Tank) -> Bool { next = t.time; return true }
     private var breath: Float = 0          // 0 cruising … 1 at the surface
     private var breathes = false
     private var breathed = false

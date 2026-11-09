@@ -40,6 +40,18 @@ The code is in `Sources/Fishbots/Scene.swift` (simulation and sprites), `TankPro
 
 An unknown effect is an error in the response, so a plugin finds out right away.
 
+## Summoning a passing creature
+
+The creatures that pass now and then (the turtle, the whale, the sunfish, the manatee, and a pack's creatures that
+cross or pass) choose their own moment. `summon` brings one by now, if it lives in the current theme:
+
+```json
+{"source":"ci","summon":"whale"}
+```
+
+`"all"` calls every one of them. Nothing of that kind passing by in this theme is an error in the response.
+From the terminal: `fishbots summon turtle`.
+
 ## Presences
 
 ```json

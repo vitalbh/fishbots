@@ -77,6 +77,10 @@ final class PackCreature: Creature {
     }
     private var ones: [One] = []
     private var nextVisit: Double?
+    func summon(_ t: Tank) -> Bool {
+        guard let k = kind, k.behavior == .cross || k.behavior == .pass else { return false }
+        nextVisit = t.time; return true
+    }
     private var shown: Float = 0
     private var center: SIMD2<Float> = .zero
     private var centerGoal: SIMD2<Float> = .zero
