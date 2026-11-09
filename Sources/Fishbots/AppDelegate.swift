@@ -1967,6 +1967,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case #selector(toggleDemo): item.state = demo.on ? .on : .off
         case #selector(toggleFloat): item.state = window.level == .floating ? .on : .off
         case #selector(toggleWidget): item.state = tank.compact ? .on : .off
+        case #selector(toggleMute): item.state = synth.muted.load(ordering: .relaxed) ? .off : .on
+        case #selector(toggleLogin): item.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        case #selector(toggleMenuBarOnly): item.state = UserDefaults.standard.bool(forKey: "menuBarOnly") ? .on : .off
+        case #selector(toggleSongEars): item.state = SongEars.enabled ? .on : .off
         default: break
         }
         return true
@@ -1977,45 +1981,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let appItem = NSMenuItem()
         main.addItem(appItem)
         let appMenu = NSMenu()
-        let prefsItem = NSMenuItem(title: tr("Preferências…"), action: #selector(showPreferences), keyEquivalent: ",")
-        prefsItem.target = self
-        appMenu.addItem(prefsItem)
+        // one menu per kind of thing: the app, editing (the card's reply field), the aquarium's look, the sessions
+        // and your attention, sound, plugins, the window
+        func add(_ m: NSMenu, _ t: String, _ s: Selector, _ k: String = "", _ mods: NSEvent.ModifierFlags = .command) {
+            let i = NSMenuItem(title: tr(t), action: s, keyEquivalent: k)
+            i.keyEquivalentModifierMask = mods
+            i.target = self
+            m.addItem(i)
+        }
+        func submenu(_ title: String, _ m: NSMenu) {
+            let i = NSMenuItem()
+            m.title = tr(title)
+            i.submenu = m
+            main.addItem(i)
+        }
+
+        add(appMenu, "Preferências…", #selector(showPreferences), ",")
+        appMenu.addItem(.separator())
+        add(appMenu, "Abrir no login", #selector(toggleLogin))
+        add(appMenu, "Só na barra de menus", #selector(toggleMenuBarOnly))
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: tr("Esconder Fishbots"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: tr("Sair do Fishbots"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
-        let aqItem = NSMenuItem()
-        main.addItem(aqItem)
-        let aq = NSMenu(title: tr("Aquário"))
-        func add(_ t: String, _ s: Selector, _ k: String) {
-            let i = NSMenuItem(title: tr(t), action: s, keyEquivalent: k)
-            i.target = self
-            aq.addItem(i)
-        }
-        add("Alimentar", #selector(feed), "f")
-        add("Modo demo", #selector(toggleDemo), "d")
-        add("Som ligado/desligado", #selector(toggleMute), "m")
-        add("Flutuar sobre as janelas", #selector(toggleFloat), "t")
-        add("Modo widget (janelinha no canto)", #selector(toggleWidget), "w")
-        add("Ir para quem espera há mais tempo", #selector(goToLongestWaiting), "")
-        add("Ouvir a pergunta de quem espera", #selector(readLongestWaiting), "")
-        add("Responder falando (abre o microfone)", #selector(replyByVoice), "")
+        // Editing: without it, ⌘C/⌘V/⌘A/⌘Z don't reach text fields (the card's reply field)
+        let edit = NSMenu()
+        edit.addItem(withTitle: tr("Desfazer"), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: tr("Refazer"), action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: tr("Recortar"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: tr("Copiar"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: tr("Colar"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: tr("Selecionar tudo"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        submenu("Editar", edit)
+
+        // The aquarium: what it looks like
+        let aq = NSMenu()
+        add(aq, "Alimentar", #selector(feed), "f")
         aq.addItem(.separator())
-        add("Música ambiente (tocar o tempo todo)", #selector(toggleAmbientMusic), "a")
-        add("Modo foco (só o que pede atenção)", #selector(toggleFocus), "s")
-        add("Nota a cada ferramenta usada", #selector(toggleToolNotes), "")
-        add("Ler as perguntas em voz alta", #selector(toggleReadQuestions), "")
-        add("Notificar quando esperarem por você", #selector(toggleNotifyWaiting), "")
-        add("Notificar erros", #selector(toggleNotifyError), "")
-        add("Abrir configuração de atenção…", #selector(openConfig), "")
-        add("Resumo das últimas 2 horas", #selector(recentSummary), "r")
-        add("Rótulos: mínimo / completo / nenhum", #selector(cycleLabels), "l")
-        aq.addItem(.separator())
-        aq.addItem(menuVisualizer())
         aq.addItem(menuTheme())
-        aqItem.submenu = aq
+        aq.addItem(menuVisualizer())
+        add(aq, "Rótulos: mínimo / completo / nenhum", #selector(cycleLabels), "l")
+        aq.addItem(.separator())
+        add(aq, "Modo demo", #selector(toggleDemo), "d")
+        submenu("Aquário", aq)
+
+        // Sessions: who needs you, and how the aquarium calls you
+        let sessions = NSMenu()
+        add(sessions, "Ir para quem espera há mais tempo", #selector(goToLongestWaiting))
+        add(sessions, "Ouvir a pergunta de quem espera", #selector(readLongestWaiting))
+        add(sessions, "Responder falando (abre o microfone)", #selector(replyByVoice))
+        sessions.addItem(.separator())
+        add(sessions, "Resumo das últimas 2 horas", #selector(recentSummary), "r")
+        add(sessions, "Modo foco (só o que pede atenção)", #selector(toggleFocus), "s")
+        sessions.addItem(.separator())
+        add(sessions, "Notificar quando esperarem por você", #selector(toggleNotifyWaiting))
+        add(sessions, "Notificar erros", #selector(toggleNotifyError))
+        add(sessions, "Abrir configuração de atenção…", #selector(openConfig))
+        submenu("Sessões", sessions)
+
+        // Sound: what you hear
+        let sound = NSMenu()
+        add(sound, "Som ligado", #selector(toggleMute), "m")
+        sound.addItem(.separator())
+        add(sound, "Música ambiente (tocar o tempo todo)", #selector(toggleAmbientMusic), "a", [.command, .shift])
+        add(sound, "Nota a cada ferramenta usada", #selector(toggleToolNotes))
+        add(sound, "Ler as perguntas em voz alta", #selector(toggleReadQuestions))
+        add(sound, "Visualizadores dançam com essa música", #selector(toggleSongEars))
+        submenu("Som", sound)
 
         let plItem = NSMenuItem()
         main.addItem(plItem)
@@ -2026,6 +2062,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let winItem = NSMenuItem()
         main.addItem(winItem)
         let win = NSMenu(title: tr("Janela"))
+        add(win, "Flutuar sobre as janelas", #selector(toggleFloat), "t")
+        add(win, "Modo widget (janelinha no canto)", #selector(toggleWidget), "w", [.command, .option])
+        win.addItem(.separator())
         win.addItem(withTitle: tr("Fechar (continua na barra de menus)"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         win.addItem(withTitle: tr("Minimizar"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "")
         win.addItem(withTitle: tr("Tela cheia"), action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "")
