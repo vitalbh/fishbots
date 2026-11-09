@@ -80,6 +80,9 @@ Without one, `<id>` is also the agent's process name and the fish follows the te
 - `timbre`: `pluck`, `bell`, `pad`, `bass`, `glass`, `bubble`, `soft`, `rhodes`, `flute` or `kalimba`.
 - `events`, `tools`: the agent's names → Claude Code's. Names not listed pass as they are.
 
+Whoever uses the aquarium can still pick another fish for the whole agent (Preferences → General → Agents → Each
+agent's fish) or for one project (the fish menu); those win over the manifest's `fish`.
+
 Manifests are read when the app opens. After adding or changing one, reload: **Preferences → General → Agents →
 Reload**, `fishbots agent reload`, or `POST /agents/reload`. Fish already in the aquarium take the new look; an agent
 whose manifest was removed goes back to the defaults (its fish keep working). Problems (invalid JSON, a taken id)

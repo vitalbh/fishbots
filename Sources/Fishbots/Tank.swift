@@ -68,7 +68,8 @@ struct SourceProfile {
         f.isAgent = isAgent
         f.sings = sings
         f.prefersLogTitle = prefersLogTitle
-        let picked = FishKinds.override(for: f.projectKey)
+        // picked by hand: for the project (fish menu), or for the whole agent (Preferences → Agents)
+        let picked = FishKinds.override(for: f.projectKey) ?? (isAgent ? FishKinds.agentKind(f.source) : nil)
         f.baseKind = picked ?? fishKind(f)
         f.pickedKind = picked != nil
         f.species = FishKinds.index(of: FishKinds.dressed(f.baseKind, picked: f.pickedKind))

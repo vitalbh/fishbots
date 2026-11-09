@@ -21,6 +21,8 @@ final class Prefs: ObservableObject {
         var applyTheme: () -> Void
         var applyLanguage: (String) -> Void
         var reloadAgents: () -> Void
+        /// The fish take their kind again (after choosing an agent's fish).
+        var refreshFish: () -> Void
         var plugins: () -> [(name: String, ok: Bool, detail: String)]
     }
     let a: Actions
@@ -160,6 +162,21 @@ private struct GeneralTab: View {
                                value: others.isEmpty ? tr("nenhum ainda")
                                    : others.map { $0.name + ($0.manifest ? "" : tr(" (sem manifesto)")) }.joined(separator: ", "))
                 ForEach(AgentManifests.problems, id: \.self) { Text(tr("⚠︎ ") + $0).font(.footnote).foregroundStyle(.orange) }
+                DisclosureGroup(tr("Peixe de cada agente")) {
+                    let agents = AgentManifests.builtIn.map { ($0.id, $0.name) } + others.map { ($0.id, $0.name) }
+                    ForEach(agents, id: \.0) { agent in
+                        Picker(agent.1, selection: prefs.bind({ FishKinds.agentKind(agent.0) ?? "" },
+                                                              { FishKinds.setAgentKind($0.isEmpty ? nil : $0, for: agent.0); a.refreshFish() })) {
+                            Text(tr("Automático (pelo terminal)")).tag("")
+                            Divider()
+                            ForEach(FishKinds.all.filter { $0.id != "betta" }, id: \.id) { k in
+                                Text(tr(k.name) + (k.pack != nil ? tr(" (pacote)") : "")).tag(k.id)
+                            }
+                        }
+                    }
+                    Text(tr("Vale para todos os peixes do agente, menos nos projetos onde você escolheu o peixe no menu dele. Um peixe escolhido aqui não é vestido pelo tema."))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 HStack {
                     Button(tr("Abrir pasta de agentes")) { AgentManifests.openFolder() }
                     Button(tr("Recarregar")) { prefs.a.reloadAgents(); prefs.refresh() }

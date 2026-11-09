@@ -1628,6 +1628,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         applyTheme: { [unowned self] in self.applyTheme() },
         applyLanguage: { L10n.setting = $0 },
         reloadAgents: { [unowned self] in self.reloadAgents() },
+        refreshFish: { [unowned self] in for f in self.tank.fish where !f.decor { Providers.refresh(f) } },
         plugins: { [unowned self] in
             let files = ((try? FileManager.default.contentsOfDirectory(atPath: Plugins.folder.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
             let fmt = RelativeDateTimeFormatter(); fmt.locale = L10n.locale

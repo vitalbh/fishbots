@@ -161,6 +161,20 @@ enum FishKinds {
 
     static func id(at i: Int) -> String { all.indices.contains(i) ? all[i].id : all[0].id }
 
+    /// The kind chosen for an agent in Preferences (all its fish, unless their project has one picked in the fish menu).
+    /// A kind that's gone (its pack left) is ignored.
+    static func agentKind(_ source: String) -> String? {
+        guard let id = (UserDefaults.standard.dictionary(forKey: "agentFishKinds") as? [String: String])?[source],
+              all.contains(where: { $0.id == id }) else { return nil }
+        return id
+    }
+
+    static func setAgentKind(_ id: String?, for source: String) {
+        var d = UserDefaults.standard.dictionary(forKey: "agentFishKinds") as? [String: String] ?? [:]
+        d[source] = id
+        UserDefaults.standard.set(d, forKey: "agentFishKinds")
+    }
+
     /// The kind chosen for a project in the fish menu (overrides the session provider's).
     static func override(for projectKey: String) -> String? {
         (UserDefaults.standard.dictionary(forKey: "fishKinds") as? [String: String])?[projectKey]
