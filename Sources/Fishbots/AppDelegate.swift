@@ -5,14 +5,14 @@ import simd
 import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenuDelegate {
-    private var window: NSWindow!
+    private(set) var window: NSWindow!
     private var view: TankView!
     private var labels: LabelsView!
     private var renderer: Renderer!
-    private let tank = Tank()
-    private let synth = Synth()
-    private var music: Music!
-    private var server: Server?
+    let tank = Tank()
+    let synth = Synth()
+    private(set) var music: Music!
+    var server: Server?
     private var mac: MacSource?
     private var demo: Demo!
     private var musicTimer: Timer?
@@ -24,20 +24,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private let calmText = CATextLayer()
     private var hotkeys: [HotkeyAction: Hotkey] = [:]
     private var activity: NSObjectProtocol?
-    private var port: UInt16 = 7777
-    private let notifier = Notifier()
-    private let visual = Visual()
+    private(set) var port: UInt16 = 7777
+    let notifier = Notifier()
+    let visual = Visual()
     /// The album art's tint (0…1) and its two colors, eased.
     private var artTint: Float = 0
     private var artA: SIMD3<Float> = [1, 1, 1]
     private var artB: SIMD3<Float> = [1, 1, 1]
-    private let permissions = Permissions()
+    let permissions = Permissions()
     private let journal = Journal()
     private var outsideButton: NSButton?
     private var card: SummaryView?
     private var popover: NSPopover?
-    private var hoverId: String?
-    private var hoverSince = Date()
+    var hoverId: String?
+    var hoverSince = Date()
     private var hoverCard: NSPopover?
     private var hoverCardId: String?
     private var cardSignature = ""
@@ -567,187 +567,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         updateDock()
     }
 
-    private func updateDock() {
+    func updateDock() {
         let n = max(tank.fish.filter { !$0.decor && !$0.leaving && $0.state == .waiting }.count, permissions.pending.count)
         NSApp.dockTile.badgeLabel = n > 0 ? "\(n)" : nil
         statusItem?.button?.title = n > 0 ? " \(n)" : ""
     }
 
     // MARK: - server
-
-    private func startServer() {
-        ClaudeCodeHook.sessionContinued = { [unowned self] source, session, event in self.permissions.sessionContinued(source: source, session: session, event: event) }
-        permissions.changed = { [unowned self] in self.updateDock() }
-        do {
-            server = try Server(port: port) { [unowned self] method, path, headers, body in
-                let route = path.split(separator: "?").first.map(String.init) ?? path
-                let path = path
-                switch (method, route) {
-                case ("POST", "/event"), ("POST", "/events"), ("POST", "/evento"), ("POST", "/eventos"):
-                    return TankProtocol.apply(body, at: self.tank)
-                case ("POST", "/test/whale"):
-                    self.tank.fauna.callWhale(self.tank)
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/test/card"):
-                    // to test the hover card without moving the mouse
-                    let goal = path.components(separatedBy: "f=").dropFirst().first?.removingPercentEncoding
-                    if let f = self.tank.fish.first(where: { ($0.isAgent || goal != nil) && !$0.leaving && (goal == nil || $0.id.hasSuffix(goal!)) }) {
-                        self.hoverId = f.id                      // pretend the mouse is over it, so the card doesn't close
-                        self.hoverSince = Date(timeIntervalSinceNow: -1)
-                        self.showCard(f)
-                    }
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/test/preferences"):
-                    // to check the preferences window without clicking: ?tab=0…3
-                    let tab = path.components(separatedBy: "tab=").dropFirst().first.flatMap { Int($0.prefix(1)) }
-                    self.preferences.show(tab: tab)
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/test/music-paused"):
-                    // as if your music had played and paused: the music fish offers the aquarium's
-                    self.music.yielded = true
-                    self.music.onUserMusicPaused?()
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/test/themes"):
-                    self.openThemePicker()
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/test/swatches"):
-                    // the Tema menu's pictures, side by side, written to ?out=<file.png>
-                    let out = path.components(separatedBy: "out=").dropFirst().first?.removingPercentEncoding ?? "/tmp/swatches.png"
-                    let shots = self.themeSwatches
-                    let w = 120 * shots.count
-                    if w > 0, let ctx = CGContext(data: nil, width: w, height: 80, bitsPerComponent: 8, bytesPerRow: 0,
-                                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) {
-                        for (i, t) in Themes.all.enumerated() { if let img = shots[t.id] { ctx.draw(img, in: CGRect(x: i * 120, y: 0, width: 120, height: 80)) } }
-                        if let img = ctx.makeImage(), let dst = CGImageDestinationCreateWithURL(URL(fileURLWithPath: out) as CFURL, "public.png" as CFString, 1, nil) {
-                            CGImageDestinationAddImage(dst, img, nil); CGImageDestinationFinalize(dst)
-                        }
-                    }
-                    return (200, Data("{\"themes\":\(shots.count)}".utf8))
-                case ("POST", "/test/catalog"):
-                    // ?install=<id>: installs that pack from the catalog, as the button would
-                    if let id = path.components(separatedBy: "install=").dropFirst().first {
-                        PackCatalog.fetch { r in
-                            guard case .success(let all) = r, let e = all.first(where: { $0.id == id }) else { return }
-                            PackCatalog.install(e) { res in
-                                if case .success = res { self.reloadPacks() }
-                                FileHandle.standardError.write(Data("catalog install \(id): \(res)\n".utf8))
-                            }
-                        }
-                    } else { self.explorePacks() }
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/test/do"):
-                    // acting out a demo (scripts/demo): ?audio=start:<file>|stop &window=w,h &key=⇥|a|w|… &theme=<id> &hour=<h>|off &visual=<id>
-                    // &feed=x,y &knock=x,y &drag=x1,y1,x2,y2 (x, y: 0…1 of the water, y from the bottom)
-                    var q: [String: String] = [:]
-                    for kv in (path.split(separator: "?").dropFirst().first ?? "").split(separator: "&") {
-                        let p = kv.split(separator: "=", maxSplits: 1).map { String($0).removingPercentEncoding ?? String($0) }
-                        if p.count == 2 { q[p[0]] = p[1] }
-                    }
-                    let at: (String) -> [SIMD2<Float>] = { s in
-                        let n = s.split(separator: ",").compactMap { Float($0) }
-                        return stride(from: 0, to: n.count - 1, by: 2).map { [n[$0] * self.tank.size.x, n[$0 + 1] * self.tank.size.y] }
-                    }
-                    if let w = q["window"]?.split(separator: ",").compactMap({ Double($0) }), w.count == 2 {
-                        self.window.setContentSize(NSSize(width: w[0], height: w[1])); self.window.center()
-                        // a Retina screen, if there is one: sharper, and the fish come out bigger for the same pixels
-                        if let sc = NSScreen.screens.first(where: { $0.backingScaleFactor >= 2 }) {
-                            let f = self.window.frame, v = sc.visibleFrame
-                            self.window.setFrameOrigin(NSPoint(x: v.midX - f.width / 2, y: v.midY - f.height / 2))
-                        }
-                    }
-                    if q["footer"] == "off" { self.demoQuiet = true }
-                    if let a = q["audio"] {
-                        // "start:<file.caf>" writes the app's sound (the voice mixed in) from now on; "stop" ends it
-                        if a.hasPrefix("start:") { DemoAudio.start(self.synth.engine, to: URL(fileURLWithPath: String(a.dropFirst(6)))) }
-                        else { DemoAudio.stop(self.synth.engine) }
-                    }
-                    if let t = q["theme"] { self.useTheme(t) }
-                    if let h = q["hour"] { self.demoHour = Float(h) }
-                    if let v = q["visual"] { self.visual.choice = v }
-                    if let k = q["key"] { self.key(k) }
-                    if let p = q["feed"].map(at)?.first { self.tank.feed(at: p) }
-                    if let p = q["knock"].map(at)?.first {
-                        self.tank.knock(at: p)
-                        self.music.sceneSound("glass", cue: .effect, x: p.x / max(1, self.tank.size.x))
-                    }
-                    if let d = q["drag"].map(at), d.count == 2 {
-                        // a sweep over ~0.6 s, in small steps, as the mouse would
-                        let steps = 24
-                        for i in 0..<steps {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.025) {
-                                let a = d[0] + (d[1] - d[0]) * Float(i) / Float(steps), b = d[0] + (d[1] - d[0]) * Float(i + 1) / Float(steps)
-                                self.tank.drag(from: a, to: b)
-                                if i == steps - 1 { self.tank.endDrag() }
-                            }
-                        }
-                    }
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/test/widget"):
-                    self.toggleWidget()
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/summary"):
-                    self.recentSummary()
-                    return (200, Data(#"{"ok":true}"#.utf8))
-                case ("POST", "/agents/reload"), ("GET", "/agents"):
-                    if method == "POST" { self.reloadAgents() }
-                    return (200, (try? JSONSerialization.data(withJSONObject: AgentManifests.json, options: [.prettyPrinted, .sortedKeys])) ?? Data())
-                case ("POST", "/packs/reload"):
-                    self.reloadPacks()
-                    return (200, self.packsJSON())
-                case ("GET", "/packs"):
-                    return (200, self.packsJSON())
-                case ("GET", "/packs/files"):
-                    // the screen saver copies the packs from here (it can't read the app's folder)
-                    return (200, Packs.filesJSON())
-                case ("POST", "/packs/install"):
-                    // {"path": "/…/x.fishbotspack"}: installs it and reloads
-                    guard let j = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any], let p = j["path"] as? String else {
-                        return (400, Data(#"{"error":"send {\"path\": \"…\"}"}"#.utf8))
-                    }
-                    do {
-                        let id = try Packs.install(URL(fileURLWithPath: p))
-                        self.reloadPacks()
-                        var out = (try? JSONSerialization.jsonObject(with: self.packsJSON())) as? [String: Any] ?? [:]
-                        out["installed"] = id
-                        return (200, (try? JSONSerialization.data(withJSONObject: out)) ?? Data())
-                    } catch {
-                        return (400, (try? JSONSerialization.data(withJSONObject: ["error": error.localizedDescription])) ?? Data())
-                    }
-                case ("GET", "/state"), ("GET", "/estado"):
-                    return (200, TankProtocol.state(self.tank))
-                case ("GET", "/"):
-                    let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload"]
-                    return (200, (try? JSONSerialization.data(withJSONObject: ["fishbots": "ok", "routes": routes])) ?? Data())
-                case ("POST", _):
-                    if let (p, isPermission) = Providers.route(route), !isPermission {
-                        return p.handle(route: route, body: body, headers: headers, tank: self.tank)
-                    }
-                    return (404, Data(#"{"error":"unknown route"}"#.utf8))
-                default:
-                    return (404, Data(#"{"error":"unknown route"}"#.utf8))
-                }
-            }
-            server?.deferred = { [unowned self] method, path, headers, body, reply in
-                let route = path.split(separator: "?").first.map(String.init) ?? path
-                guard method == "POST", let (provider, isPermission) = Providers.route(route), isPermission else { return false }
-                let source = provider.id
-                guard let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] else { reply(400, Data()); return true }
-                // the fish arrives/updates like a normal PermissionRequest, and the request stays waiting
-                var ev = m; ev["hook_event_name"] = "PermissionRequest"
-                if let d = try? JSONSerialization.data(withJSONObject: ev) {
-                    let mainRoute = provider.routes.first { route.hasPrefix($0 + "/") } ?? route
-                    _ = provider.handle(route: mainRoute, body: d, headers: headers, tank: self.tank)
-                }
-                if let p = self.permissions.add(m, source: source, reply: reply), let f = self.tank.fish(source: source, entity: p.session) {
-                    Outputs.emit(TankEvent(type: "permission", fish: f, detail: p.tool + ": " + p.summary))
-                    if Attention.level(source, .waiting) == .urgent { self.notifier.notify(f, request: p.id, summary: p.tool + ": " + p.summary) }
-                }
-                return true
-            }
-        } catch {
-            FileHandle.standardError.write("fishbots: couldn't open port \(port): \(error)\n".data(using: .utf8)!)
-        }
-    }
 
     private func click(_ p: CGPoint) {
         closeCard()
@@ -1096,7 +922,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
          "\(f.finished.count)", f.compactingSince == nil ? "" : "c"].joined(separator: "|")
     }
 
-    private func showCard(_ f: Fish, keyboard: Bool = false) {
+    func showCard(_ f: Fish, keyboard: Bool = false) {
         closeCard()
         let pop = NSPopover()
         pop.behavior = .applicationDefined
@@ -1369,9 +1195,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     }
 
     /// Recording a demo (/test/do?footer=off): no footer, whatever the mouse does.
-    private var demoQuiet = false
+    var demoQuiet = false
     /// The hour set by /test/do?hour= (recording a demo), over FISHBOTS_HOUR and the clock.
-    private var demoHour: Float?
+    var demoHour: Float?
 
     /// The hour now, with minutes (FISHBOTS_HOUR fixes it, to see dawn or dusk any time).
     private func hourNow() -> Float {
@@ -1609,7 +1435,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         return true
     }
 
-    private func key(_ k: String) {
+    func key(_ k: String) {
         if nav(k) { return }
         switch k {
         case "d": toggleDemo()
@@ -1636,7 +1462,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         synth.music.outputVolume = ducked ? 1 / 3 : 1
     }
 
-    private lazy var preferences = PreferencesWindow(Prefs.Actions(
+    private(set) lazy var preferences = PreferencesWindow(Prefs.Actions(
         openAtLogin: { SMAppService.mainApp.status == .enabled },
         toggleLogin: { [unowned self] in self.toggleLogin() },
         menuBarOnly: { UserDefaults.standard.bool(forKey: "menuBarOnly") },
@@ -1818,7 +1644,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     @objc func openPacks() { NSWorkspace.shared.open(Packs.folder) }
 
     /// The Tema menu's pictures, drawn in the background once per set of themes (and again after the packs change).
-    private var themeSwatches: [String: CGImage] = [:]
+    private(set) var themeSwatches: [String: CGImage] = [:]
     private var swatchesFor = ""
     private func drawThemeSwatches() {
         let key = Themes.all.map(\.id).joined(separator: ",") + "|" + packsSignature
