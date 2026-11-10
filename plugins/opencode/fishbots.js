@@ -19,6 +19,8 @@ const where = {
   "X-Where-Wezterm": env.WEZTERM_PANE,
   "X-Where-Kitty": env.KITTY_WINDOW_ID,
   "X-Where-Pid": String(process.pid),
+  // the session that launched this one (fishbots spawn), if any
+  "X-Where-Parent": env.FISHBOTS_PARENT,
 }
 const headers = { "Content-Type": "application/json" }
 for (const [k, v] of Object.entries(where)) if (v) headers[k] = v
