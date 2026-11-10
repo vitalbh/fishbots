@@ -5,7 +5,7 @@ drawing anything: **effects** (one-off moments, like fireworks or a lightning fl
 objects that live in the tank while the plugin keeps them there, each with a state and the text the plugin sends).
 
 The code is in `Sources/Fishbots/Scene.swift` (simulation and sprites), `TankProtocol.swift` (parsing),
-`AppDelegate.swift` (labels, hover, click) and `Shaders.swift` (the new drawings, sprite kinds 25–30).
+`Labels.swift` (their labels), `AppDelegate.swift` (hover, click) and `ShaderPresences.swift` (the drawings, sprite kinds 25–30).
 
 ## Effects
 

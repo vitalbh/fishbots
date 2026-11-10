@@ -1,6 +1,6 @@
 import Foundation
 
-/// The scene's look, as the shader gets it (must match `struct Theme` in Shaders.swift). Colors are float4 so the
+/// The scene's look, as the shader gets it (must match `struct Theme` in ShaderCommon.swift). Colors are float4 so the
 /// layout is the same on both sides; alpha is unused.
 struct ThemeUniforms {
     var deep: SIMD4<Float>         // water at the bottom
