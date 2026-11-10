@@ -52,30 +52,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// The fish chosen with Tab (its card stays open until Esc or the mouse goes to another fish).
     var keyboardPick: String?
 
-    // themes and packs (ThemesAndPacks.swift)
-    /// The Tema menu's pictures, drawn in the background once per set of themes (and again after the packs change).
-    var themeSwatches: [String: CGImage] = [:]
-    var swatchesFor = ""
-    /// The pack catalog ("Explorar pacotes…") and how many installed packs have a newer version there.
+    /// The theme on the tank, the packs and their pictures (ThemeKeeper); the menus and windows are in ThemesAndPacks.swift.
+    lazy var themeKeeper = ThemeKeeper(tank: tank, visual: visual)
+    /// The pack catalog ("Explorar pacotes…").
     lazy var catalogWindow: PackCatalogWindow = {
         let w = PackCatalogWindow()
-        w.onInstalled = { [unowned self] _ in self.reloadPacks(); self.checkCatalog() }
+        w.onInstalled = { [unowned self] _ in self.themeKeeper.reloadPacks(); self.themeKeeper.checkCatalog() }
         return w
     }()
-    var catalogUpdates = 0
-    /// The theme whose schools are swimming (they're made again only when the theme changes).
-    var appliedSchools = ""
-    /// The theme and the dressing setting last applied (to notice when the setting changes).
-    var dressedWith: (theme: String, on: Bool) = ("", true)
     /// Pauses a pack whose drawings make the aquarium heavy (see PackGuard).
     let packGuard = PackGuard()
-    /// Watches the packs folder: when a file changes (someone making a pack), it reloads by itself.
-    var packsSignature = ""
-    var packsWatch: Timer?
     /// The themes window (E): pictures, where each comes from, what it brings; the surprise mode; the catalog.
     lazy var themePicker: ThemePickerWindow = {
         let w = ThemePickerWindow()
-        w.onChoose = { [unowned self] id in self.useTheme(id) }
+        w.onChoose = { [unowned self] id in self.themeKeeper.use(id) }
         w.onExplore = { [unowned self] in self.explorePacks() }
         return w
     }()
@@ -98,18 +88,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         Renderer.packBackgroundFailed = Packs.backgroundFailed
         TankProtocol.stateExtras = { ["packs": Packs.loaded.map { ["id": $0.id, "name": $0.name, "contents": $0.contents] },
                                       "packProblems": Packs.problems, "agentProblems": AgentManifests.problems, "fishKinds": FishKinds.all.map(\.id),
-                                      "packsSignature": String(self.packsSignature.hashValue),
+                                      "packsSignature": String(self.themeKeeper.signature.hashValue),
                                       "notifications": self.notifier.permission, "onScreen": self.onScreen] }
         notifier.prepare()
         if let p = Env.value("PORT"), let n = UInt16(p) { port = n }
         buildMenu()
-        watchPacks()
+        themeKeeper.watchPacks()
         // the surprise theme, if it's on
-        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.surpriseTheme() }
+        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.themeKeeper.surprise() }
         // the catalog: a while after launch, then once a day (FISHBOTS_CATALOG=off skips it)
         if Env.value("CATALOG") != "off" {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.checkCatalog() }
-            Timer.scheduledTimer(withTimeInterval: 86_400, repeats: true) { [weak self] _ in self?.checkCatalog() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.themeKeeper.checkCatalog() }
+            Timer.scheduledTimer(withTimeInterval: 86_400, repeats: true) { [weak self] _ in self?.themeKeeper.checkCatalog() }
         }
 
         window = TankWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
@@ -150,10 +140,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         packGuard.onCulprit = { [unowned self] id, reason in
             let name = Packs.loaded.first { $0.id == id }?.name ?? id
             Packs.pause(id, reason: reason)
-            self.reloadPacks()
+            self.themeKeeper.reloadPacks()
             self.tank.notice = (tr("pacote pausado: %@ (%@)", name, Packs.reasonText(reason)), self.tank.time)
         }
-        applyTheme()
+        themeKeeper.renderer = renderer
+        themeKeeper.onChange = { [unowned self] in self.buildMenu() }
+        themeKeeper.onTheme = { [unowned self] in self.preferences.refresh() }   // its Theme row shows the current one
+        themeKeeper.apply()
         view.onKey = { [unowned self] k in self.key(k) }
         // while a card is open from the keyboard (Tab), these keys work even with its reply field focused
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [unowned self] e in
@@ -605,7 +598,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
         visual.update(dt: min(dt, 0.05))
         // dressing by the theme turned on or off in the Preferences
-        if dressedWith.on != FishKinds.dressByTheme { applyTheme() }
+        if themeKeeper.dressedWith.on != FishKinds.dressByTheme { themeKeeper.apply() }
         let sprites = packGuard.filter(visual.sprites() + tank.sprites())
         // the album art's colors, while music plays: the water's light and the aurora take them, slowly
         let artGoal: Float = AlbumArt.enabled && NowPlaying.playing && AlbumArt.colors != nil ? 1 : 0
@@ -694,7 +687,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         pauseShortcut: { [unowned self] paused in self.registerHotkey(paused: paused) },
         volume: { [unowned self] in Double(self.volume) },
         setVolume: { [unowned self] in self.volume = Float($0) },
-        applyTheme: { [unowned self] in self.applyTheme() },
+        applyTheme: { [unowned self] in self.themeKeeper.apply() },
         openThemePicker: { [unowned self] in self.openThemePicker() },
         applyLanguage: { L10n.setting = $0 },
         reloadAgents: { [unowned self] in self.reloadAgents() },

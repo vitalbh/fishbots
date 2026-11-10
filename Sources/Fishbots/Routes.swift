@@ -45,10 +45,10 @@ extension AppDelegate {
             if method == "POST" { self.reloadAgents() }
             return (200, (try? JSONSerialization.data(withJSONObject: AgentManifests.json, options: [.prettyPrinted, .sortedKeys])) ?? Data())
         case ("POST", "/packs/reload"):
-            self.reloadPacks()
-            return (200, self.packsJSON())
+            self.themeKeeper.reloadPacks()
+            return (200, ThemeKeeper.packsJSON())
         case ("GET", "/packs"):
-            return (200, self.packsJSON())
+            return (200, ThemeKeeper.packsJSON())
         case ("GET", "/packs/files"):
             // the screen saver copies the packs from here (it can't read the app's folder)
             return (200, Packs.filesJSON())
@@ -59,8 +59,8 @@ extension AppDelegate {
             }
             do {
                 let id = try Packs.install(URL(fileURLWithPath: p))
-                self.reloadPacks()
-                var out = (try? JSONSerialization.jsonObject(with: self.packsJSON())) as? [String: Any] ?? [:]
+                self.themeKeeper.reloadPacks()
+                var out = (try? JSONSerialization.jsonObject(with: ThemeKeeper.packsJSON())) as? [String: Any] ?? [:]
                 out["installed"] = id
                 return (200, (try? JSONSerialization.data(withJSONObject: out)) ?? Data())
             } catch {

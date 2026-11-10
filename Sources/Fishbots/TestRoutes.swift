@@ -34,7 +34,7 @@ extension AppDelegate {
         case "/test/swatches":
             // the Tema menu's pictures, side by side, written to ?out=<file.png>
             let out = path.components(separatedBy: "out=").dropFirst().first?.removingPercentEncoding ?? "/tmp/swatches.png"
-            let shots = self.themeSwatches
+            let shots = self.themeKeeper.swatches
             let w = 120 * shots.count
             if w > 0, let ctx = CGContext(data: nil, width: w, height: 80, bitsPerComponent: 8, bytesPerRow: 0,
                                           space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) {
@@ -50,7 +50,7 @@ extension AppDelegate {
                 PackCatalog.fetch { r in
                     guard case .success(let all) = r, let e = all.first(where: { $0.id == id }) else { return }
                     PackCatalog.install(e) { res in
-                        if case .success = res { self.reloadPacks() }
+                        if case .success = res { self.themeKeeper.reloadPacks() }
                         FileHandle.standardError.write(Data("catalog install \(id): \(res)\n".utf8))
                     }
                 }
@@ -82,7 +82,7 @@ extension AppDelegate {
                 if a.hasPrefix("start:") { DemoAudio.start(self.synth.engine, to: URL(fileURLWithPath: String(a.dropFirst(6)))) }
                 else { DemoAudio.stop(self.synth.engine) }
             }
-            if let t = q["theme"] { self.useTheme(t) }
+            if let t = q["theme"] { self.themeKeeper.use(t) }
             if let h = q["hour"] { self.demoHour = Float(h) }
             if let v = q["visual"] { self.visual.choice = v }
             if let k = q["key"] { self.key(k) }
