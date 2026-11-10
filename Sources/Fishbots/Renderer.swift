@@ -82,7 +82,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     /// The scene's colors (see Theme.swift).
     var theme = Theme.classicUniforms
-    /// The seaweed: x, height and bend of each blade (Tank.weedUniforms), 16 of them.
+    /// The seaweed: x, height and bend of each blade (Weeds.uniforms), 16 of them.
     var weeds = [SIMD4<Float>](repeating: .zero, count: 16)
 
     /// Told when the GPU finished a frame: how long it took (ms) and whether it aborted it (see PackGuard).

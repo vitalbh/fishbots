@@ -491,38 +491,8 @@ final class Tank {
         sandScenery.contains { s in let (c, sz) = place(s); return abs(x - c.x) < sz * 1.25 }
     }
 
-    /// How many seaweeds the theme draws (the shader uses the same formula for their positions).
-    var weedCount = 9 { didSet { weeds = Self.weeds(weedCount) } }
-
-    /// Seaweed bending away from whoever swims through it (springs), for the shader with the blades' positions.
-    private var weedBend = [Float](repeating: 0, count: 16)
-    /// The seaweed dancing to the music (the "dancing seaweed" visualizer): a wave sweeping across, and kicks.
-    private var danceWave: (start: Double, dir: Float, strength: Float)?
-    private var danceKicks: [(x: Float, when: Double, s: Float)] = []
-    func dance(at x: Float?, strength: Float) {
-        danceKicks.removeAll { time - $0.when > 2.5 }
-        if let w = danceWave, time - w.start > 2.4 { danceWave = nil }
-        if let x { danceKicks.append((x, time, strength)); if danceKicks.count > 12 { danceKicks.removeFirst() } }
-        else { danceWave = (time, Bool.random() ? 1 : -1, strength) }
-    }
-    /// Where each seaweed's tip is now.
-    func weedTips() -> [SIMD2<Float>] {
-        weeds.indices.map { k in [weeds[k].x * size.x + (k < 16 ? weedBend[k] : 0) * size.x, size.y * (0.055 + weeds[k].h)] }
-    }
-    private var weedBendVel = [Float](repeating: 0, count: 16)
-
-    func weedUniforms() -> [SIMD4<Float>] {
-        (0..<16).map { k in k < weeds.count ? SIMD4(weeds[k].x, weeds[k].h, weedBend[k], Float(weedKind(k))) : .zero }
-    }
-
-    /// Each blade's kind: 0 thin blade, 1 kelp, 2 leafy stem (mixed, so neighbors differ).
-    static func weedKind(_ k: Int) -> Int { [0, 1, 2, 0, 2, 1, 0, 2, 1, 0, 1, 2, 0, 2, 0, 1][k % 16] }
-    /// The theme's seaweed shapes (0 blade, 1 kelp, 2 leafy, 3 reed, 4 ribbon), mixed along the tank (nil: the usual mix).
-    var weedShapes: [Int]?
-    func weedKind(_ k: Int) -> Int {
-        guard let s = weedShapes, !s.isEmpty else { return Self.weedKind(k) }
-        return s[(k * 7 + k / 3) % s.count]                                   // mixed, so neighbors differ
-    }
+    /// The seaweed: where it stands and how it bends.
+    let weeds = Weeds()
 
     private var oxygenAt: Double = 0
     private var pearlGlintAt: Double = 0
@@ -564,9 +534,9 @@ final class Tank {
 
     /// By day, the seaweed lets out little oxygen bubbles now and then; still fish breathe out a bubble.
     private func breathe(dt: Float) {
-        if light > 0.8, time > oxygenAt, !weeds.isEmpty {
+        if light > 0.8, time > oxygenAt, !weeds.spots.isEmpty {
             oxygenAt = time + Double.random(in: 1.2...3.5)
-            let wd = weeds[Int.random(in: 0..<weeds.count)]
+            let wd = weeds.spots[Int.random(in: 0..<weeds.spots.count)]
             let y = size.y * (sand(wd.x) + wd.h * Float.random(in: 0.4...0.95))
             for i in 0..<Int.random(in: 1...3) {
                 after(Double(i) * 0.25) { [weak self] in
@@ -588,48 +558,6 @@ final class Tank {
         for f in fish where !f.decor && !f.leaving && (f.state == .idle || f.state == .ok) && !sleeping(f)
             && simd_length(f.vel) < 25 && Float.random(in: 0...1) < dt * 0.06 {
             bubble(at: f.pos + facing(f) * f.size * 0.9 + [0, 2], size: Float.random(in: 1.4...2.4))
-        }
-    }
-
-    private func updateWeeds(dt: Float) {
-        // what pushes: the fish and the presences that swim (position, size)
-        var pushers: [(SIMD2<Float>, Float)] = fish.filter { !$0.leaving }.map { ($0.pos, $0.size * (1 - 0.35 * $0.depth)) }
-        for p in scene.presences where !p.leaving && [.swim, .drift, .hover].contains(p.kind.motion) { pushers.append((p.pos, p.kind.size * 0.8)) }
-        for k in weeds.indices where k < 16 {
-            let x = weeds[k].x * size.x
-            let base = size.y * sand(weeds[k].x)
-            let top = base + weeds[k].h * size.y
-            var target: Float = 0
-            for (pos, r0) in pushers where pos.y > base - 10 && pos.y < top + r0 {
-                let dx = x - pos.x, r = r0 * 1.3 + 10
-                guard abs(dx) < r * 2.5 else { continue }
-                // away from it, more the closer it is; the push is in widths (the shader's unit)
-                target += (dx >= 0 ? 1 : -1) * expf(-(dx * dx) / (r * r)) * r0 * 0.9 / max(1, size.x)
-            }
-            // a current made by dragging through the water: the seaweed nearby leans with it
-            if let fp = flowPush, time - fp.when < 0.6 {
-                let dx = x - fp.at.x, r: Float = 140
-                target += fp.flow.x / max(1, size.x) * 1.5 * expf(-(dx * dx) / (r * r)) * Float(1 - (time - fp.when) / 0.6)
-            }
-            // the whale passing in the distance: a slow pressure wave sways the seaweed it goes by
-            if let wp = fauna.whalePosition {
-                let dx = x - wp.x, r = size.x * 0.25
-                target += (dx >= 0 ? 1 : -1) * expf(-(dx * dx) / (r * r)) * 0.022 * sinf(Float(time) * 0.9)
-            }
-            // dancing to the music: a wave sweeping across the tank on a chord, little kicks on the notes
-            if let w = danceWave {
-                let u = Float(time - w.start) / 1.8
-                let fx = (w.dir > 0 ? u : 1 - u) * size.x, dx = x - fx
-                target += w.strength * 0.04 * w.dir * expf(-(dx * dx) / (130 * 130))
-            }
-            for kick in danceKicks {
-                let age = Float(time - kick.when), dx = x - kick.x
-                target += kick.s * 0.03 * sinf(age * 7) * expf(-age * 2.2) * expf(-(dx * dx) / (170 * 170))
-            }
-            target += current * 0.0011                          // the seaweed leans with the current
-            target = max(-0.05, min(0.05, target))
-            weedBendVel[k] += ((target - weedBend[k]) * 30 - weedBendVel[k] * 5) * dt
-            weedBend[k] += weedBendVel[k] * dt
         }
     }
 
@@ -675,31 +603,11 @@ final class Tank {
         return Sprite(pos: [p.x, sy], dir: [1, 0], size: s * (1.0 + t * 1.6), kind: 32, glow: a, phase: 0,
                       color: [0, 0, 0, 1], extra: [1, 0, 0, 0])
     }
-    private lazy var weeds = Self.weeds(weedCount)
-    /// Where the seaweed stands (x 0…1, height as a fraction of the screen), for creatures that hold on to it.
-    var weedSpots: [(x: Float, h: Float)] { weeds }
-
-    /// The shader's seaweed (same formula): x position (0…1) and height (fraction of the screen), rising from y = 0.055.
-    private static func weeds(_ n: Int) -> [(x: Float, h: Float)] { (0..<n).map { k in
-        let fk = Float(k)
-        let fr: (Float) -> Float = { $0 - floorf($0) }
-        // spread over the whole width: each blade in its own slice, at a random place within it (so it doesn't look lined up)
-        let slice = 0.9 / Float(max(1, n))
-        return (0.05 + (fk + 0.1 + 0.8 * fr(sinf(fk * 91.7) * 437.1)) * slice, 0.16 + fr(sinf(fk * 13.1) * 91.3) * 0.28)
-    } }
-
-    private func nearestWeed(_ p: SIMD2<Float>) -> SIMD2<Float> {
-        let pts = weeds.map { a -> SIMD2<Float> in
-            [a.x * size.x, size.y * (0.055 + a.h * Float.random(in: 0.35...0.75))]
-        }
-        return pts.min { simd_distance($0, p) < simd_distance($1, p) } ?? p
-    }
-
     private func startAction(_ f: Fish, _ name: String) {
         guard f.isAgent else { return }
         let new: Action
         switch ToolBehaviors.of(name).animation {
-        case .nibble: new = .nibble(nearestWeed(f.pos))
+        case .nibble: new = .nibble(weeds.nearest(self, to: f.pos))
         case .bubbles: new = .bubbles
         case .forage: new = .forage
         case .peek: new = .peek
@@ -810,7 +718,7 @@ final class Tank {
         current += flow.x * 0.25                         // a nudge to the current (it fades by itself)
         motes.push(flow, at: b)
         for f in fish where !f.leaving && simd_distance(f.pos, b) < 120 { f.vel += flow * 1.6 }
-        flowPush = (b, flow, time)
+        weeds.lean(self, with: flow, at: b)
         if Float.random(in: 0...1) < 0.35 { bubble(at: b, size: Float.random(in: 1.2...2.4)) }
     }
 
@@ -822,9 +730,6 @@ final class Tank {
         grabbed = nil
         lastDrag = nil
     }
-
-    /// The last bit of current made by dragging through the water (the seaweed sways with it).
-    private var flowPush: (at: SIMD2<Float>, flow: SIMD2<Float>, when: Double)?
 
     /// A knock on the glass: a ring where it knocked; idle fish and the schools come to look.
     func knock(at p: SIMD2<Float>) {
@@ -961,7 +866,7 @@ final class Tank {
         }
 
         scene.update(self, dt: dt)
-        updateWeeds(dt: dt)
+        weeds.update(self, dt: dt)
         let agents = Float(fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.count)
         crowd += (max(0, min(1, (agents - 4) / 6)) - crowd) * min(1, dt * 0.5)
         if Int(time * 10) % 50 == 0 { gauges.expire() }

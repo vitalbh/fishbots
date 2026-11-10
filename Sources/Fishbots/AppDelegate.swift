@@ -1393,7 +1393,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let hasError = tank.fish.contains { !$0.decor && $0.state == .error && !$0.leaving && Attention.level($0.source, .error) >= .attention }
         let alert: Float = hasError ? 0.25 + 0.1 * sinf(Float(tank.time) * 3) : 0
         updateLabels()
-        renderer.weeds = tank.weedUniforms()
+        renderer.weeds = tank.weeds.uniforms()
         tank.shaderTime = renderer.shaderTime
         // look settings (Preferências → Aparência); FISHBOTS_BLOOM wins
         let d = UserDefaults.standard
@@ -1409,8 +1409,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                          flashColor: SIMD4(tank.scene.flashColor, 0))
         visual.size = tank.size
         if visual.sway == nil {
-            visual.sway = { [unowned self] x, s in self.tank.dance(at: x, strength: s) }
-            visual.weedTips = { [unowned self] in self.tank.weedTips() }
+            visual.sway = { [unowned self] x, s in self.tank.weeds.dance(self.tank, at: x, strength: s) }
+            visual.weedTips = { [unowned self] in self.tank.weeds.tips(self.tank) }
             visual.flashScene = { [unowned self] s, c in self.tank.scene.flashNow(s, color: c) }
             visual.stream = { [unowned self] v in self.tank.musicStream(v) }
         }
@@ -2035,11 +2035,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private func applyTheme() {
         let t = Themes.current
         renderer.theme = t.uniforms
-        tank.weedCount = t.weedCount
+        tank.weeds.count = t.weedCount
         tank.rayStrength = t.uniforms.params.z
         visual.themeVisualizer = t.visualizer
         tank.fauna.select(t.fauna)
-        tank.weedShapes = t.weedShapes
+        tank.weeds.shapes = t.weedShapes
         tank.sceneryLooks = t.looks
         tank.sceneryKinds = t.scenery
         // the theme's looks for presences and fish kinds (Preferences: "Vestir presenças e peixes com o tema")

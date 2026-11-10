@@ -558,7 +558,7 @@ final class Seahorses: Creature {
     private var horses: [Horse] = []
 
     private func perch(_ t: Tank) -> SIMD2<Float> {
-        let spots = t.weedSpots
+        let spots = t.weeds.spots
         guard let s = spots.randomElement() else { return [t.size.x * 0.5, t.size.y * 0.3] }
         let y = t.size.y * (0.055 + s.h * Float.random(in: 0.35...0.75))
         return [s.x * t.size.x + Float.random(in: -6...6), y]

@@ -144,11 +144,11 @@ final class FishbotsSaverView: ScreenSaverView {
         guard theme.id != appliedTheme else { return }
         appliedTheme = theme.id
         Themes.current = theme
-        tank.weedCount = theme.weedCount
+        tank.weeds.count = theme.weedCount
         tank.rayStrength = theme.uniforms.params.z
         visual.themeVisualizer = theme.visualizer
         tank.fauna.select(theme.fauna)
-        tank.weedShapes = theme.weedShapes
+        tank.weeds.shapes = theme.weedShapes
         tank.sceneryLooks = theme.looks
         tank.sceneryKinds = theme.scenery
         tank.scene.themeLooks = theme.looks
@@ -217,7 +217,7 @@ final class FishbotsSaverView: ScreenSaverView {
         tank.light = 0.62 + 0.38 * smoothstep(5.5, 8, h) * (1 - smoothstep(18, 20.5, h))
         visual.light = tank.light
         if !isPreview { updateLabels() }
-        renderer?.weeds = tank.weedUniforms()
+        renderer?.weeds = tank.weeds.uniforms()
         if let r = renderer { tank.shaderTime = r.shaderTime }
         return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Sky().grade(hour: h),
                          scene: [tank.gauges.highest("waves") ?? 0, tank.gauges.highest("rain") ?? 0,
