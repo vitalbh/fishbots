@@ -39,6 +39,9 @@ final class SessionControl: EventSink {
         let source: String
         let place: [String: String]
         let parent: String?
+        let cwd: String
+        /// The fish of that agent that were already there: not the one being born.
+        let before: Set<String>
         let reply: (Int, Data) -> Void
     }
 
@@ -165,6 +168,7 @@ final class SessionControl: EventSink {
         // an aquarium on another port (a test instance): the new session's hook reports to this one
         if port() != 7777 { env["FISHBOTS_PORT"] = String(port()) }
         let patience = Self.seconds(m["timeout"], or: 30, upTo: 120)
+        let before = Set(tank.fish.filter { $0.source == provider.id }.map(\.id))
         let request = LaunchRequest(command: command, cwd: folder, label: m["label"] as? String, near: parent?.whereabouts, env: env)
         launcher.launch(request) { [weak self] result in
             guard let self else { return }
@@ -172,7 +176,7 @@ final class SessionControl: EventSink {
             case .failure(let e):
                 reply(409, Self.error(e.message))
             case .success(let place):
-                let b = Birth(id: self.next, source: provider.id, place: place, parent: parent?.id, reply: reply)
+                let b = Birth(id: self.next, source: provider.id, place: place, parent: parent?.id, cwd: folder, before: before, reply: reply)
                 self.next += 1
                 self.births.append(b)
                 DispatchQueue.main.asyncAfter(deadline: .now() + patience) { [weak self] in
@@ -197,10 +201,21 @@ final class SessionControl: EventSink {
         tank.fish.filter { !$0.decor && !$0.leaving && $0.whereabouts["parent"] == id }
     }
 
-    /// The fish that was born in a launched pane, if it's there already.
+    /// The fish that was born in a launched pane, if it's there already: the one whose hook says it runs there.
+    /// Some agents' hooks don't run in the terminal at all (Codex's run in its daemon), so they can't say: then it's
+    /// the new fish of that agent, in that folder, that came from no terminal, and it's put in the pane.
     private func born(_ b: Birth) -> Fish? {
         guard let key = Launchers.placeKeys.first(where: { b.place[$0] != nil }) else { return nil }
-        return tank.fish.first { $0.source == b.source && !$0.leaving && $0.whereabouts[key] == b.place[key] }
+        let its = tank.fish.filter { $0.source == b.source && !$0.leaving }
+        if let f = its.first(where: { $0.whereabouts[key] == b.place[key] }) { return f }
+        let terminal = Launchers.placeKeys + ["term", "tty", "app", "entrypoint", "iterm", "wezterm", "kitty"]
+        let folder = URL(fileURLWithPath: b.cwd).standardizedFileURL.path
+        guard let f = its.first(where: { f in
+            !b.before.contains(f.id) && terminal.allSatisfy { f.whereabouts[$0] == nil }
+                && f.whereabouts["cwd"].map { URL(fileURLWithPath: $0).standardizedFileURL.path } == folder
+        }) else { return nil }
+        Whereabouts.put(f, in: b.place)
+        return f
     }
 
     private func deliver(_ id: Int, _ status: Int, _ body: [String: Any]) {

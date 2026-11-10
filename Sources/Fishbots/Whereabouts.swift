@@ -19,6 +19,8 @@ enum Whereabouts {
         if new["rex_block"] == nil, let (s, b) = foundInRex[f.id] {
             new["rex_session"] = s; new["rex_block"] = b; new["term"] = "rex"; new["rex_lookup"] = "done"
         }
+        // a pane it was launched in (fishbots spawn) stays too, when its events can't say where they run
+        if Launchers.placeKeys.allSatisfy({ new[$0] == nil }), let p = placed[f.id] { for (k, v) in p { new[k] = v } }
         // who launched it (fishbots spawn) isn't something the session moves away from
         if new["parent"] == nil, let p = f.whereabouts["parent"] { new["parent"] = p }
         let changed = new != f.whereabouts
@@ -109,6 +111,22 @@ enum Whereabouts {
     static func restore(_ f: Fish, _ o: [String: String]) {
         f.whereabouts = o
         if o["rex_lookup"] == "done", let s = o["rex_session"], let b = o["rex_block"] { foundInRex[f.id] = (s, b) }
+        Providers.refresh(f)
+        detail(f)
+    }
+
+    /// Panes sessions were launched in, by fish id, for agents whose hooks run away from their terminal (Codex's
+    /// run in its daemon: no pane, no terminal, another pid).
+    private static var placed: [String: [String: String]] = [:]
+
+    /// The session was launched in this pane (a launcher's whereabouts): it's there, whatever its events say.
+    static func put(_ f: Fish, in place: [String: String]) {
+        placed[f.id] = place
+        for (k, v) in place { f.whereabouts[k] = v }
+        if let s = place["rex_session"], let b = place["rex_block"] {
+            foundInRex[f.id] = (s, b)
+            f.whereabouts["rex_lookup"] = "done"   // remembered on reopen (restore)
+        }
         Providers.refresh(f)
         detail(f)
     }

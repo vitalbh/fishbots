@@ -381,6 +381,9 @@ wait`; the `fishbots-orchestrator` skill (`fishbots skill install`) teaches a co
 - `spawn` answers when a fish of that agent shows up in the pane it opened (the hook's `X-Where-*` say which pane).
   If none does in time (no hook installed, or the agent asks something first, like trusting the folder), it
   answers 504 with `where`.
+- Some agents' hooks don't run in the terminal (Codex runs them in its daemon: no pane, no parent, another pid).
+  Then the new fish of that agent, in that folder, that came from no terminal is the one, and it's put in the pane
+  (`Whereabouts.put`), so reply and Esc reach it.
 - The new pane doesn't have the asker's environment. What picks the agent's account or profile travels in `env`:
   `fishbots spawn` sends its own `CLAUDE_CONFIG_DIR` and `CODEX_HOME`, and whatever `--env` names.
 - A session interrupted with `stop` has no event for it, so it stays "busy" until it's sent something.
