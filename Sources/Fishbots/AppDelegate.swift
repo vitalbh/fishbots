@@ -148,9 +148,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         themeKeeper.onTheme = { [unowned self] in self.preferences.refresh() }   // its Theme row shows the current one
         themeKeeper.apply()
         view.onKey = { [unowned self] k in self.key(k) }
-        // while a card is open from the keyboard (Tab), these keys work even with its reply field focused
+        // while a card is open, its keys work even with its reply field focused: all of them when it was opened from
+        // the keyboard (Tab), only Esc when the mouse opened it
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [unowned self] e in
-            guard self.keyboardPick != nil, self.hoverCard != nil else { return e }
+            guard self.hoverCard != nil else { return e }
+            if self.keyboardPick == nil {
+                // a card opened by the mouse: Esc closes it too, even while writing in its reply field (and it only
+                // comes back when the mouse goes over the fish again)
+                guard e.keyCode == 53 else { return e }
+                self.hoverId = nil
+                return self.nav("⎋") ? nil : e
+            }
             let cmd = e.modifierFlags.contains(.command)
             let k: String?
             switch Int(e.keyCode) {
