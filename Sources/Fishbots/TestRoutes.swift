@@ -14,6 +14,8 @@ extension AppDelegate {
             let goal = path.components(separatedBy: "f=").dropFirst().first?.removingPercentEncoding
             if let f = self.tank.fish.first(where: { ($0.isAgent || goal != nil) && !$0.leaving && (goal == nil || $0.id.hasSuffix(goal!)) }) {
                 self.cards.open(f)        // as if the mouse were over it, so the card doesn't close
+                // ?all=1&f=…: with the whole reply open, as "ver tudo" would
+                if path.contains("all=1") { self.cards.card?.showAll() }
             }
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/preferences":

@@ -210,6 +210,8 @@ final class Fish {
     var progress: (() -> (pos: Double, dur: Double, playing: Bool)?)?
     /// The agent's last reply (clean text, no markdown), for the card.
     var lastReply: String?
+    /// The same reply as the agent wrote it, with its markdown (for reading on the card: ReplyText).
+    var lastReplyMarkdown: String?
     /// The reply ended with a question for you (the final part).
     var asked: String?
     /// A quiet question that needs no attention (no notification, nothing read aloud): the music fish offering the

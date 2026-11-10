@@ -144,6 +144,51 @@ final class WaterGauge: NSView {
     }
 }
 
+/// The card's background: water in the fish's color, lighter toward the surface, light drifting through it and
+/// bubbles going up along the left. It follows the card when the card grows (the whole reply, a longer field).
+final class GlassView: NSView {
+    private let water = CAGradientLayer()
+    private var light: CALayer?
+    private var bubbles: CALayer?
+    private let tint: NSColor
+    private var laidOutFor = CGSize.zero
+
+    init(backdrop: NSColor, tint: NSColor) {
+        self.tint = tint
+        super.init(frame: .zero)
+        appearance = NSAppearance(named: .darkAqua)
+        wantsLayer = true
+        layer?.backgroundColor = backdrop.cgColor
+        layer?.masksToBounds = true
+        water.colors = [tint.withAlphaComponent(0.26).cgColor, tint.withAlphaComponent(0.07).cgColor, NSColor.clear.cgColor]
+        water.locations = [0, 0.35, 1]
+        water.startPoint = CGPoint(x: 0.5, y: 1)
+        water.endPoint = CGPoint(x: 0.5, y: 0)
+        layer?.addSublayer(water)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layout() {
+        super.layout()
+        guard bounds.size != laidOutFor, bounds.width > 0, bounds.height > 0 else { return }
+        laidOutFor = bounds.size
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        water.frame = bounds
+        // made again for the new size, behind the text: the light, then the bubbles (they rise the whole height)
+        light?.removeFromSuperlayer()
+        bubbles?.removeFromSuperlayer()
+        let l = CardWater.light(in: bounds)
+        layer?.insertSublayer(l, above: water)
+        let b = CardWater.bubbles(height: bounds.height, tint: tint)
+        b.frame = bounds
+        layer?.insertSublayer(b, above: l)
+        light = l
+        bubbles = b
+        CATransaction.commit()
+    }
+}
+
 enum CardWater {
     /// Light moving slowly through the water: two soft diagonal bands that drift back and forth.
     static func light(in bounds: CGRect) -> CALayer {

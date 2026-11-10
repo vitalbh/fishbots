@@ -271,6 +271,7 @@ enum ClaudeCodeHook {
             // The text comes in the hook (Codex) or, if not, from the last reply in the transcript (Claude Code).
             if let last = m["last_assistant_message"] as? String, !last.isEmpty {
                 tank.fish(source: source, entity: session)?.lastReply = Self.stripMarkdown(last)
+                tank.fish(source: source, entity: session)?.lastReplyMarkdown = last
                 if let q = Self.question(Self.stripMarkdown(last)) {
                     state(.waiting)
                     tank.fish(source: source, entity: session)?.asked = q
@@ -281,7 +282,10 @@ enum ClaudeCodeHook {
                 state(.done)
                 if let t = m["transcript_path"] as? String {
                     Transcript.lastReply(t) { text in
-                        if let text { tank.fish(source: source, entity: session)?.lastReply = Self.stripMarkdown(text) }
+                        if let text {
+                            tank.fish(source: source, entity: session)?.lastReply = Self.stripMarkdown(text)
+                            tank.fish(source: source, entity: session)?.lastReplyMarkdown = text
+                        }
                         guard let text, let q = Self.question(Self.stripMarkdown(text)),
                               let f = tank.fish(source: source, entity: session), f.state == .done else { return }
                         tank.upsert(source: source, entity: session, state: .waiting, label: nil)

@@ -45,18 +45,23 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     }
 
     /// Swaps the excerpt for the full reply, scrolling inside the card.
-    @objc private func showAll() {
+    @objc func showAll() {
         guard let short = replySummary, let stack = short.superview as? NSStackView else { return }
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
         let tv = NSTextView()
-        tv.string = fullReply
+        // laid out for reading (ReplyText), on a darker pane so the water's light and bubbles stay out of the way
+        let fromMarkdown = f.lastReplyMarkdown.map { ClaudeCodeHook.stripMarkdown($0) == fullReply } ?? false
+        tv.textStorage?.setAttributedString(ReplyText.attributed(fromMarkdown ? f.lastReplyMarkdown! : fullReply, markdown: fromMarkdown, tint: tintText))
         tv.isEditable = false
+        tv.isSelectable = true
         tv.drawsBackground = false
-        tv.font = .systemFont(ofSize: 12.5)
-        tv.textColor = .labelColor
+        tv.textContainerInset = NSSize(width: 12, height: 12)
+        scroll.wantsLayer = true
+        scroll.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.28).cgColor
+        scroll.layer?.cornerRadius = 10
         tv.textContainer?.widthTracksTextView = true
         tv.isVerticallyResizable = true
         tv.autoresizingMask = [.width]
@@ -64,15 +69,19 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         scroll.translatesAutoresizingMaskIntoConstraints = false
         // as wide as the card and as tall as the text needs, up to about half the screen
         let screenH = view.window?.screen?.visibleFrame.height ?? NSScreen.main?.visibleFrame.height ?? 900
-        let lines = CGFloat(fullReply.count) / (width / 7) + CGFloat(fullReply.components(separatedBy: "\n").count)
-        scroll.widthAnchor.constraint(equalToConstant: width + 20).isActive = true
-        scroll.heightAnchor.constraint(equalToConstant: min(screenH * 0.55, max(200, lines * 17))).isActive = true
+        scroll.widthAnchor.constraint(equalToConstant: width).isActive = true
+        // as tall as the text really is at this width
+        tv.frame = NSRect(x: 0, y: 0, width: width, height: 10)
+        if let lm = tv.layoutManager, let tc = tv.textContainer {
+            tc.containerSize = NSSize(width: width - 24, height: .greatestFiniteMagnitude)
+            lm.ensureLayout(for: tc)
+            scroll.heightAnchor.constraint(equalToConstant: min(screenH * 0.55, max(120, ceil(lm.usedRect(for: tc).height) + 26))).isActive = true
+        }
         if let i = stack.arrangedSubviews.firstIndex(of: short) {
             stack.insertArrangedSubview(scroll, at: i)
             short.removeFromSuperview()
             showAllButton?.removeFromSuperview()
         }
-        tv.frame = NSRect(x: 0, y: 0, width: width + 4, height: 10)
         tv.sizeToFit()
         tv.scrollToEndOfDocument(nil)
         view.layoutSubtreeIfNeeded()
@@ -286,9 +295,15 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             v.append(row(head))
             let t = text(final, 12.5, color: .labelColor)
             t.maximumNumberOfLines = 14
-            let ps = NSMutableParagraphStyle(); ps.lineSpacing = 2
-            t.attributedStringValue = NSAttributedString(string: final, attributes: [.font: NSFont.systemFont(ofSize: 12.5),
-                                                                                  .foregroundColor: NSColor.labelColor, .paragraphStyle: ps])
+            // the excerpt reads like the whole reply does: from its markdown when the app has it (headings, lists,
+            // tables and code as they are), otherwise from the plain text (lists hang, their labels stand out)
+            if let md = f.lastReplyMarkdown, ClaudeCodeHook.stripMarkdown(md) == r {
+                let tail = ReplyText.ending(of: md, chars: width > 400 ? 800 : 380, lines: width > 400 ? 10 : 6)
+                t.attributedStringValue = ReplyText.attributed((tail.cut ? "…\n\n" : "") + tail.text, markdown: true, tint: tintText, size: 12.5)
+                t.maximumNumberOfLines = 18
+            } else {
+                t.attributedStringValue = ReplyText.attributed(final, markdown: false, tint: tintText, size: 12.5)
+            }
             v.append(t)
             replySummary = t
             fullReply = r
@@ -525,17 +540,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     /// A piece of the aquarium behind glass: water in the fish's color, lighter toward the surface, light drifting
     /// through it and bubbles going up along the left.
     private func glass(around content: NSView) -> NSView {
-        let bg = NSView()
-        bg.appearance = NSAppearance(named: .darkAqua)
-        bg.wantsLayer = true
-        bg.layer?.backgroundColor = backdrop.cgColor
-        bg.layer?.masksToBounds = true
-        let water = CAGradientLayer()
-        water.colors = [tint.withAlphaComponent(0.26).cgColor, tint.withAlphaComponent(0.07).cgColor, NSColor.clear.cgColor]
-        water.locations = [0, 0.35, 1]
-        water.startPoint = CGPoint(x: 0.5, y: 1)
-        water.endPoint = CGPoint(x: 0.5, y: 0)
-        bg.layer?.addSublayer(water)
+        let bg = GlassView(backdrop: backdrop, tint: tint)
         content.translatesAutoresizingMaskIntoConstraints = false
         bg.addSubview(content)
         NSLayoutConstraint.activate([
@@ -545,13 +550,6 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         bg.layoutSubtreeIfNeeded()
         let size = bg.fittingSize
         bg.frame = NSRect(origin: .zero, size: size)
-        water.frame = bg.bounds
-        // behind the text: the light, then the bubbles
-        let light = CardWater.light(in: bg.bounds)
-        bg.layer?.insertSublayer(light, above: water)
-        let bubbles = CardWater.bubbles(height: size.height, tint: tint)
-        bubbles.frame = bg.bounds
-        bg.layer?.insertSublayer(bubbles, above: light)
         return bg
     }
 
