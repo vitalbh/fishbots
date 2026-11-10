@@ -348,6 +348,68 @@ no editor"), each with a condition (`when: fish.link != nil`).
 Not a code extension point but the same idea: the on-screen text moves into string tables (pt, en…), and packs can
 bring translations.
 
+### 11. Session control and launchers
+Status: `reply`, `stop` and `wait` are implemented (`SessionControl.swift`); launching sessions and lineage are
+designed below and not built yet.
+
+The aquarium already sees every agent in every client and can type into most of them. Letting a session use that
+makes it an orchestrator: **the orchestrator is not a feature of the app, it's an ordinary agent session** that
+calls the aquarium. The app runs no model and holds no API key; it stays the bus and the window. Any agent can lead,
+and the leader is a fish like the others (card, timeline, permissions).
+
+**Control routes** (`POST /control/…`, off until "Sessões podem comandar outras" is on in Preferences; the same
+checks as the card apply, so nothing is typed where the card wouldn't type):
+
+| Route | Body | Answer |
+|---|---|---|
+| `/control/reply` | `fish`, `text` | ok, or why not (not at its prompt, another program in front…) |
+| `/control/stop` | `fish` | ok |
+| `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them is in one of the states: which, its state, its last reply |
+| `/control/spawn` *(planned)* | `agent`, `cwd`, `prompt`, `label`, `launcher` | held until the fish is born: `source`, `entity`, `where` |
+
+`fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish
+takes right now (`can`). From the command line: `fishbots reply | stop | wait`.
+
+- `wait` and `spawn` hold the HTTP answer, like permission requests do (`Server.deferred`, a list of handlers).
+- `wait` is an output (point 8): `SessionControl` is an `EventSink` that answers when the right `TankEvent` comes.
+  It answers a moment after the turn ends, so the last reply has been read. A fish that left answers `gone`.
+- A fish that was just sent a line still stands at "done" from the turn before; `wait` ignores how it stands until
+  it changes state.
+- `reply` types one line into the terminal (line breaks become spaces). A long brief belongs in `spawn`'s prompt,
+  which goes as an argument of the agent's command, not typed.
+
+**Launchers** (planned): where a session is born. Creating one belongs to the host (Rex, Herdr, tmux), not to a
+fish, so it's a registry next to the providers:
+
+```swift
+struct LaunchRequest {
+    let command: [String]          // from the provider
+    let cwd: String
+    let label: String?
+    let near: Fish?                // open beside the parent, if there is one
+    let env: [String: String]      // FISHBOTS_PARENT=…
+}
+
+protocol SessionLauncher: AnyObject {
+    var id: String { get }         // "rex", "herdr", "tmux"
+    var available: Bool { get }
+    /// The new pane's whereabouts (rex_session, rex_block…), or an error.
+    func launch(_ r: LaunchRequest, done: @escaping (Result<[String: String], Error>) -> Void)
+}
+```
+
+A provider says how its agent starts (`launchCommand(prompt:) -> [String]?`, nil: it can't be launched); manifests
+get a `launch` array with `{prompt}`. Rex first (`rex run` / `rex split -b <the parent's block>`).
+
+**Lineage** (planned): the launcher sets `FISHBOTS_PARENT=<source:entity>` in the pane and the shared hook forwards
+it, so the child says whose it is from its first event; `/state` gets `parent`. The caller of a control route is
+found by the `X-Where-*` headers the CLI sends, the same ones the hook sends, so an orchestrator doesn't need to
+know its own id. A fish with children is the leader: no "orchestrator" provider.
+
+**Guards:** the Preferences switch; a limit of children per parent and depth 1 (a child doesn't launch children);
+permission requests of the children stay with the person. No token: the server already refuses browsers, and a
+local process could type into the terminals by itself.
+
 ## Order of work
 
 1. **Session providers:** move Claude Code, Codex and the generic source behind `SessionProvider`. Biggest win for the

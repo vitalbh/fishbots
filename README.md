@@ -195,6 +195,15 @@ fishbots presence k8s prod end
 fishbots show
 ```
 
+A session can also command the others (off until you turn on "Sessions can command other sessions" in Settings →
+General), which is what an orchestrating agent needs ([docs/extensions.md](docs/extensions.md), point 11):
+
+```sh
+fishbots wait claude-code:1f3a codex:9b2c     # until one is done, waiting or error: which, and its last reply
+fishbots reply claude-code:1f3a "use the new table"
+fishbots stop claude-code:1f3a
+```
+
 ## Plugins
 
 ### Claude Code

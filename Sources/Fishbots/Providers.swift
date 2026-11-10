@@ -1,7 +1,7 @@
 import Foundation
 
 /// What can be done with a session from the aquarium.
-enum Capability {
+enum Capability: String {
     case reply        // type a line into the session
     case stop         // Esc: interrupt what the agent is doing
     case renameChat   // rename the conversation

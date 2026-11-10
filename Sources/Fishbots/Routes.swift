@@ -9,7 +9,9 @@ extension AppDelegate {
             server = try Server(port: port) { [unowned self] method, path, headers, body in
                 self.respond(method, path, headers, body)
             }
-            server?.deferred = { [unowned self] method, path, headers, body, reply in
+            Outputs.register(sessionControl)
+            server?.deferred.append(sessionControl.handle)
+            server?.deferred.append { [unowned self] method, path, headers, body, reply in
                 let route = path.split(separator: "?").first.map(String.init) ?? path
                 guard method == "POST", let (provider, isPermission) = Providers.route(route), isPermission else { return false }
                 let source = provider.id
@@ -69,7 +71,7 @@ extension AppDelegate {
         case ("GET", "/state"), ("GET", "/estado"):
             return (200, TankProtocol.state(self.tank))
         case ("GET", "/"):
-            let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload"]
+            let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload"] + SessionControl.routes
             return (200, (try? JSONSerialization.data(withJSONObject: ["fishbots": "ok", "routes": routes])) ?? Data())
         case ("POST", _):
             if let (p, isPermission) = Providers.route(route), !isPermission {

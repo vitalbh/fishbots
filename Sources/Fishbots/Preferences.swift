@@ -123,6 +123,11 @@ private struct GeneralTab: View {
                 Toggle(tr("Só na barra de menus (sem ícone no Dock)"), isOn: prefs.bind(a.menuBarOnly, { _ in a.toggleMenuBarOnly() }))
                 Toggle(tr("Flutuar sobre as janelas"), isOn: prefs.bind(a.floating, { _ in a.toggleFloat() }))
             }
+            Section(tr("Sessões")) {
+                Toggle(tr("Sessões podem comandar outras (responder, parar, esperar)"), isOn: prefs.flag("sessionControl"))
+                Text(tr("Deixa um agente conduzir os outros pelo aquário (fishbots reply, stop, wait). Pedidos de permissão continuam com você."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
             Section(tr("Atalhos")) {
                 ForEach(HotkeyAction.allCases, id: \.self) { ShortcutRecorder(prefs: prefs, action: $0) }
                 Text(tr("Funcionam em qualquer app, sempre com quem espera por você há mais tempo. Use ao menos uma tecla modificadora (⌃ ⌥ ⇧ ⌘); Esc cancela a gravação. No campo de resposta, Enter envia."))

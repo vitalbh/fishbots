@@ -37,6 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private var card: SummaryView?
     /// The fish's card, the request bubble and the keyboard's pick (Cards.swift).
     lazy var cards = Cards(tank: tank, permissions: permissions)
+    /// Sessions commanding other sessions (/control, SessionControl.swift).
+    lazy var sessionControl = SessionControl(tank: tank) { [unowned self] c, f in self.cards.can(c, f) }
     private(set) var hoverBattery = false
     private(set) var hoverPearl: Pearl?
     /// The presence (docs/scene.md) under the mouse.

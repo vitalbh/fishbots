@@ -6,8 +6,9 @@ final class Server {
     private let listener: NWListener
     private let handler: (String, String, [String: String], Data) -> (Int, Data)
     /// Routes that reply later (e.g. a permission request waiting for the click). Returns true if it will reply through `reply`.
-    var deferred: ((_ method: String, _ path: String, _ headers: [String: String], _ body: Data,
-                  _ reply: @escaping (Int, Data) -> Void) -> Bool)?
+    /// Each is asked in turn; the first to take the request answers it.
+    var deferred: [(_ method: String, _ path: String, _ headers: [String: String], _ body: Data,
+                    _ reply: @escaping (Int, Data) -> Void) -> Bool] = []
 
     init(port: UInt16, handler: @escaping (_ method: String, _ path: String, _ headers: [String: String], _ body: Data) -> (Int, Data)) throws {
         let params = NWParameters.tcp
@@ -65,9 +66,10 @@ final class Server {
                 if have >= len || done {
                     let end = buf.index(r.upperBound, offsetBy: min(have, len))
                     let body = Data(buf[r.upperBound..<end])
-                    if let deferred = self.deferred, deferred(method, path, headers, body, { [weak self] st, data in
+                    let later: (Int, Data) -> Void = { [weak self] st, data in
                         DispatchQueue.main.async { self?.respond(c, st, data) }
-                    }) { return }
+                    }
+                    if self.deferred.contains(where: { $0(method, path, headers, body, later) }) { return }
                     let (status, resp) = self.handler(method, path, headers, body)
                     self.respond(c, status, resp)
                     return
