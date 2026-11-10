@@ -411,14 +411,7 @@ enum Whereabouts {
     // MARK: - Rex
 
     static func rexPath(_ o: [String: String]) -> String? { rexBin(o) }
-    /// The Rex sessions these fish run in, and the `rex` to ask about them (nil: none of them is in Rex).
-    static func rexSessions(_ fish: [Fish]) -> (bin: String, sessions: Set<String>)? {
-        let inRex = fish.filter { !$0.decor && !$0.leaving && $0.whereabouts["rex_session"] != nil && $0.whereabouts["rex_block"] != nil }
-        guard let first = inRex.first, let bin = rexBin(first.whereabouts) else { return nil }
-        return (bin, Set(inRex.compactMap { $0.whereabouts["rex_session"] }))
-    }
-
-    private static func rexBin(_ o: [String: String]) -> String? {
+    static func rexBin(_ o: [String: String]) -> String? {
         let candidates = [o["rex_bin"], NSString("~/.local/bin/rex").expandingTildeInPath, "/opt/homebrew/bin/rex", "/usr/local/bin/rex"]
         return candidates.compactMap { $0 }.first { FileManager.default.isExecutableFile(atPath: $0) }
     }

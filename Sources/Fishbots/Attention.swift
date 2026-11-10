@@ -63,6 +63,7 @@ enum Attention {
         fromFile = Migration.attentionRules(at).compactMapValues(Level.init(rawValue:))
         Outputs.reload(obj)
         FishActions.reload(obj)
+        RexFish.reload(obj)
     }
 
     /// Creates config.json with an example (if it doesn't exist) and opens it.

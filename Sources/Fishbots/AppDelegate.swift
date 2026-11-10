@@ -17,8 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private(set) var demo: Demo!
     private var musicTimer: Timer?
     let labelLayers = Labels()
-    /// What each session in a Rex pane says it's doing (RexStatus).
-    let rexStatus = RexStatus()
+    /// What Rex's events do in the tank: what a session says it's doing, titles and places, programs as fish (RexFish).
+    lazy var rexFish = RexFish(tank: tank)
     private var hotkeys: [HotkeyAction: Hotkey] = [:]
     private var activity: NSObjectProtocol?
     private(set) var port: UInt16 = 7777
@@ -193,13 +193,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             self.hoverPearl = f == nil && presence == nil ? self.tank.pearls.at(q) : nil
             return f != nil || presence != nil || self.tank.scenery.chestHit(self.tank, at: q)
         }
-        rexStatus.onStatus = { [unowned self] block, doing in self.tank.doing(rexBlock: block, doing) }
+        rexFish.start()
         // session, tab and title names change: refresh every so often
         Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [unowned self] _ in
-            // one stream of events for each Rex session with a fish in it (none: they all close)
-            if let rex = Whereabouts.rexSessions(self.tank.fish) { self.rexStatus.follow(rex.sessions, bin: rex.bin) } else { self.rexStatus.stop() }
-            // pane and tab names only matter on screen (each refresh asks Rex)
-            if self.onScreen { for f in self.tank.fish where !f.decor && !f.whereabouts.isEmpty { Whereabouts.detail(f) } }
+            // Rex tells by itself (RexFish); a stream that ended is opened again here
+            self.rexFish.events.check()
+            // the others are asked: pane and tab names only matter on screen. A fish in a Rex pane is only asked
+            // while its place isn't known yet, or while Rex isn't being listened to
+            if self.onScreen {
+                for f in self.tank.fish where !f.decor && !f.whereabouts.isEmpty {
+                    let told = f.whereabouts["rex_block"] != nil && f.sub != nil && self.rexFish.events.isFollowing(f.whereabouts["rex_session"] ?? "")
+                    if !told { Whereabouts.detail(f) }
+                }
+            }
             // lingering error (over 12 min): becomes urgent once
             for f in self.tank.fish where !f.decor && !f.leaving && f.state == .error && !f.escalated
                 && self.tank.time - f.since > 720 * Tank.scale && Attention.level(f.source, .error) >= .attention {
@@ -368,7 +374,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // quitting in widget mode: back to the normal window first, so it isn't remembered as the window's size
         if widgetFrom != nil { toggleWidget() }
         SessionMemory.save(tank)
-        rexStatus.stop()
+        rexFish.events.stop()
         plugins?.stop()
         permissions.releaseAll()
     }
