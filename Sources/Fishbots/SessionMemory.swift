@@ -16,6 +16,7 @@ enum SessionMemory {
         var fixedTitle: String?
         var branch: String?
         var context: Float?
+        var model: String?
         var lastReply: String?
         var asked: String?
         var link: String?
@@ -42,7 +43,7 @@ enum SessionMemory {
         let saved = tank.fish.filter { $0.isAgent && !$0.decor && !$0.leaving && Providers.of($0.source) is TerminalAgentProvider }.map { f in
             Saved(source: f.source, entity: String(f.id.dropFirst(f.source.count + 1)), label: f.label, state: f.state.rawValue,
                   whereabouts: f.whereabouts, title: f.title, logTitle: f.logTitle, fixedTitle: f.fixedTitle, branch: f.branch,
-                  context: f.context, lastReply: f.lastReply, asked: f.asked, link: f.link, transcriptPath: f.transcriptPath,
+                  context: f.context, model: f.model, lastReply: f.lastReply, asked: f.asked, link: f.link, transcriptPath: f.transcriptPath,
                   lastSeen: now.addingTimeInterval(-(tank.time - f.seen)))
         }
         // lastSeen moves on every save: compare without it, and only write when something else changed

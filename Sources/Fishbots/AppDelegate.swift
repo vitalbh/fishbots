@@ -410,7 +410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 self.tank.upsert(source: s.source, entity: s.entity, state: state, label: s.label)
                 guard let f = self.tank.fish(source: s.source, entity: s.entity) else { continue }
                 f.title = s.title; f.logTitle = s.logTitle; f.fixedTitle = s.fixedTitle; f.branch = s.branch
-                f.context = s.context; f.lastReply = s.lastReply; f.link = s.link; f.transcriptPath = s.transcriptPath
+                f.context = s.context; f.model = s.model; f.lastReply = s.lastReply; f.link = s.link; f.transcriptPath = s.transcriptPath
                 if state == .waiting { f.asked = s.asked }
                 Whereabouts.restore(f, s.whereabouts)
                 if let t = s.transcriptPath { Transcript.read(t, to: f, now: self.tank.time) }

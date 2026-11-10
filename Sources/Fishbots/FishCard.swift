@@ -208,6 +208,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             line.spacing = 6
             right.append(line)
         }
+        if let m = f.modelName { right.append(text(m, 10.5, color: .secondaryLabelColor)) }
         if f.isAgent {
             let age = Date().timeIntervalSince(f.createdAt)
             right.append(text(tr("ativa %@", age < 60 ? tr("agora") : Journal.duration(age)), 10.5, color: .tertiaryLabelColor))

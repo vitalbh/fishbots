@@ -145,7 +145,7 @@ enum TankProtocol {
         let fishes: [[String: Any]] = tank.fish.filter { !$0.decor }.map {
             ["source": $0.source, "entity": String($0.id.dropFirst($0.source.count + 1)), "label": $0.label,
              "state": $0.state.rawValue, "motif": $0.motif, "leaving": $0.leaving,
-             "detail": $0.sub ?? "", "title": $0.displayTitle ?? "", "branch": $0.branch ?? "", "context": $0.context ?? -1, "where": $0.whereabouts, "link": $0.link ?? "",
+             "detail": $0.sub ?? "", "title": $0.displayTitle ?? "", "branch": $0.branch ?? "", "context": $0.context ?? -1, "model": $0.model ?? "","where": $0.whereabouts, "link": $0.link ?? "",
              "agent": $0.isAgent, "species": $0.species, "kind": $0.kindID, "baseKind": $0.baseKind, "sings": $0.sings, "inView": $0.inView]
         }
         let presences: [[String: Any]] = tank.scene.presences.filter { !$0.leaving }.map {
@@ -338,6 +338,7 @@ enum Transcript {
             var title: String?
             var branch: String?
             var used: Double?
+            var model: String?
             var fixed: String?
             for line in d.split(separator: UInt8(ascii: "\n")).reversed() {
                 if title != nil && branch != nil && used != nil && fixed != nil { break }
@@ -351,7 +352,11 @@ enum Transcript {
                    let u = (obj["message"] as? [String: Any])?["usage"] as? [String: Any] {
                     let n = ["input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"]
                         .compactMap { (u[$0] as? NSNumber)?.doubleValue }.reduce(0, +)
-                    if n > 0 { used = n }
+                    if n > 0 {
+                        used = n
+                        // the model that gave that reply (not the "<synthetic>" of a message Claude Code wrote itself)
+                        if let m = (obj["message"] as? [String: Any])?["model"] as? String, !m.hasPrefix("<") { model = m }
+                    }
                 }
                 // cheap filter before decoding
                 let hasTitle = title == nil && line.count < 4000 && line.firstRange(of: Data("\"ai-title\"".utf8)) != nil
@@ -366,6 +371,7 @@ enum Transcript {
                 if let fixed { f.fixedTitle = fixed }
                 if title != nil { Whereabouts.findByTitle(f) }
                 if let branch { f.branch = branch }
+                if let model { f.model = model }
                 if let used {
                     // limit: 200k, or 1 million when the session has already gone past that
                     let limit = used > 200_000 ? 1_000_000.0 : 200_000.0
@@ -399,6 +405,14 @@ enum Transcript {
                 if used > 0, limit > 0 { context = Float(min(1, used / limit)) }
                 break
             }
+            // model: the last turn's (turn_context)
+            var model: String?
+            for line in end.split(separator: UInt8(ascii: "\n")).reversed() where line.firstRange(of: Data("\"turn_context\"".utf8)) != nil {
+                guard let obj = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any], obj["type"] as? String == "turn_context",
+                      let m = (obj["payload"] as? [String: Any])?["model"] as? String, !m.isEmpty else { continue }
+                model = m
+                break
+            }
             // branch: in session_meta, right at the start
             var branch: String?
             if let first = start.split(separator: UInt8(ascii: "\n")).first,
@@ -425,6 +439,7 @@ enum Transcript {
                 if let title { f.logTitle = title }
                 if let branch { f.branch = branch }
                 if let context { f.context = context }
+                if let model { f.model = model }
             }
         }
     }

@@ -144,6 +144,23 @@ final class Fish {
     var inkAt: Double = 0
     /// Context used by the session (0…1 of the limit), read from the transcript; the fish fattens with it.
     var context: Float?
+    /// The model the session last answered with, as its id ("claude-opus-4-5-20251101"): from the conversation file.
+    var model: String?
+    /// The model's id made short for the card: "Opus 4.5" for a Claude id, the id itself for the others.
+    var modelName: String? {
+        guard var id = model, !id.isEmpty else { return nil }
+        guard id.hasPrefix("claude-") else { return id }
+        id.removeFirst("claude-".count)
+        var parts = id.split(separator: "-").map(String.init)
+        if let last = parts.last, last.count == 8, Int(last) != nil { parts.removeLast() }       // the release date
+        var words: [String] = []
+        for p in parts {
+            // numbers next to each other are one version: 4-5 → 4.5
+            if Int(p) != nil, let prev = words.last, prev.allSatisfy({ $0.isNumber || $0 == "." }) { words[words.count - 1] = prev + "." + p }
+            else { words.append(Int(p) != nil ? p : p.prefix(1).uppercased() + p.dropFirst()) }
+        }
+        return words.joined(separator: " ")
+    }
     var fat: Float = 0
     var action: Action?
     var actionSince: Double = 0
