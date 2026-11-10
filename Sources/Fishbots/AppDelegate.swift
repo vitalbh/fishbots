@@ -245,7 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             let presence = f == nil ? self.tank.scene.presence(at: q) : nil
             self.hoverPresence = presence?.id
             self.hoverPearl = f == nil && presence == nil ? self.tank.pearls.at(q) : nil
-            return f != nil || presence != nil || self.tank.chest(at: q)
+            return f != nil || presence != nil || self.tank.scenery.chestHit(self.tank, at: q)
         }
         // session, tab and title names change: refresh every so often
         Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [unowned self] _ in
@@ -855,7 +855,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             let at = Date(timeIntervalSince1970: pearl.hour)
             let hour = DateFormatter.localizedString(from: at, dateStyle: .none, timeStyle: .short)
             summary(since: at.addingTimeInterval(-1800), until: at.addingTimeInterval(1800), title: tr("Por volta das %@", hour))
-        } else if tank.chest(at: q) {
+        } else if tank.scenery.chestHit(tank, at: q) {
             // the treasure chest keeps the last hours; clicking it again closes them
             if let c = card { c.close?() } else { recentSummary() }
         } else if !tank.scare(q) {
@@ -904,7 +904,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             guard let id, let f = self?.tank.fish.first(where: { $0.id == id }) else { return nil }
             return NSColor(red: CGFloat(f.color.x), green: CGFloat(f.color.y), blue: CGFloat(f.color.z), alpha: 1)
         }
-        c.close = { [weak self] in self?.card?.removeFromSuperview(); self?.card = nil; self?.tank.highlighted = nil; self?.tank.chestOpen = false }
+        c.close = { [weak self] in self?.card?.removeFromSuperview(); self?.card = nil; self?.tank.highlighted = nil; self?.tank.scenery.chestOpen = false }
         c.translatesAutoresizingMaskIntoConstraints = false
         window.contentView!.addSubview(c)
         NSLayoutConstraint.activate([
@@ -913,7 +913,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ])
         card = c
         show()
-        tank.chestOpen = true          // the treasure chest opens while the summary is open
+        tank.scenery.chestOpen = true          // the treasure chest opens while the summary is open
 
         tank.highlightPearls(since: since, until: until)
         // parade: each fish that did something comes to the front, one at a time
@@ -2040,8 +2040,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         visual.themeVisualizer = t.visualizer
         tank.fauna.select(t.fauna)
         tank.weeds.shapes = t.weedShapes
-        tank.sceneryLooks = t.looks
-        tank.sceneryKinds = t.scenery
+        tank.scenery.looks = t.looks
+        tank.scenery.kinds = t.scenery
         // the theme's looks for presences and fish kinds (Preferences: "Vestir presenças e peixes com o tema")
         tank.scene.themeLooks = t.looks
         if appliedSchools != t.id { appliedSchools = t.id; tank.setSchools(t.schools ?? School.usual) }

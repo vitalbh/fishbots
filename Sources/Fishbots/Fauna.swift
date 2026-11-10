@@ -87,14 +87,14 @@ final class Crabs: Creature {
                      Crab(x: w * 0.66, dir: -1, until: t.time + 20, color: [0.9, 0.5, 0.25])]
         }
         // one that ended up on the scenery (a theme change, a resize) walks off it
-        for i in crabs.indices where t.sceneryBlocks(crabs[i].x) && crabs[i].buried < 0.5 { crabs[i].x += crabs[i].dir * 40 * dt }
+        for i in crabs.indices where t.scenery.blocks(t, crabs[i].x) && crabs[i].buried < 0.5 { crabs[i].x += crabs[i].dir * 40 * dt }
         for i in crabs.indices {
             var c = crabs[i]
             c.phase += dt
             if c.errandAt == 0 { c.errandAt = t.time + Double.random(in: 40...120) * Tank.scale }
             // now and then, an errand: something shiny from the pearls' row to the treasure chest, then back home
             if c.errand == 0, c.buried < 0.5, t.time > c.errandAt, let p = t.pearls.all.randomElement(),
-               let chest = t.scenery.first(where: { $0.id == "chest" }) {
+               let chest = t.scenery.chest {
                 _ = chest
                 c.errand = 1; c.home = c.x; c.goal = t.pearls.pos(p).x
             }
@@ -107,15 +107,15 @@ final class Crabs: Creature {
                     switch c.errand {
                     case 1:
                         t.sparkle(at: [c.x, y], color: [1, 0.97, 0.85])
-                        if let s = t.scenery.first(where: { $0.id == "chest" }) {
-                            let (center, sz) = t.place(s)
+                        if let s = t.scenery.chest {
+                            let (center, sz) = t.scenery.place(t, s)
                             c.goal = center.x + (c.x < center.x ? -1 : 1) * sz * 1.05
                             c.errand = 2
                         } else { c.errand = 3; c.goal = c.home }
                     case 2:
                         // drops it into the chest: a golden glint and a bubble
-                        if let s = t.scenery.first(where: { $0.id == "chest" }) {
-                            let (center, sz) = t.place(s)
+                        if let s = t.scenery.chest {
+                            let (center, sz) = t.scenery.place(t, s)
                             t.sparkle(at: center + [0, sz * 0.5], color: [1, 0.82, 0.4])
                             t.bubble(at: center + [0, sz * 0.3], size: 2)
                         }
@@ -148,7 +148,7 @@ final class Crabs: Creature {
             if c.walking && c.buried < 0.5 {
                 let next = c.x + c.dir * 22 * dt
                 // the edges and the scenery: turn around instead of walking over a rock or the chest
-                if next < w * 0.14 || next > w * 0.86 || (t.sceneryBlocks(next) && !t.sceneryBlocks(c.x)) { c.dir = -c.dir }
+                if next < w * 0.14 || next > w * 0.86 || (t.scenery.blocks(t, next) && !t.scenery.blocks(t, c.x)) { c.dir = -c.dir }
                 else { c.x = next }
             }
             crabs[i] = c

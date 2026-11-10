@@ -311,12 +311,12 @@ final class Scene {
         let gap = max(0.05, 110 / max(1, t.size.x))
         func room(_ u: Float) -> Float { taken.map { abs($0 - u) }.min() ?? 1 }
         var u = 0.1 + Float(fnv(key) % 1000) / 1000 * 0.8
-        if room(u) >= gap && !(onSand && t.sceneryBlocks(t.size.x * u)) { return u }
+        if room(u) >= gap && !(onSand && t.scenery.blocks(t, t.size.x * u)) { return u }
         // the spot with the most room, among a few candidates
         var best = u, bestRoom: Float = -1
         for i in 0..<40 {
             let c = 0.06 + Float(i) / 39 * 0.88
-            guard !(onSand && t.sceneryBlocks(t.size.x * c)) else { continue }
+            guard !(onSand && t.scenery.blocks(t, t.size.x * c)) else { continue }
             if room(c) > bestRoom { best = c; bestRoom = room(c) }
         }
         u = best
@@ -343,7 +343,7 @@ final class Scene {
                 if let slot = p.wallSlot, let at = wallPosition(slot, p.kind.size, t) { p.pos = at; return }
                 p.wallSlot = nil
             }
-            let x = t.clearOfScenery(w * p.u)
+            let x = t.scenery.clear(t, w * p.u)
             p.u = x / max(1, w)
             p.pos = [x, ground(p, t)]
             if fresh && p.kind.drops { p.pos.y = h + 20; p.landed = false }
@@ -587,7 +587,7 @@ final class Scene {
                 if abs(p.pos.x - home) > 70 { p.dir = p.pos.x > home ? -1 : 1 }
                 if p.state != .idle && p.state != .error && p.state != .waiting {
                     let next = p.pos.x + p.dir * 22 * pace * dt
-                    if t.sceneryBlocks(next) && !t.sceneryBlocks(p.pos.x) { p.dir = -p.dir } else { p.pos.x = next }
+                    if t.scenery.blocks(t, next) && !t.scenery.blocks(t, p.pos.x) { p.dir = -p.dir } else { p.pos.x = next }
                 }
                 p.pos.y = ground(p, t)
             case .sit where p.onWall:

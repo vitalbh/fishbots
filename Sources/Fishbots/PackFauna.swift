@@ -124,7 +124,7 @@ final class PackCreature: Creature {
             if ones.isEmpty {
                 for _ in 0..<n() {
                     var x = Float.random(in: w * 0.08...w * 0.92)
-                    for _ in 0..<10 where t.sceneryBlocks(x) { x = Float.random(in: w * 0.08...w * 0.92) }
+                    for _ in 0..<10 where t.scenery.blocks(t, x) { x = Float.random(in: w * 0.08...w * 0.92) }
                     ones.append(One(pos: [x, 0]))
                 }
             }
@@ -135,7 +135,7 @@ final class PackCreature: Creature {
                     if o.wait <= 0 {
                         o.moving = 1
                         let next = o.pos.x + o.dir * k.speed * dt
-                        if next < w * 0.06 || next > w * 0.94 || (t.sceneryBlocks(next) && !t.sceneryBlocks(o.pos.x)) { o.dir = -o.dir }
+                        if next < w * 0.06 || next > w * 0.94 || (t.scenery.blocks(t, next) && !t.scenery.blocks(t, o.pos.x)) { o.dir = -o.dir }
                         else { o.pos.x = next }
                         o.phase += dt * max(1, k.speed / 4)
                         if Float.random(in: 0...1) < dt * 0.25 { o.wait = Float.random(in: 1.5...5); if Bool.random() { o.dir = -o.dir } }
@@ -221,8 +221,8 @@ final class PackCreature: Creature {
 
         case .home:
             // around a home: pick a spot near it, swim there (facing the way it goes), pause, pick another
-            let homes = t.scenery.filter { $0.id == k.on }.map { s -> (SIMD2<Float>, Float) in
-                let (c, sz) = t.place(s)
+            let homes = t.scenery.items.filter { $0.id == k.on }.map { s -> (SIMD2<Float>, Float) in
+                let (c, sz) = t.scenery.place(t, s)
                 return (c + [0, sz * s.extent.y * 0.2], sz * max(s.extent.x, s.extent.y) * 0.75)
             }
             guard !homes.isEmpty else { ones = []; return }
@@ -261,8 +261,8 @@ final class PackCreature: Creature {
             }
 
         case .perch:
-            let spots = t.scenery.filter { $0.id == k.on }.map { s -> SIMD2<Float> in
-                let (c, sz) = t.place(s)
+            let spots = t.scenery.items.filter { $0.id == k.on }.map { s -> SIMD2<Float> in
+                let (c, sz) = t.scenery.place(t, s)
                 return c + [0, sz * s.extent.y * 0.3 + k.size * k.extent.y * 0.9]   // its feet (c.y = -0.9) on the piece
             }
             guard !spots.isEmpty else { ones = []; return }

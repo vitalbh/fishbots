@@ -106,7 +106,7 @@ final class Pearls {
         for h in heaps {
             var b = 1
             while b * (b + 1) / 2 < h.members.count { b += 1 }      // the bottom row of a heap that holds them all
-            let x0 = t.clearOfScenery(h.x + Float(b - 1) * gap / 2) - Float(b - 1) * gap / 2
+            let x0 = t.scenery.clear(t, h.x + Float(b - 1) * gap / 2) - Float(b - 1) * gap / 2
             var k = 0
             for row in 0..<b {
                 for col in 0..<(b - row) where k < h.members.count {

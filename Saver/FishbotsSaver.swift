@@ -149,8 +149,8 @@ final class FishbotsSaverView: ScreenSaverView {
         visual.themeVisualizer = theme.visualizer
         tank.fauna.select(theme.fauna)
         tank.weeds.shapes = theme.weedShapes
-        tank.sceneryLooks = theme.looks
-        tank.sceneryKinds = theme.scenery
+        tank.scenery.looks = theme.looks
+        tank.scenery.kinds = theme.scenery
         tank.scene.themeLooks = theme.looks
         tank.scene.dressByTheme = FishKinds.dressByTheme
         tank.setSchools(theme.schools ?? School.usual)
