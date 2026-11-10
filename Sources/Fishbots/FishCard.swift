@@ -298,7 +298,13 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         let today = f.finished.filter { Calendar.current.isDateInToday($0.when) }
         var activity: [NSView] = []
         if !f.history.isEmpty {
-            let names = f.history.suffix(4).reversed().map { toolName($0.name) }
+            // the latest first, the same tool several times in a row as one ("Bash ×3")
+            var runs: [(name: String, count: Int)] = []
+            for h in f.history.reversed() {
+                let n = toolName(h.name)
+                if let last = runs.last, last.name == n { runs[runs.count - 1].count += 1 } else { runs.append((n, 1)) }
+            }
+            let names = runs.prefix(4).map { $0.count > 1 ? "\($0.name) ×\($0.count)" : $0.name }
             let more = open.contains("tools")
             activity.append(link((more ? "▾ " : "▸ ") + "🛠 " + names.joined(separator: " · ") + "  (\(Self.ha(f.history.last!.when)))",
                                  tip: tr(more ? "recolher" : "ver o histórico")) { [weak self] in self?.toggle("tools") })
@@ -315,7 +321,18 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             v.append(r)
         }
         if open.contains("tools") {
-            for h in f.history.reversed() { v.append(text("   \(fmt.string(from: h.when))  \(toolName(h.name))", 10.5, color: .tertiaryLabelColor, mono: true)) }
+            // each one with what the session said it was doing, when it said (a session in a Rex pane)
+            for h in f.history.reversed() {
+                let line = NSMutableAttributedString(string: "   \(fmt.string(from: h.when))  \(toolName(h.name))", attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular), .foregroundColor: NSColor.tertiaryLabelColor])
+                if let s = h.said {
+                    line.append(NSAttributedString(string: "  " + (s.count > 56 ? String(s.prefix(55)) + "…" : s), attributes: [
+                        .font: NSFont.systemFont(ofSize: 10.5), .foregroundColor: NSColor.secondaryLabelColor]))
+                }
+                let row = text("", 10.5)
+                row.attributedStringValue = line
+                v.append(row)
+            }
         }
         if open.contains("tasks") {
             let short = DateFormatter(); short.timeStyle = .short; short.dateStyle = .none

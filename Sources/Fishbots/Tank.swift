@@ -321,6 +321,10 @@ final class Tank {
             f.doing = text
             f.doingAt = time
             if let text, f.state == .busy { f.moment = (text.count > 44 ? String(text.prefix(43)) + "…" : text, time + 6) }
+            // …or just after it: they go with the tool it has just started
+            if let text, let last = f.history.last, last.said == nil, Date().timeIntervalSince(last.when) < 3 {
+                f.history[f.history.count - 1].said = text
+            }
         }
     }
 
@@ -329,7 +333,9 @@ final class Tank {
         f.tool = name
         f.seen = time
         f.toolTimes.append(time)
-        f.history.append((Date(), name))
+        // its own words about this call, if they came just before it (and weren't about the call before)
+        let said = f.doing != nil && time - f.doingAt <= 1.5 && f.history.last?.said != f.doing ? f.doing : nil
+        f.history.append((Date(), name, said))
         // its own words about this tool, if they've just arrived, say more than the tool's name
         if f.doing == nil || time - f.doingAt > 1.5 { f.moment = (ToolBehaviors.of(name).label(name), time + 4) }
         f.toolSinceStart += 1

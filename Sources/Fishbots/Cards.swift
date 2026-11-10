@@ -116,7 +116,7 @@ final class Cards {
 
     /// What, if it changes, makes the open card refresh.
     private func signature(_ f: Fish) -> String {
-        [f.state.rawValue, f.tool ?? "", f.history.last?.name ?? "", "\(f.history.count)",
+        [f.state.rawValue, f.tool ?? "", f.history.last?.name ?? "", f.history.last?.said ?? "", "\(f.history.count)",
          f.context.map { "\(Int($0 * 100))" } ?? "", f.model ?? "", f.doing ?? "", "\(f.lastReply?.hashValue ?? 0)", f.asked ?? "",
          f.displayTitle ?? "", f.nickname ?? "", f.sub ?? "", "\(permissions.request(ofFish: f.id)?.id ?? 0)",
          "\(f.finished.count)", f.compactingSince == nil ? "" : "c"].joined(separator: "|")

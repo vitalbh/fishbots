@@ -172,7 +172,8 @@ final class Fish {
     var actionSide: Float = 1
     /// For the dots and the hover card.
     let createdAt = Date()
-    var history: [(when: Date, name: String)] = []      // latest tools
+    /// The latest tools, and what the session said it was doing with each one (when it says: `doing`).
+    var history: [(when: Date, name: String, said: String?)] = []
     var finished: [(when: Date, title: String)] = []   // finished tasks
     var lastError: Date?
     /// Depth (0 near … 1 far): far away is smaller, bluer and behind.
