@@ -678,7 +678,7 @@ like the built-in ones:
 
 | Field | |
 |---|---|
-| `motion` | `swim` (across, facing where it goes), `drift`, `hover`, `walk` (on the sand), `sit` (on the sand), `float` (at the surface) |
+| `motion` | `swim` (across, facing where it goes), `drift`, `hover`, `walk` (on the sand), `sit` (on the sand), `float` (at the surface), `glass` (a small light on the side glass, with the others from its source; drawn facing the middle of the tank: the glass is behind c.x = 0, and its color is the state's) |
 | `size`, `extent` | size in points, and the quad (width, height) relative to it |
 | `band` | `[lo, hi]`, 0…1 from the bottom, where swimmers, drifters and hoverers stay |
 | `meter` | shows `value` (0…1) in its drawing; the label adds the percentage |

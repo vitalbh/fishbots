@@ -19,8 +19,9 @@ final class Scene {
             PresenceKind(id: "hourglass", sprite: 28, motion: .sit, size: 28, color: [0.62, 0.42, 0.26], meter: true, sound: "tick"),
             PresenceKind(id: "anchor", sprite: 29, motion: .sit, size: 34, color: [0.42, 0.4, 0.38], drops: true, sound: "clang"),
             PresenceKind(id: "flag", sprite: 30, motion: .sit, size: 32, color: [0.35, 0.85, 0.5], sound: "soft"),
-            PresenceKind(id: "helm", sprite: 31, motion: .sit, size: 34, color: [0.6, 0.4, 0.22], sound: "clang", wall: true),
+            PresenceKind(id: "helm", sprite: 31, motion: .sit, size: 34, color: [0.6, 0.4, 0.22], sound: "clang"),
             PresenceKind(id: "chest", sprite: 23, motion: .sit, size: 22, color: [0.5, 0.31, 0.16], sound: "bell"),
+            PresenceKind(id: "pilot", sprite: 45, motion: .glass, size: 11, color: [0.72, 0.6, 0.38], sound: "soft"),
             PresenceKind(id: "battery", sprite: 6, motion: .sit, size: 20, color: [1, 1, 1], meter: true, sound: "bubble"),
         ]
         return Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
@@ -41,7 +42,7 @@ final class Scene {
                 else {
                     // its pack left (removed or paused): a built-in kind that moves the same way stands in
                     let stand: [PresenceKind.Motion: String] = [.swim: "turtle", .drift: "jellyfish", .hover: "seahorse",
-                                                                .walk: "crab", .sit: "flag", .float: "bottle"]
+                                                                .walk: "crab", .sit: "flag", .float: "bottle", .glass: "pilot"]
                     p.wantedKind = p.kind.id
                     if let k = Self.kinds[stand[p.kind.motion] ?? "flag"] { p.kind = k }
                 }
@@ -123,9 +124,8 @@ final class Scene {
 
     /// Where its text goes: above the objects on the sand, below the swimmers. (point, above)
     func labelAnchor(_ p: Presence) -> (SIMD2<Float>, above: Bool) {
-        if p.onWall { return (p.pos + p.shakeOffset - [0, p.kind.size * 1.15 + 2], false) }
         if p.kind.motion.grounded {
-            let top: Float = [27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 2.05, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
+            let top: Float = [27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 1.08, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
                 ?? (p.kind.pack != nil ? p.kind.extent.y * 1.9 : 1.2)
             return (p.pos + p.shakeOffset + [0, p.kind.size * top + 4], true)
         }
@@ -136,7 +136,7 @@ final class Scene {
 
     /// Objects on the sand are drawn above their anchor point.
     func hitCenter(_ p: Presence) -> SIMD2<Float> {
-        p.kind.motion.grounded && !p.onWall ? p.pos + [0, p.kind.size * (p.kind.pack != nil ? p.kind.extent.y * 0.9 : 0.4)] : p.pos
+        p.kind.motion.grounded ? p.pos + [0, p.kind.size * (p.kind.pack != nil ? p.kind.extent.y * 0.9 : 0.4)] : p.pos
     }
 
     /// Creates or updates. Returns an error for the protocol's response.
@@ -188,7 +188,8 @@ final class Scene {
         p.sound = sound
         place(p, t, fresh: true)
         presences.append(p)
-        t.burst(at: p.kind.drops ? [p.pos.x, t.size.y - 10] : p.pos, n: 10)
+        if kind.motion == .glass { layoutGlass(t); p.pos = p.home }
+        t.burst(at: p.kind.drops ? [p.pos.x, t.size.y - 10] : p.pos, n: kind.motion == .glass ? 3 : 10)
         if p.state == .done { shine(p, t) }
         // arrives: its state's call, or a soft hello
         if p.state == .waiting { p.reminder = t.time }
@@ -237,13 +238,9 @@ final class Scene {
             if fresh { p.pos = [w * p.u, h * mixf(p.kind.band, p.lane)] }
         case .float:
             if fresh { p.pos = [w * p.u, h * 0.955] }
+        case .glass:
+            break       // layoutGlass gives it its place, and it glides there
         case .walk, .sit:
-            // helms go on the side glass first, while there's room
-            if p.kind.wall {
-                if p.wallSlot == nil, let slot = freeWallSlot(t) { p.wallSlot = slot }
-                if let slot = p.wallSlot, let at = wallPosition(slot, p.kind.size, t) { p.pos = at; return }
-                p.wallSlot = nil
-            }
             let x = t.scenery.clear(t, w * p.u)
             p.u = x / max(1, w)
             p.pos = [x, ground(p, t)]
@@ -251,23 +248,35 @@ final class Scene {
         }
     }
 
-    /// Where a wall slot is: alternating sides, from high up down to just above the dark seaweed in the corners.
-    private func wallPosition(_ slot: Int, _ size: Float, _ t: Tank) -> SIMD2<Float>? {
-        let w = t.size.x, h = t.size.y
-        let spacing = size * 3.1
-        let y = h * 0.8 - Float(slot / 2) * spacing
-        guard y > h * 0.38 else { return nil }
-        let x = slot % 2 == 0 ? max(size * 1.6, w * 0.045) : w - max(size * 1.6, w * 0.045)
-        return [x, y]
-    }
+    /// Which side glass each source's lights are on (0 left, 1 right): a new source takes the emptier side.
+    private var glassSides: [String: Int] = [:]
 
-    private func freeWallSlot(_ t: Tank) -> Int? {
-        let used = Set(presences.filter { !$0.leaving }.compactMap(\.wallSlot))
-        for slot in 0..<40 where !used.contains(slot) {
-            guard wallPosition(slot, 34, t) != nil else { return nil }
-            return slot
+    /// The lights on the side glass: each source's together, one under the other from high up down to just above the
+    /// dark seaweed in the corners (then a second column). One that needs you takes more room, for its text.
+    private func layoutGlass(_ t: Tank) {
+        let bySource = Dictionary(grouping: presences.filter { $0.kind.motion == .glass && !$0.leaving }, by: \.source)
+        glassSides = glassSides.filter { bySource[$0.key] != nil }
+        let sources = bySource.keys.sorted()
+        for s in sources where glassSides[s] == nil {
+            func lights(_ side: Int) -> Int { bySource.reduce(0) { $0 + (glassSides[$1.key] == side ? $1.value.count : 0) } }
+            glassSides[s] = lights(0) <= lights(1) ? 0 : 1
         }
-        return nil
+        let w = t.size.x, h = t.size.y
+        let top = h * 0.8, bottom = h * 0.36
+        for side in 0...1 {
+            var y = top, column: Float = 0
+            for s in sources where glassSides[s] == side {
+                for p in bySource[s]!.sorted(by: { $0.id < $1.id }) {
+                    let room = 20 + 12 * p.swell
+                    if y - room < bottom && y < top { column += 1; y = top }
+                    let inset = max(16, w * 0.014) + column * 28
+                    p.side = side == 0 ? 1 : -1
+                    p.home = [side == 0 ? inset : w - inset, y - room / 2]
+                    y -= room
+                }
+                y -= 12
+            }
+        }
     }
 
     private func ground(_ p: Presence, _ t: Tank) -> Float {
@@ -288,6 +297,11 @@ final class Scene {
             playSound(p, c, t)
         }
         if s == .born { t.burst(at: p.pos, n: 8) }
+    }
+
+    /// What a lamp shows for a state: the helm's hub, a pilot light.
+    func lamp(_ s: State) -> SIMD3<Float> {
+        color(of: s) ?? (s == .idle ? [0.5, 0.52, 0.55] : s == .busy ? [0.45, 0.75, 1] : [0.35, 0.85, 0.5])
     }
 
     /// The state's color (nil: the presence's own).
@@ -325,6 +339,7 @@ final class Scene {
         quake = time < quakeUntil ? Float(quakeUntil - time) / 2.6 : 0
         shakeOffset = quake > 0 ? [sinf(Float(time) * 53) * 5 * quake, sinf(Float(time) * 41 + 1) * 3 * quake] : .zero
 
+        if presences.contains(where: { $0.kind.motion == .glass }) { layoutGlass(t) }
         for p in presences {
             p.phase += dt
             p.alpha += ((p.leaving ? 0 : 1) - p.alpha) * min(1, dt * 2.5)
@@ -373,9 +388,10 @@ final class Scene {
                     if t.scenery.blocks(t, next) && !t.scenery.blocks(t, p.pos.x) { p.dir = -p.dir } else { p.pos.x = next }
                 }
                 p.pos.y = ground(p, t)
-            case .sit where p.onWall:
-                if let slot = p.wallSlot, let at = wallPosition(slot, p.kind.size, t) { p.pos += (at - p.pos) * min(1, dt * 2.5) }
-                else { p.wallSlot = nil; place(p, t, fresh: false) }   // no room anymore (smaller window): to the sand
+            case .glass:
+                p.swell += ((p.needsYou && !p.leaving ? 1 : 0) - p.swell) * min(1, dt * 4)
+                p.pos += (p.home - p.pos) * min(1, dt * 3)
+                p.dir = p.side
             case .sit:
                 if !p.landed {
                     p.pos.y -= 320 * dt
@@ -394,8 +410,8 @@ final class Scene {
                 }
             }
             if p.kind.id == "helm" { p.spin += dt * (p.state == .busy ? 1.1 : p.state == .waiting ? 0.25 : 0) }
-            // a place freed up on the glass: one from the sand goes up there (gliding)
-            if p.kind.wall && !p.onWall && !p.leaving && p.landed, let slot = freeWallSlot(t) { p.wallSlot = slot }
+            // a light on the glass only shines: no bubbles, no ink
+            if p.kind.motion == .glass { continue }
             // busy: small bubbles rise from it
             if p.state == .busy && !p.leaving && time > p.bubbleAt {
                 p.bubbleAt = time + Double.random(in: 0.35...0.9)

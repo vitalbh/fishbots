@@ -21,7 +21,8 @@ extension Scene {
         var out: [Sprite] = []
         let lit = 0.55 + 0.45 * t.light
         let pulse = 0.5 + 0.5 * sinf(Float(t.time) * 4)
-        for p in presences where (p.state == .waiting && !p.leaving) == front && (!t.compact || p.needsYou) {
+        // (the lights on the side glass are in front of whatever swims by)
+        for p in presences where ((p.state == .waiting && !p.leaving) || p.kind.motion == .glass) == front && (!t.compact || p.needsYou) {
             let dress = dressed(p)
             var c = p.color ?? dress?.color ?? p.kind.color
             var glow: Float = 0
@@ -42,8 +43,12 @@ extension Scene {
             }
             // a helm dressed by the theme: its drawing's color is the hub's (the state's), as the helm's own
             if p.kind.id == "helm", dress != nil {
-                c = color(of: p.state) ?? (p.state == .idle ? [0.5, 0.52, 0.55] : p.state == .busy ? [0.45, 0.75, 1] : [0.35, 0.85, 0.5])
+                c = lamp(p.state)
             }
+            // a light dressed by the theme: its drawing's color is the lamp's, and it shines whatever the hour
+            let glass = p.kind.motion == .glass
+            if glass, dress != nil || p.kind.pack != nil { c = lamp(p.state) / lit }
+            let grown = 1 + 0.6 * p.swell
             c *= lit
             let a = p.alpha
             let shake = p.shakeOffset
@@ -51,19 +56,19 @@ extension Scene {
             // a soft halo in the state's color, behind it
             if glow > 0.01 {
                 let sc = color(of: p.state) ?? p.baseColor
-                out.append(Sprite(pos: center, dir: [1, 0], size: p.kind.size * 0.75, kind: 4, glow: glow * 0.5 * a, phase: 0,
+                out.append(Sprite(pos: center, dir: [1, 0], size: p.kind.size * (glass ? 2.4 : 0.75), kind: 4, glow: glow * 0.5 * a, phase: 0,
                                   color: SIMD4(sc, 1), extra: [1, 0, 0, 0]))
             }
             let pos = p.pos + shake
             let value = p.value ?? 1
             // dressed by the theme: the pack kind's drawing, moving as the plugin's kind does
             if let dk = dress, let i = dk.pack, i < PackPresences.all.count {
-                let mirrored = p.kind.motion == .swim || p.kind.motion == .hover
+                let mirrored = p.kind.motion == .swim || p.kind.motion == .hover || glass
                 let tilt: Float = p.kind.motion == .swim ? max(-0.25, min(0.25, p.vel.y / 120))
                     : p.kind.motion == .float ? sinf(p.phase * 1.1) * 0.22 : 0
                 let theta = !mirrored || p.dir >= 0 ? tilt : .pi - tilt
-                let up: Float = p.kind.motion.grounded && !p.onWall ? dk.extent.y * 0.9 : 0
-                out.append(Sprite(pos: pos + [0, dk.size * up], dir: [cosf(theta), sinf(theta)], size: dk.size, kind: 37,
+                let up: Float = p.kind.motion.grounded ? dk.extent.y * 0.9 : 0
+                out.append(Sprite(pos: pos + [0, dk.size * up], dir: [cosf(theta), sinf(theta)], size: dk.size * grown, kind: 37,
                                   glow: glow, phase: p.phase * (p.state == .busy ? 1.8 : 1), color: SIMD4(c, a),
                                   extra: [mirrored ? p.dir : 1, value, Float(i), PackPresences.stateCode(p.state)],
                                   aux: [dk.extent.x, dk.extent.y, 0, 0]))
@@ -85,12 +90,19 @@ extension Scene {
             case 15:     // turtle
                 out.append(Sprite(pos: pos, dir: [p.dir, 0], size: p.kind.size, kind: 15, glow: 0, phase: p.phase,
                                   color: SIMD4(c, a), extra: [p.dir, 0, 0, 0]))
-            case 31:     // helm: wooden wheel; the hub takes the state's color, and it turns while busy (extra.yzw: hub color)
-                let hub: SIMD3<Float> = color(of: p.state) ?? (p.state == .idle ? [0.5, 0.52, 0.55]
-                                                                : p.state == .busy ? [0.45, 0.75, 1] : [0.35, 0.85, 0.5])
+            case 45:     // pilot light: a small lamp on the side glass in the state's color (extra.yzw); it breathes while
+                         // busy, pulses when it needs you and is nearly out when idle (glow: how bright)
+                let l = lamp(p.state)
+                let level: Float = p.needsYou ? 0.65 + 0.35 * pulse : p.state == .busy ? 0.7 + 0.25 * sinf(p.phase * 2.2)
+                    : p.state == .idle ? 0.3 : 0.85
+                out.append(Sprite(pos: pos, dir: [1, 0], size: p.kind.size * grown, kind: 45, glow: level, phase: p.phase,
+                                  color: SIMD4((p.color ?? p.kind.color) * lit, a), extra: [1, l.x, l.y, l.z], aux: [1, 1, 0, 0]))
+            case 31:     // helm: a wooden wheel fallen on the sand; the hub takes the state's color, and it turns while busy
+                         // (extra.yzw: hub color)
+                let hub = lamp(p.state)
                 let wobble: Float = p.state == .error ? sinf(p.phase * 7) * 0.06 : sinf(p.phase * 0.6) * 0.03
                 // (alpha above 1.5: rusted)
-                out.append(Sprite(pos: pos + [0, p.onWall ? 0 : p.kind.size * 1.0], dir: [1, 0], size: p.kind.size, kind: 31, glow: glow,
+                out.append(Sprite(pos: pos + [0, p.kind.size * 1.0], dir: [1, 0], size: p.kind.size, kind: 31, glow: glow,
                                   phase: p.spin + wobble, color: SIMD4(c, a + 2 * variant(p)), extra: [1, hub.x * lit, hub.y * lit, hub.z * lit]))
             case 23:     // chest: glows when done or waiting
                 let open: Float = p.state == .done || p.state == .waiting ? 1 : 0.25
@@ -98,12 +110,12 @@ extension Scene {
                                   color: SIMD4(c, a), extra: [1, open > 0.5 ? 1 : 0, variant(p), 0]))
             case 37:     // a pack's presence: its own drawing (extra.z: its index, extra.w: its state)
                 guard let i = p.kind.pack, i < PackPresences.all.count else { break }
-                let mirrored = p.kind.motion == .swim || p.kind.motion == .hover
+                let mirrored = p.kind.motion == .swim || p.kind.motion == .hover || glass
                 let tilt: Float = p.kind.motion == .swim ? max(-0.25, min(0.25, p.vel.y / 120))
                     : p.kind.motion == .float ? sinf(p.phase * 1.1) * 0.22 : 0
                 let theta = !mirrored || p.dir >= 0 ? tilt : .pi - tilt
-                let up: Float = p.kind.motion.grounded && !p.onWall ? p.kind.extent.y * 0.9 : 0   // its feet (c.y = -0.9) on the sand
-                out.append(Sprite(pos: pos + [0, p.kind.size * up], dir: [cosf(theta), sinf(theta)], size: p.kind.size, kind: 37,
+                let up: Float = p.kind.motion.grounded ? p.kind.extent.y * 0.9 : 0   // its feet (c.y = -0.9) on the sand
+                out.append(Sprite(pos: pos + [0, p.kind.size * up], dir: [cosf(theta), sinf(theta)], size: p.kind.size * grown, kind: 37,
                                   glow: glow, phase: p.phase * (p.state == .busy ? 1.8 : 1), color: SIMD4(c, a),
                                   extra: [mirrored ? p.dir : 1, value, Float(i), PackPresences.stateCode(p.state)],
                                   aux: [p.kind.extent.x, p.kind.extent.y, 0, 0]))
@@ -111,7 +123,7 @@ extension Scene {
                 // the presences' own drawings (25–30) and the static ones (starfish)
                 let up: Float = p.kind.motion.grounded ? [27: 0.3, 28: 0.85, 29: 0.85, 30: 1.0, 17: 0.15][p.kind.sprite] ?? 0 : 0
                 // swimmers face where they go, like the fish: rotated by π - tilt and mirrored when going left
-                let mirrored = p.kind.motion == .swim || p.kind.motion == .hover
+                let mirrored = p.kind.motion == .swim || p.kind.motion == .hover || glass
                 let tilt: Float = p.kind.motion == .swim ? max(-0.25, min(0.25, p.vel.y / 120))
                     : p.kind.motion == .float ? sinf(p.phase * 1.1) * 0.22 : 0
                 let theta = !mirrored || p.dir >= 0 ? tilt : .pi - tilt

@@ -394,7 +394,7 @@ enum Packs {
                 problems.append(tr("%@: a presença %@ já existe", name, id))
                 continue
             }
-            let motions: [String: PresenceKind.Motion] = ["swim": .swim, "drift": .drift, "hover": .hover, "walk": .walk, "sit": .sit, "float": .float]
+            let motions: [String: PresenceKind.Motion] = ["swim": .swim, "drift": .drift, "hover": .hover, "walk": .walk, "sit": .sit, "float": .float, "glass": .glass]
             func num(_ k: String, _ def: Float) -> Float { (pr[k] as? NSNumber)?.floatValue ?? def }
             let band = (pr["band"] as? [NSNumber]).flatMap { $0.count == 2 && $0[0].floatValue <= $0[1].floatValue
                 ? max(0.05, $0[0].floatValue)...min(0.95, $0[1].floatValue) : nil } ?? 0.3...0.6

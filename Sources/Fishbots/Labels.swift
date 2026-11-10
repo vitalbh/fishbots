@@ -250,6 +250,10 @@ final class Labels {
             let near = now.hoverPresence == p.id
             if Self.mode == "none" && !near && !p.needsYou { l.opacity = 0; continue }
             if tank.compact && !p.needsYou { l.opacity = 0; continue }
+            // a light on the side glass is quiet while all is well: its text shows when it needs you, for a few
+            // seconds after its state changes, and on hover
+            let glass = p.kind.motion == .glass
+            if glass && !near && !p.needsYou && !(p.since > p.born && tank.time - p.since < 6) { l.opacity = 0; continue }
             var name = short(p.label, 28)
             if p.kind.meter, p.detail == nil, let v = p.value { name += " · \(Int((v * 100).rounded()))%" }
             if near && p.link != nil { name += " ↗" }
@@ -272,8 +276,16 @@ final class Labels {
             l.string = s
             let sz = s.size()
             l.bounds = CGRect(x: 0, y: 0, width: ceil(sz.width) + 6, height: ceil(sz.height) + 2)
-            let (at, above) = tank.scene.labelAnchor(p)
-            l.position = CGPoint(x: CGFloat(at.x), y: CGFloat(at.y) + (above ? 1 : -1) * l.bounds.height / 2)
+            if glass {
+                // beside it, toward the middle of the tank
+                l.alignmentMode = p.side > 0 ? .left : .right
+                let off = CGFloat(p.kind.size * (1 + 0.6 * p.swell)) * 0.75 + 5 + l.bounds.width / 2
+                l.position = CGPoint(x: CGFloat(p.pos.x + p.shakeOffset.x) + CGFloat(p.side) * off, y: CGFloat(p.pos.y))
+            } else {
+                l.alignmentMode = .center
+                let (at, above) = tank.scene.labelAnchor(p)
+                l.position = CGPoint(x: CGFloat(at.x), y: CGFloat(at.y) + (above ? 1 : -1) * l.bounds.height / 2)
+            }
             l.opacity = p.alpha
             l.zPosition = near ? 10 : 1
         }

@@ -280,7 +280,7 @@ float4 draw_flag(float2 c, float phase, float glow, float4 col) {
     return presence_out(d, c3, glow, col.rgb, col.a, c);
 }
 
-// helm (31): a ship's wheel in wood, eight spokes ending in handles, an inner ring and a hub in the state's color;
+// helm (31, face on; draw_helm_fallen lays it on the sand): a ship's wheel in wood, eight spokes ending in handles, an inner ring and a hub in the state's color;
 // `phase` is its turn (radians)
 float4 draw_helm(float2 c, float phase, float glow, float4 col, float3 hub) {
     // col.a above 1.5: a rusted iron helm (the deep sea's), its alpha is what's left
@@ -323,6 +323,45 @@ float4 draw_helm(float2 c, float phase, float glow, float4 col, float3 hub) {
     return float4((c3 * inside + col.rgb * halo + hub * hubGlow) * col.a, (inside + halo * 0.5 + hubGlow * 0.4) * col.a);
 }
 
+// the helm where it is now: fallen on the sand, seen a little from above (a leaning ellipse), with the wheel's
+// side showing under it and its shadow on the sand
+float4 draw_helm_fallen(float2 c, float phase, float glow, float4 col, float3 hub) {
+    float2 o = c - float2(0.0, -0.4);
+    float ca = cos(-0.1), sa = sin(-0.1);
+    o = float2(o.x * ca - o.y * sa, o.x * sa + o.y * ca);
+    float2 q = float2(o.x, o.y / 0.46);
+    float4 top = draw_helm(q, phase, glow, col, hub);
+    float4 side = draw_helm(q + float2(0.0, 0.2), phase, 0.0, float4(col.rgb * 0.42, col.a), hub * 0.35);
+    float rust = step(1.5, col.a);
+    float shade = exp(-dot(q + float2(0.0, 0.3), q + float2(0.0, 0.3)) * 1.3) * 0.4 * (col.a - rust * 2.0)
+        * (1.0 - smoothstep(0.75, 1.0, max(abs(c.x), abs(c.y))));
+    float4 under = side + float4(0.0, 0.0, 0.0, shade) * (1.0 - side.a);
+    return top + under * (1.0 - top.a);
+}
+
+// pilot light (45): a small glass dome in a brass bezel, stuck on the side glass. `lamp` is the state's color and
+// `level` how bright it is now (it breathes while busy, pulses when it needs you, is nearly out when idle).
+float4 draw_pilot(float2 c, float level, float4 col, float3 lamp) {
+    float r = length(c);
+    if (r > 1.0) return float4(0.0);
+    float bezel = abs(r - 0.5) - 0.075;
+    float dome = r - 0.45;
+    float d = min(bezel, dome);
+    float aa = fwidth(d) + 1e-4;
+    float inB = 1.0 - smoothstep(-aa, aa, bezel);
+    float inD = (1.0 - smoothstep(-aa, aa, dome)) * (1.0 - inB);
+    float2 q = c / 0.45;
+    float3 n = normalize(float3(q, sqrt(max(0.02, 1.0 - dot(q, q)))));
+    float lit = 0.6 + 0.4 * max(0.0, dot(n, normalize(float3(-0.3, 0.8, 0.5))));
+    float core = exp(-dot(q, q) * 2.2);
+    float3 domeC = lamp * (0.2 + level * (0.6 + 0.6 * core)) * lit + float3(1.0) * level * core * 0.3;
+    domeC += float3(0.9) * (1.0 - smoothstep(0.0, 0.22, length(q - float2(-0.35, 0.4)))) * 0.45;      // a glint on the glass
+    float3 bezelC = col.rgb * (0.65 + 0.55 * smoothstep(-0.6, 0.6, c.y)) + lamp * level * 0.3;
+    float inside = max(inB, inD);
+    float halo = exp(-max(d, 0.0) * 6.0) * level * 0.6 * (1.0 - inside) * (1.0 - smoothstep(0.65, 1.0, r));
+    return float4((bezelC * inB + domeC * inD + lamp * halo) * col.a, (inside + halo * 0.5) * col.a);
+}
+
 float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, float4 extra) {
     switch (kind) {
         case 25: return draw_shark(c, phase, glow, col, extra.z);   // extra.z: 1 is the hammerhead
@@ -330,7 +369,7 @@ float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, fl
         case 27: return draw_bottle(c, phase, glow, col, extra.z);  // extra.z: 1 is the deep sea's
         case 28: return draw_hourglass(c, phase, glow, col, extra.y);
         case 29: return draw_anchor(c, phase, glow, col);
-        case 31: return draw_helm(c, phase, glow, col, extra.yzw);
+        case 31: return draw_helm_fallen(c, phase, glow, col, extra.yzw);
         default: return draw_flag(c, phase, glow, col);
     }
 }

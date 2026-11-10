@@ -2,6 +2,9 @@
 let english: [String: String] = [
     "✋ esperando você": "✋ waiting for you",
     "✗ erro": "✗ error",
+    "%@ pedem atenção": "%@ need attention",
+    "tudo certo": "all good",
+    "%@ luzes no vidro": "%@ lights on the glass",
     "Não consegui iniciar o Metal.": "Couldn't start Metal.",
     "✋ %@ quer usar %@": "✋ %@ wants to use %@",
     "Ir até lá": "Go there",

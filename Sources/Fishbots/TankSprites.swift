@@ -28,8 +28,8 @@ extension Tank {
         return out
     }
 
-    /// Far away and on the back glass: the theme's roots and wreck, the distant creatures, the jellyfish, the
-    /// battery, the far snow and the shadows on the sand.
+    /// Far away and on the back glass: the theme's roots and wreck, the distant creatures, the jellyfish, the far
+    /// snow and the shadows on the sand.
     private func backdrop() -> [Sprite] {
         var out: [Sprite] = []
         // mangrove roots coming down at the sides (a theme that lists "mangrove" in its scenery)
@@ -58,12 +58,6 @@ extension Tank {
                                       phase: jellyPhase, color: [0.85, 0.55, 1.0, 0.75], extra: [1, 0, 0, 0])])
         }
 
-        if let b = battery {
-            let a = batteryAngle
-            out.append(Sprite(pos: batteryPos, dir: [cosf(a), sinf(a)], size: 17, kind: 6, glow: b,
-                              phase: jellyPhase, color: [1, 1, 1, 1], extra: [1, pluggedIn ? 1 : 0, 0, 0]))
-        }
-
         // marine snow far away, and the shadows on the sand (under the fish and whatever swims)
         out += motes.sprites(self, front: false)
         for f in fish where !isHidden(f) {
@@ -75,7 +69,7 @@ extension Tank {
         return out
     }
 
-    /// The scenery, softened a little by the water, then the pebbles, the day's pearls and the list pebbles.
+    /// The scenery, softened a little by the water, then the old battery, the pebbles, the day's pearls and the list pebbles.
     private func onTheSand() -> [Sprite] {
         var out: [Sprite] = []
         // the scenery: behind the pearls, the creatures and the fish, softened a little by the water
@@ -103,6 +97,12 @@ extension Tank {
                               phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed, color: SIMD4(color, 1),
                               extra: [1, s.id == "chest" ? min(1, scenery.chestLid) : s.id == "shell" ? 1 : 0, safe, 0],
                               aux: s.kind > 40.5 ? [1, 1, 0, 0] : .zero))
+        }
+        // the old battery, in front of the scenery (at a spot it leaves free)
+        if let b = battery {
+            let a = batteryAngle
+            out.append(Sprite(pos: batteryPos, dir: [cosf(a), sinf(a)], size: 17, kind: 6, glow: b,
+                              phase: jellyPhase, color: [1, 1, 1, 1], extra: [1, pluggedIn ? 1 : 0, 0, 0]))
         }
         // pebbles and little shells on the sand (the theme may draw them its own way: "pebble", "seashell")
         let looks = FishKinds.dressByTheme ? Themes.current.looks : [:]

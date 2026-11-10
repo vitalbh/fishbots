@@ -22,6 +22,7 @@ final class Cards {
     /// The fish chosen with Tab (its card stays open until Esc or the mouse goes to another fish).
     private(set) var keyboardPick: String?
     private var requestBubble: NSPopover?
+    private var sourceBubble: NSPopover?
 
     init(tank: Tank, permissions: Permissions) {
         self.tank = tank
@@ -186,6 +187,27 @@ final class Cards {
         let r = NSRect(x: CGFloat(f.pos.x) - 20, y: CGFloat(f.pos.y) - 20, width: 40, height: 40)
         pop.show(relativeTo: r, of: view, preferredEdge: .maxY)
         requestBubble = pop
+    }
+
+    // MARK: - a light on the side glass
+
+    /// The card of a light on the side glass: what its source keeps there, pointing at the light.
+    func showSource(of p: Presence) {
+        sourceBubble?.close()
+        let items = tank.scene.presences.filter { $0.source == p.source && $0.kind.motion == .glass && !$0.leaving }
+        let card = SourceCard(source: p.source, items: items, picked: p.id) { [tank] in tank.scene.lamp($0) }
+        let pop = NSPopover()
+        pop.behavior = .transient
+        pop.appearance = NSAppearance(named: .darkAqua)
+        card.open = { [weak pop] item in
+            guard let l = item.link, let u = URL(string: l), ["http", "https"].contains(u.scheme ?? "") else { return }
+            pop?.close()
+            NSWorkspace.shared.open(u)
+        }
+        pop.contentViewController = card
+        let r = NSRect(x: CGFloat(p.pos.x) - 10, y: CGFloat(p.pos.y) - 10, width: 20, height: 20)
+        pop.show(relativeTo: r, of: view, preferredEdge: p.side > 0 ? .maxX : .minX)
+        sourceBubble = pop
     }
 
     /// "allow", "deny" or "go" (no decision: takes you to the session to answer there).

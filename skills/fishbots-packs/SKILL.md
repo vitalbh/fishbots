@@ -146,7 +146,7 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
   colors for the effects plugins send, or another effect in its place.
 - **Swim:** `"swim": {"*": {"speed": 0.8, "beat": 0.85}, "oval": {"bob": 0.2}}` on a theme tunes how every kind
   (built-in too) or one kind swims there: speed and beat multiply, depth/bob/upright replace.
-- **Presences** (`"presences"`): kinds plugins can send (`"kind": "<id>"`), with `motion` (swim drift hover walk sit
+- **Presences** (`"presences"`): kinds plugins can send (`"kind": "<id>"`), with `motion` (glass swim drift hover walk sit
   float), `size`, `extent`, `band`, `meter`, `sound`. Function like a creature's; `extra.y` is the value (0…1) and
   `extra.w` the state (0 idle, 1 busy, 2 waiting, 3 ok, 4 alert, 5 error, 6 done, 7 born): show it (color, light,
   motion). The preview draws them as ok, busy, error and waiting.

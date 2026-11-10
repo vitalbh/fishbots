@@ -1,12 +1,15 @@
 #!/bin/sh
 # Kubernetes/Flux plugin for Fishbots (runs every 2 min). Read-only: only "kubectl get".
-#  - each cluster is a ship's wheel on the sand, its hub in the state's color: green when healthy, turning while Flux reconciles, amber (alert) with pods in
-#    CrashLoopBackOff/ImagePullBackOff, red (error) when a Flux Kustomization or HelmRelease fails; the detail says why
+#  - each cluster is a small light on the side glass, in the state's color: green when healthy, breathing blue while Flux reconciles, amber (alert) with
+#    pods in CrashLoopBackOff/ImagePullBackOff, red (error) when a Flux Kustomization or HelmRelease fails. It stays quiet while all is well, and grows
+#    and says why when something is wrong; a click on any of them lists every cluster
+#  - the clusters in FISHBOTS_K8S_HELMS are a ship's wheel fallen on the sand instead (its hub in the state's color, turning while Flux reconciles)
 #  - while some cluster is in error, a shark patrols the tank with the failing object and its message
 #  - a cluster that recovers sets off fireworks; one that breaks, a lightning
-#  - a cluster we can't reach (expired login…) stays as a gray, still wheel (idle)
+#  - a cluster we can't reach (expired login…) stays as a gray light, nearly out (idle)
 # Settings (environment, or ~/Library/Application Support/Fishbots/plugins.env):
 #   FISHBOTS_K8S_CONTEXTS="ctx1 ctx2"   which clusters (default: every kubectl context)
+#   FISHBOTS_K8S_HELMS="ctx1"            the ones you want to see as a wheel on the sand (default: none, all are lights)
 #   FISHBOTS_K8S_TRIM="^my-company-"     a regex cut from the names on the labels
 #   FISHBOTS_KUBECTL                     which kubectl (default: the first one on the PATH, rex8s' wrapper included)
 ENV="$HOME/Library/Application Support/Fishbots/plugins.env"
@@ -57,7 +60,7 @@ done < "$WORK/contexts"
 wait
 [ "$n" -gt 0 ] || exit 0
 
-jq -s -c --slurpfile prev "$STATE/last.json" --arg trim "${FISHBOTS_K8S_TRIM:-^\b\B}" '
+jq -s -c --slurpfile prev "$STATE/last.json" --arg trim "${FISHBOTS_K8S_TRIM:-^\b\B}" --arg helms "${FISHBOTS_K8S_HELMS:-}" '
   def short: sub($trim; "") | sub("\\s+$"; "") | .[0:22];
   def counts: group_by(.why) | map("\(length) \(.[0].why | sub("BackOff$"; ""))") | join(" · ");
   map(. + {
@@ -68,8 +71,9 @@ jq -s -c --slurpfile prev "$STATE/last.json" --arg trim "${FISHBOTS_K8S_TRIM:-^\
             else "ok" end)
   }) as $now
   | ($prev[0] // {}) as $before
+  | ($helms | split(" ") | map(select(. != ""))) as $wheels
   | ($now[] | {
-      source: "k8s", presence: ("cluster:" + .ctx), kind: "helm", label: (.ctx | short), state,
+      source: "k8s", presence: ("cluster:" + .ctx), kind: (if .ctx as $c | $wheels | index($c) then "helm" else "pilot" end), label: (.ctx | short), state,
       detail: (if .reachable | not then "sem acesso: \(.error | .[0:60])"
                elif .state == "error" then "\(.failing[0].obj): \(.failing[0].msg)"
                elif .state == "alert" then (.bad | counts)

@@ -97,6 +97,17 @@ final class Scenery {
         return x
     }
 
+    /// The closest spot to `x` with nothing on the sand within `room` points of it (the old battery lies there).
+    func free(_ t: Tank, near x: Float, room: Float) -> Float {
+        let spans = onSand.map { s -> (Float, Float) in let (c, sz) = place(t, s); return (c.x, sz * s.extent.x * 1.1 + room) }
+        func taken(_ x: Float) -> Bool { spans.contains { abs(x - $0.0) < $0.1 } }
+        let w = t.size.x
+        for i in 0..<200 {
+            for x in [x - Float(i) * 4, x + Float(i) * 4] where x > w * 0.14 && x < w * 0.94 && !taken(x) { return x }
+        }
+        return x
+    }
+
     // MARK: the treasure chest
 
     var chest: Item? { items.first { $0.id == "chest" } }

@@ -11,6 +11,11 @@ extension AppDelegate {
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/card":
             // to test the hover card without moving the mouse
+            // ?light=<id>: the card of a light on the side glass (docs/scene.md), as a click on it would
+            if let id = path.components(separatedBy: "light=").dropFirst().first?.removingPercentEncoding {
+                if let p = self.tank.scene.presences.first(where: { $0.kind.motion == .glass && $0.id.hasSuffix(id) }) { self.cards.showSource(of: p) }
+                return (200, Data(#"{"ok":true}"#.utf8))
+            }
             let goal = path.components(separatedBy: "f=").dropFirst().first?.removingPercentEncoding
             if let f = self.tank.fish.first(where: { ($0.isAgent || goal != nil) && !$0.leaving && (goal == nil || $0.id.hasSuffix(goal!)) }) {
                 self.cards.open(f)        // as if the mouse were over it, so the card doesn't close

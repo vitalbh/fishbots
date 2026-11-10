@@ -9,6 +9,7 @@ struct PresenceKind {
     enum Motion {
         case swim, drift, hover, walk, sit
         case float     // bobs at the surface, tilting with the waves
+        case glass     // stuck on the side glass, next to the others from its source (small status lights)
         /// On the sand (their text goes above them).
         var grounded: Bool { self == .sit || self == .walk }
     }
@@ -27,8 +28,6 @@ struct PresenceKind {
     var drops = false
     /// Its voice (Scene.voices), when its state changes.
     var sound = "soft"
-    /// Hangs on the side glass while there's room (helms); otherwise it sits on the sand.
-    var wall = false
     /// From a pack: its index in PackPresences (the sprite is kind 37) and its quad (width, height relative to size).
     var pack: Int? = nil
     var extent: SIMD2<Float> = [1, 1]
@@ -51,9 +50,13 @@ final class Presence {
     var reminder: Double = 0
     /// The helm's turn (radians): it turns while busy.
     var spin: Float = 0
-    /// Its place on the side glass (even: left, odd: right; /2: the level from the top), or nil when it's on the sand.
-    var wallSlot: Int?
-    var onWall: Bool { wallSlot != nil }
+    /// On the side glass: where it belongs, which way the tank's middle is (+1: to its right) and how much it has
+    /// grown because it needs you (0…1).
+    var home: SIMD2<Float> = .zero
+    var side: Float = 1
+    var swell: Float = 0
+    /// When it arrived.
+    let born: Double
     /// Home position (0…1 of the width).
     var u: Float
     var pos: SIMD2<Float>
@@ -89,6 +92,7 @@ final class Presence {
         self.pos = pos
         self.phase = Float.random(in: 0...6)
         self.since = now
+        self.born = now
         self.changedAt = now
         self.lane = Float.random(in: 0...1)
     }

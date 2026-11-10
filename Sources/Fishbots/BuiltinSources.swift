@@ -61,7 +61,8 @@ final class Demo {
         // the scene too (docs/scene.md): presences that change state, and a "moment" now and then
         let t = tank
         for (id, kind, state, label, detail, x) in [
-            ("prod", "helm", "ok", "prod", "312 pods ok", 0.08), ("staging", "helm", "busy", "staging", "Flux reconciliando", 0.92),
+            ("prod", "pilot", "ok", "prod", "312 pods ok", 0.08), ("staging", "pilot", "busy", "staging", "Flux reconciliando", 0.92),
+            ("edge", "pilot", "ok", "edge", "48 pods ok", 0.5), ("ship", "helm", "ok", "navio", "rumo certo", 0.27),
             ("issue", "bottle", "waiting", "TypeError", "checkout · 12 eventos", 0.62),
             ("deploy", "hourglass", "busy", "deploy", "faltam 4 min", 0.45), ("site", "flag", "ok", "meu-site", "99,98% · 120 ms", 0.78),
         ] as [(String, String, String, String, String, Double)] {

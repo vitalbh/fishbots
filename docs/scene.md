@@ -5,7 +5,8 @@ drawing anything: **effects** (one-off moments, like fireworks or a lightning fl
 objects that live in the tank while the plugin keeps them there, each with a state and the text the plugin sends).
 
 The code is in `Sources/Fishbots/Scene.swift` (simulation and sprites), `TankProtocol.swift` (parsing),
-`Labels.swift` (their labels), `AppDelegate.swift` (hover, click) and `ShaderPresences.swift` (the drawings, sprite kinds 25–30).
+`Labels.swift` (their labels), `AppDelegate.swift` (hover, click), `SourceCard.swift` (the card of the lights on the
+glass) and `ShaderPresences.swift` (the drawings, sprite kinds 25–31 and 45).
 
 ## Effects
 
@@ -101,9 +102,26 @@ A theme can dress the built-in kinds its own way (in the Japanese pond a `bottle
 meaning stays, only the drawing changes. Send `"override_theme": true` when your drawing matters (the shark for
 production down): it's shown as sent in every theme.
 | `flag` | stands on the sand, waving; its cloth takes the state's color | a status (green/yellow/red) |
-| `helm` | a ship's wheel hanging on the side glass (on the sand once the sides are full); its hub takes the state's color and it turns while `busy` | a cluster, something you steer |
+| `helm` | a ship's wheel fallen on the sand; its hub takes the state's color and it turns while `busy` | the one or two things you steer and want in sight |
+| `pilot` | a small light on the side glass, in the state's color, next to the others from its source (see **Lights on the glass**) | many things you only need to hear from when they break: clusters, sites, jobs |
 | `chest` | stays on the sand; glows when `done` or `waiting` | a goal, a reward |
 | `battery` | lies on the sand; `value` is the charge | a level that runs out |
+
+### Lights on the glass
+
+`pilot` is for the long lists: eight clusters, twenty sites. Each one is a small lamp stuck on the side glass, out of
+the fish's way; a source's lights stay together, one under the other, and each new source takes the emptier side (a
+second column starts when a side is full).
+
+- The lamp is the state: green `ok`, blue and breathing `busy`, gray and nearly out `idle`, yellow `waiting`, amber
+  `alert`, red `error`. `color` tints its bezel.
+- While all is well it shows no text. When it needs you (`waiting`, `alert`, `error`) it grows, pulses and shows its
+  `label` and `detail` beside it; a state change shows them for a few seconds; hover shows them any time.
+- A click opens a card with everything that source keeps on the glass, what needs you first, each with its detail;
+  a row with a `link` opens it.
+- It makes no bubbles and no ink, and its sounds are the same as any presence's.
+
+A pack can draw the light its own way (a presence with `"motion": "glass"`), and a theme can dress `pilot` in it.
 
 ### States
 
@@ -152,7 +170,7 @@ Each kind has its own voice, so you can tell who called without looking:
 | jellyfish | `pad` | | flag | `soft` |
 | seahorse, starfish | `kalimba` | | chest | `bell` |
 | crab | `tap` | | battery | `bubble` |
-| helm | `clang` | | | |
+| helm | `clang` | | pilot | `soft` |
 
 Effects have theirs too: `food` and `fireworks` an arpeggio of the chord that's playing, `whale` its song, `lightning`
 `thunder`, `quake` `rumble`, `school` `run` (a quick scale), `shooting-star` `glissando`, `pearl` and `sparkle`

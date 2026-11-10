@@ -654,7 +654,8 @@ final class Tank {
     /// Old battery in the sand (only shows up if some plugin sends the "battery" gauge).
     var battery: Float? { gauges["mac:battery"] }
     var pluggedIn: Bool { (gauges["mac:charging"] ?? 0) > 0.5 }
-    private let batteryU: Float = 0.8
+    /// Near the right end of the sand, at the closest spot the scenery leaves free.
+    private var batteryU: Float { scenery.free(self, near: size.x * 0.8, room: 24) / max(1, size.x) }
     func sand(_ u: Float) -> Float { 0.075 + 0.018 * sinf(u * 7 + 1.3) + 0.008 * sinf(u * 23) }
     /// Resting on the terrain (same sand curve as the shader), about 40% buried.
     var batteryPos: SIMD2<Float> { [size.x * batteryU, size.y * sand(batteryU) + 2] }
