@@ -333,6 +333,7 @@ enum Whereabouts {
     }
     private static var herdrCore: String? { local("herdr-core") ?? local("hc") }
     private static var herdrApp: String? { local("herdr-app") }
+    static var herdrAppPath: String? { herdrApp }
     private static let herdrBundle = "dev.herdr.app"
 
     /// Shows the agent's terminal in the Herdr window (opening it if needed) and brings Herdr forward.
@@ -409,6 +410,7 @@ enum Whereabouts {
 
     // MARK: - Rex
 
+    static func rexPath(_ o: [String: String]) -> String? { rexBin(o) }
     private static func rexBin(_ o: [String: String]) -> String? {
         let candidates = [o["rex_bin"], NSString("~/.local/bin/rex").expandingTildeInPath, "/opt/homebrew/bin/rex", "/usr/local/bin/rex"]
         return candidates.compactMap { $0 }.first { FileManager.default.isExecutableFile(atPath: $0) }
@@ -596,7 +598,7 @@ enum Whereabouts {
 
     // MARK: - utilities
 
-    private static func run(_ bin: String, _ args: [String]) -> Data {
+    static func run(_ bin: String, _ args: [String]) -> Data {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: bin)
         p.arguments = args
@@ -609,7 +611,7 @@ enum Whereabouts {
         return d
     }
 
-    private static func json(_ d: Data) -> [String: Any]? {
+    static func json(_ d: Data) -> [String: Any]? {
         (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
     }
 }

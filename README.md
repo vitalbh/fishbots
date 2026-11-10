@@ -160,6 +160,7 @@ The table below describes each state's signals. The note on each tool use is opt
 | alert | amber | like error, more spaced out |
 | done | comes close to the glass | a discreet knock-knock on the glass, tuned to the motif's first two notes |
 
+- **A session you're already looking at calls without sound:** when its terminal is in front with the focus on its pane (Rex, Herdr, iTerm, or tmux's active pane), waiting and errors skip the motif, the taps and the question read aloud. The fish still comes to the glass and changes color, and the notification still arrives. In Rex, a pane counts as focused in its session even when the Rex window shows another session. Ghostty, Terminal and the rest always call.
 - The jellyfish plays the chords (D pentatonic, changing every 2 bars). Events become food and an arpeggio. A full disk makes the water cloudy and the sound muffled.
 
 ## Protocol

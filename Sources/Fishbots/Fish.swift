@@ -109,6 +109,13 @@ final class Fish {
     /// Changed state and hasn't played the cue for it yet.
     var changed = false
     var reminder: Double = 0
+    /// You were looking at its session when it last called (InView): it calls without sound.
+    var inView = false
+    /// Asking InView now (its call waits for the answer), and when it last answered.
+    var looking = false
+    var lookedAt = Date.distantPast
+    /// The state change (its `since`) that answer was for: a new call waits for an answer about itself.
+    var lookedSince: Double = -1
     var step = 0
     var tool: String?
     var shake: Float = 0

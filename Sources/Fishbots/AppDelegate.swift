@@ -622,6 +622,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     }
 
     private func stateChanged(_ f: Fish, _ before: State?) {
+        // about to call you: are you already looking at its session? (the call waits for the answer)
+        if [.waiting, .error, .alert].contains(f.state) { InView.check(f) }
         if restoring { updateDock(); return }
         // whatever was already like this when the app opened isn't news
         if !f.decor && Date().timeIntervalSince(openedAt) > 20 {
