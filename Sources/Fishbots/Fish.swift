@@ -118,6 +118,9 @@ final class Fish {
     var lookedSince: Double = -1
     var step = 0
     var tool: String?
+    /// What the session says it's doing right now, in its own words (from its Rex pane: RexStatus), and when it said so.
+    var doing: String?
+    var doingAt: Double = 0
     var shake: Float = 0
     /// Where the thing is (terminal, Rex session…), so a click can take you there.
     var whereabouts: [String: String] = [:]

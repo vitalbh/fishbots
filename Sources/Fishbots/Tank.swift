@@ -202,7 +202,7 @@ final class Tank {
                 if f.kindID == "octopus" { ink(at: f.pos, n: 7, color: [0.06, 0.03, 0.1]) }   // the octopus releases ink
             }
             if before == .error && state != .error { f.spin = 1 }                       // recovered: does a little spin
-            if state != .busy { f.tool = nil }
+            if state != .busy { f.tool = nil; f.doing = nil }
             if state != .waiting { f.asked = nil }
             return
         }
@@ -314,13 +314,24 @@ final class Tank {
         }
     }
 
+    /// The program in a Rex pane said what it's doing (nil: it stopped saying). The session in that pane shows it
+    /// for a few seconds, like the tool's name, and keeps it for the card.
+    func doing(rexBlock: String, _ text: String?) {
+        for f in fish where !f.decor && !f.leaving && f.whereabouts["rex_block"] == rexBlock {
+            f.doing = text
+            f.doingAt = time
+            if let text, f.state == .busy { f.moment = (text.count > 44 ? String(text.prefix(43)) + "…" : text, time + 6) }
+        }
+    }
+
     func tool(source: String, entity: String, name: String) {
         guard let f = fish.first(where: { $0.id == id(source, entity) }) else { return }
         f.tool = name
         f.seen = time
         f.toolTimes.append(time)
         f.history.append((Date(), name))
-        f.moment = (ToolBehaviors.of(name).label(name), time + 4)
+        // its own words about this tool, if they've just arrived, say more than the tool's name
+        if f.doing == nil || time - f.doingAt > 1.5 { f.moment = (ToolBehaviors.of(name).label(name), time + 4) }
         f.toolSinceStart += 1
         if f.history.count > 12 { f.history.removeFirst() }
         startAction(f, name)

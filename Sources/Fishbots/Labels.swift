@@ -88,7 +88,8 @@ final class Labels {
                 continue
             }
             var state = f.stateLabel
-            if f.state == .busy, let tool = f.tool { state += " · \(tool)" }
+            if f.state == .busy, let d = f.doing { state += " · " + (d.count > 60 ? String(d.prefix(59)) + "…" : d) }
+            else if f.state == .busy, let tool = f.tool { state += " · \(tool)" }
             if let c = f.context, c >= 0.05 { state += tr(" · %d%% contexto", Int((c * 100).rounded())) }
             if f.compactingSince != nil { state = tr("🫧 compactando…") }
             if let tool = now.requestedTool(f.id) { state = tr("✋ quer usar %@ · clique para responder", tool) }

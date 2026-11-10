@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private(set) var demo: Demo!
     private var musicTimer: Timer?
     let labelLayers = Labels()
+    /// What each session in a Rex pane says it's doing (RexStatus).
+    let rexStatus = RexStatus()
     private var hotkeys: [HotkeyAction: Hotkey] = [:]
     private var activity: NSObjectProtocol?
     private(set) var port: UInt16 = 7777
@@ -191,8 +193,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             self.hoverPearl = f == nil && presence == nil ? self.tank.pearls.at(q) : nil
             return f != nil || presence != nil || self.tank.scenery.chestHit(self.tank, at: q)
         }
+        rexStatus.onStatus = { [unowned self] block, doing in self.tank.doing(rexBlock: block, doing) }
         // session, tab and title names change: refresh every so often
         Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [unowned self] _ in
+            // one stream of events for each Rex session with a fish in it (none: they all close)
+            if let rex = Whereabouts.rexSessions(self.tank.fish) { self.rexStatus.follow(rex.sessions, bin: rex.bin) } else { self.rexStatus.stop() }
             // pane and tab names only matter on screen (each refresh asks Rex)
             if self.onScreen { for f in self.tank.fish where !f.decor && !f.whereabouts.isEmpty { Whereabouts.detail(f) } }
             // lingering error (over 12 min): becomes urgent once
@@ -363,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // quitting in widget mode: back to the normal window first, so it isn't remembered as the window's size
         if widgetFrom != nil { toggleWidget() }
         SessionMemory.save(tank)
+        rexStatus.stop()
         plugins?.stop()
         permissions.releaseAll()
     }

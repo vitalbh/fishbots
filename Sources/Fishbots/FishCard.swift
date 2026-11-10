@@ -184,6 +184,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             left.append(title)
         }
         if f.nickname != nil { left.append(text(f.label, 10.5, color: .tertiaryLabelColor)) }
+        // what it says it's doing right now, in its own words (a session in a Rex pane)
+        if f.state == .busy, let d = f.doing {
+            let doing = text("▸ " + d, 11, color: .systemTeal)
+            doing.preferredMaxLayoutWidth = width - 150
+            left.append(doing)
+        }
         let leftCol = NSStackView(views: left)
         leftCol.orientation = .vertical
         leftCol.alignment = .leading

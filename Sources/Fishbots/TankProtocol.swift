@@ -145,7 +145,7 @@ enum TankProtocol {
         let fishes: [[String: Any]] = tank.fish.filter { !$0.decor }.map {
             ["source": $0.source, "entity": String($0.id.dropFirst($0.source.count + 1)), "label": $0.label,
              "state": $0.state.rawValue, "motif": $0.motif, "leaving": $0.leaving,
-             "detail": $0.sub ?? "", "title": $0.displayTitle ?? "", "branch": $0.branch ?? "", "context": $0.context ?? -1, "model": $0.model ?? "","where": $0.whereabouts, "link": $0.link ?? "",
+             "detail": $0.sub ?? "", "title": $0.displayTitle ?? "", "branch": $0.branch ?? "", "context": $0.context ?? -1, "model": $0.model ?? "", "doing": $0.doing ?? "", "where": $0.whereabouts, "link": $0.link ?? "",
              "agent": $0.isAgent, "species": $0.species, "kind": $0.kindID, "baseKind": $0.baseKind, "sings": $0.sings, "inView": $0.inView]
         }
         let presences: [[String: Any]] = tank.scene.presences.filter { !$0.leaving }.map {
