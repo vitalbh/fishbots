@@ -491,7 +491,7 @@ final class Scene {
         case "quake":
             icon = "〰︎"
             quakeUntil = t.time + 2.6
-            t.stir(at: [w / 2, 0], radius: max(w, h) * 1.2, strength: 60)
+            t.motes.stir(t, at: [w / 2, 0], radius: max(w, h) * 1.2, strength: 60)
             for i in 0..<22 {
                 let u = Float(i) / 21
                 let px = w * (0.04 + 0.92 * u)
