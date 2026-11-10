@@ -32,6 +32,37 @@
       }
     },
     {
+      "id": "trench",
+      "name": "Fossa abissal",
+      "version": "1.2",
+      "author": "Fishbots",
+      "license": "MIT",
+      "description": "O fundo de uma fossa, onde a luz do dia nunca chega: fumarolas negras com rachaduras em brasa, vermes tubulares, penas-do-mar que acendem em ondas, a carcaça de uma baleia, ctenóforos com arco-íris correndo pelo corpo, um sifonóforo, o polvo-dumbo, peixes-machado e um isópode gigante. Os peixes das sessões viram peixes-lanterna com luzes na cor do projeto.",
+      "descriptions": {
+        "en": "The bottom of a trench, where daylight never arrives: black smokers with glowing cracks, tube worms, sea pens lighting up in waves, a whale fall, comb jellies with rainbows running down them, a siphonophore, the dumbo octopus, hatchetfish and a giant isopod. Session fish become lanternfish with lights in the project's color."
+      },
+      "names": {
+        "en": "Abyssal trench"
+      },
+      "path": "packs/examples/trench",
+      "files": [
+        "cover.png",
+        "creatures.metal",
+        "pack.json",
+        "presences.metal",
+        "trench.metal"
+      ],
+      "cover": "cover.png",
+      "contents": {
+        "themes": 1,
+        "styles": 1,
+        "fish": 1,
+        "scenery": 5,
+        "fauna": 6,
+        "presences": 9
+      }
+    },
+    {
       "id": "koi",
       "name": "Lago japonês",
       "version": "1.8",
