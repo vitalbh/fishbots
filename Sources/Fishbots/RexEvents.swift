@@ -1,22 +1,9 @@
 import Foundation
 
-/// What the program in a Rex pane last said about itself (it reports to the terminal with OSC 7501).
-struct RexRecord {
-    /// idle, working, done, blocked (waiting for you) or error.
-    var state: String
-    /// The program's name, as it gave it ("claude-code", "cargo"…).
-    var app: String?
-    /// One line about what it's doing, and a short label for it.
-    var msg: String?
-    var title: String?
-    /// What a blocked program waits for: permission, question or auth.
-    var kind: String?
-}
-
 /// Something Rex said happened.
 enum RexEvent {
     /// A pane's program reported its status (nil: it took it back, or stopped saying).
-    case status(session: String, block: String, RexRecord?)
+    case status(session: String, block: String, ProgramStatus?)
     /// A pane's title changed.
     case title(session: String, block: String, String)
     /// A pane's program exited, or the pane was closed.
@@ -79,20 +66,11 @@ final class RexEvents {
             let blocks = Whereabouts.json(Whereabouts.run(bin, ["--autostart=false", "--timeout", "3s", "block", "ls", "-s", session, "--json"]))?["blocks"] as? [[String: Any]] ?? []
             for b in blocks where (b["creator_name"] as? String ?? "").hasSuffix(".terminal") {
                 guard let id = b["block_id"] as? String,
-                      let records = Whereabouts.json(Whereabouts.run(bin, ["--autostart=false", "--timeout", "3s", "block", "call", "-b", id, "program_status"]))?["records"] as? [[String: Any]],
-                      let root = records.first(where: { ($0["id"] as? String ?? "").isEmpty }), let r = Self.record(root) else { continue }
+                      let records = Whereabouts.json(Whereabouts.run(bin, ["--autostart=false", "--timeout", "3s", "block", "call", "-s", session, "-b", id, "program_status"]))?["records"] as? [[String: Any]],
+                      let root = records.first(where: { ($0["id"] as? String ?? "").isEmpty }), let r = ProgramStatus(root) else { continue }
                 DispatchQueue.main.async { self?.onEvent?(.status(session: session, block: id, r)) }
             }
         }
-    }
-
-    /// A status record as Rex gives it (in an event or in the answer to `program_status`).
-    static func record(_ r: [String: Any]) -> RexRecord? {
-        guard let state = r["state"] as? String else { return nil }
-        func text(_ k: String) -> String? {
-            (r[k] as? String).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
-        }
-        return RexRecord(state: state, app: text("effective_app") ?? text("app"), msg: text("msg"), title: text("title"), kind: text("kind"))
     }
 
     private func unfollow(_ session: String) {
@@ -157,7 +135,7 @@ final class RexEvents {
         switch name {
         case "program_status_changed":
             // only the pane's own record (the one without an id), not a task inside it
-            guard (inner["id"] as? String ?? "").isEmpty, let r = (inner["record"] as? [String: Any]).flatMap(record) else { return nil }
+            guard (inner["id"] as? String ?? "").isEmpty, let r = (inner["record"] as? [String: Any]).flatMap({ ProgramStatus($0) }) else { return nil }
             return .status(session: session, block: block, r)
         case "program_status_removed":
             let ids = inner["ids"] as? [String] ?? [""]

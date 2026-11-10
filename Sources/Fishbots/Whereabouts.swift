@@ -332,6 +332,7 @@ enum Whereabouts {
             .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
     private static var herdrCore: String? { local("herdr-core") ?? local("hc") }
+    static var herdrCorePath: String? { herdrCore }
     private static var herdrApp: String? { local("herdr-app") }
     static var herdrAppPath: String? { herdrApp }
     private static let herdrBundle = "dev.herdr.app"

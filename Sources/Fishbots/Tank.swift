@@ -314,10 +314,11 @@ final class Tank {
         }
     }
 
-    /// The program in a Rex pane said what it's doing (nil: it stopped saying). The session in that pane shows it
-    /// for a few seconds, like the tool's name, and keeps it for the card.
-    func doing(rexBlock: String, _ text: String?) {
-        for f in fish where !f.decor && !f.leaving && f.whereabouts["rex_block"] == rexBlock {
+    /// The program in a terminal said what it's doing (nil: it stopped saying). The fish in that terminal (the
+    /// whereabouts key that names it, and its id there: a Rex pane, a Herdr terminal) shows it for a few seconds,
+    /// like the tool's name, and keeps it for the card.
+    func doing(at key: String, _ id: String, _ text: String?) {
+        for f in fish where !f.decor && !f.leaving && f.whereabouts[key] == id {
             f.doing = text
             f.doingAt = time
             if let text, f.state == .busy { f.moment = (text.count > 44 ? String(text.prefix(43)) + "…" : text, time + 6) }

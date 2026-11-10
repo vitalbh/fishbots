@@ -17,8 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private(set) var demo: Demo!
     private var musicTimer: Timer?
     let labelLayers = Labels()
-    /// What Rex's events do in the tank: what a session says it's doing, titles and places, programs as fish (RexFish).
-    lazy var rexFish = RexFish(tank: tank)
+    /// What terminals say by themselves, through Rex and Herdr: what a session is doing, titles and places, and
+    /// programs without hooks as fish (TerminalPrograms, RexFish, HerdrFish).
+    lazy var terminalPrograms = TerminalPrograms(tank: tank)
+    lazy var rexFish = RexFish(tank: tank, programs: terminalPrograms)
+    lazy var herdrFish = HerdrFish(tank: tank, programs: terminalPrograms)
     private var hotkeys: [HotkeyAction: Hotkey] = [:]
     private var activity: NSObjectProtocol?
     private(set) var port: UInt16 = 7777
@@ -194,15 +197,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             return f != nil || presence != nil || self.tank.scenery.chestHit(self.tank, at: q)
         }
         rexFish.start()
+        herdrFish.check()
         // session, tab and title names change: refresh every so often
         Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [unowned self] _ in
-            // Rex tells by itself (RexFish); a stream that ended is opened again here
+            // Rex and Herdr tell by themselves; a stream that ended (or a Herdr that has just started) is opened here
             self.rexFish.events.check()
-            // the others are asked: pane and tab names only matter on screen. A fish in a Rex pane is only asked
-            // while its place isn't known yet, or while Rex isn't being listened to
+            self.herdrFish.check()
+            // the others are asked: pane and tab names only matter on screen. A fish in a Rex pane or a Herdr
+            // terminal is only asked while its place isn't known yet, or while nobody is listening there
             if self.onScreen {
                 for f in self.tank.fish where !f.decor && !f.whereabouts.isEmpty {
-                    let told = f.whereabouts["rex_block"] != nil && f.sub != nil && self.rexFish.events.isFollowing(f.whereabouts["rex_session"] ?? "")
+                    let told = f.sub != nil && (f.whereabouts["rex_block"] != nil && self.rexFish.events.isFollowing(f.whereabouts["rex_session"] ?? "")
+                                                || f.whereabouts["herdr"] != nil && self.herdrFish.listening)
                     if !told { Whereabouts.detail(f) }
                 }
             }
@@ -375,6 +381,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         if widgetFrom != nil { toggleWidget() }
         SessionMemory.save(tank)
         rexFish.events.stop()
+        herdrFish.stop()
         plugins?.stop()
         permissions.releaseAll()
     }
