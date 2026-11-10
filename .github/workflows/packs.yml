@@ -19,6 +19,8 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain || true
       - name: Build
         run: swift build -c release
+      - name: The app's own shader compiles
+        run: .build/release/Fishbots --check-shaders --offline
       - name: Check every pack
         run: |
           status=0

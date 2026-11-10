@@ -9,6 +9,7 @@ enum PackPreview {
     /// Runs if the arguments ask for it; returns the exit code (nil: not a preview, open the app).
     static func runIfAsked() -> Int32? {
         let args = CommandLine.arguments
+        if args.contains("--check-shaders") { return ShaderCheck.run(offline: args.contains("--offline")) }
         guard let i = args.firstIndex(where: { $0 == "--preview" || $0 == "--check" || $0 == "--cover" }), i + 1 < args.count else { return nil }
         let dir = URL(fileURLWithPath: (args[i + 1] as NSString).expandingTildeInPath).standardizedFileURL
         let out = args.firstIndex(of: "--out").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
@@ -91,7 +92,7 @@ enum PackPreview {
     }
 
     /// Compiles with the offline Metal compiler; throws its error text (with "program_source:" lines, like the GPU's).
-    private static func compileOffline(_ src: String) throws {
+    static func compileOffline(_ src: String) throws {
         struct Failure: Error, CustomStringConvertible { let description: String }
         let fm = FileManager.default
         let tmp = fm.temporaryDirectory.appendingPathComponent("fishbots-check-\(UUID().uuidString)")
