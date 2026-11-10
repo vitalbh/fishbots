@@ -5,7 +5,7 @@ import Foundation
 /// is still its provider's to say, so nothing here types where the card wouldn't. Off until turned on in Preferences.
 ///
 ///   POST /control/spawn  {"agent": "claude-code", "cwd": "/…", "prompt": "…", "label": "…", "launcher": "rex",
-///                         "env": {"CLAUDE_CONFIG_DIR": "…"}}
+///                         "beside": true, "env": {"CLAUDE_CONFIG_DIR": "…"}}
 ///   POST /control/reply  {"fish": "claude-code:abc", "text": "…"}
 ///   POST /control/stop   {"fish": "claude-code:abc"}
 ///   POST /control/wait   {"fish": ["…", "…"], "states": ["done", "waiting", "error"], "timeout": 600}
@@ -157,8 +157,9 @@ final class SessionControl: EventSink {
             reply(400, Self.error("\(folder) isn't a folder")); return
         }
         let wanted = m["launcher"] as? String
-        guard let launcher = Launchers.pick(wanted) else {
-            reply(409, Self.error(wanted.map { "can't launch through \"\($0)\"" } ?? "nowhere to launch a session (Rex isn't installed)")); return
+        guard let launcher = Launchers.pick(wanted, near: parent?.whereabouts) else {
+            let known = Launchers.all.map(\.id).joined(separator: ", ")
+            reply(409, Self.error(wanted.map { "can't launch through \"\($0)\" (launchers: \(known))" } ?? "nowhere to launch a session (none of \(known) is installed)")); return
         }
         var env: [String: String] = [:]
         for (k, v) in m["env"] as? [String: String] ?? [:] where k.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil {
@@ -169,7 +170,8 @@ final class SessionControl: EventSink {
         if port() != 7777 { env["FISHBOTS_PORT"] = String(port()) }
         let patience = Self.seconds(m["timeout"], or: 30, upTo: 120)
         let before = Set(tank.fish.filter { $0.source == provider.id }.map(\.id))
-        let request = LaunchRequest(command: command, cwd: folder, label: m["label"] as? String, near: parent?.whereabouts, env: env)
+        let request = LaunchRequest(command: command, cwd: folder, label: m["label"] as? String, near: parent?.whereabouts,
+                                    beside: m["beside"] as? Bool ?? false, env: env)
         launcher.launch(request) { [weak self] result in
             guard let self else { return }
             switch result {

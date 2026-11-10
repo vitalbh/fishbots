@@ -349,8 +349,8 @@ Not a code extension point but the same idea: the on-screen text moves into stri
 bring translations.
 
 ### 11. Session control and launchers
-Status: implemented (`SessionControl.swift`, `Launchers.swift`) with Rex as the only launcher. Not built yet: Herdr
-and tmux launchers, opening beside the parent, and showing lineage in the tank (the school, the plan on the card).
+Status: implemented (`SessionControl.swift`, `Launchers.swift`), with launchers for Rex, Herdr and tmux (the tmux
+one was written from tmux's manual and hasn't run against a real tmux yet).
 
 The aquarium already sees every agent in every client and can type into most of them. Letting a session use that
 makes it an orchestrator: **the orchestrator is not a feature of the app, it's an ordinary agent session** that
@@ -365,7 +365,7 @@ checks as the card apply, so nothing is typed where the card wouldn't type):
 | `/control/reply` | `fish`, `text` | ok, or why not (not at its prompt, another program in front…) |
 | `/control/stop` | `fish` | ok |
 | `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them is in one of the states: which, its state, its last reply |
-| `/control/spawn` | `agent`, `cwd`, `prompt`, `label`, `launcher`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
+| `/control/spawn` | `agent`, `cwd`, `prompt`, `label`, `launcher`, `beside`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
 
 `fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish
 takes right now (`can`) and who launched it (`parent`). From the command line: `fishbots spawn | reply | stop |
@@ -396,22 +396,31 @@ struct LaunchRequest {
     let command: [String]          // from the provider
     let cwd: String
     let label: String?
-    let near: [String: String]?    // the asker's whereabouts: the new session opens in its Rex session
+    let near: [String: String]?    // the asker's whereabouts: the new session opens where it is
+    let beside: Bool               // a pane next to the asker's, not a tab of its own
     let env: [String: String]      // FISHBOTS_PARENT=…, the account's variables
 }
 
 protocol SessionLauncher: AnyObject {
     var id: String { get }         // "rex", "herdr", "tmux"
     var available: Bool { get }
+    func hosts(_ whereabouts: [String: String]) -> Bool   // is this where that session runs?
     /// The new pane's whereabouts (rex_session, rex_block…), or an error.
     func launch(_ r: LaunchRequest, done: @escaping (Result<[String: String], Error>) -> Void)
 }
 ```
 
 A provider says how its agent starts (`launchCommand(prompt:) -> [String]?`, nil: it can't be launched; Claude Code
-and Codex can); a manifest's `launch` array with `{prompt}` does it for agents without Swift. `RexLauncher` runs
-`rex run -s <the asker's session> --focus=false`: a new window (tab) that doesn't take the focus. A new host is a
-`SessionLauncher` registered in `Launchers`.
+and Codex can); a manifest's `launch` array with `{prompt}` does it for agents without Swift. A session's children
+open in the host it runs in (`hosts`); `launcher` in the request picks another, and without an asker in any of
+them it's the first one installed. None takes the focus:
+
+- **Rex:** `rex run -s <the asker's session>`, a new window (tab); with `beside`, `rex split -b <the asker's block>`.
+- **Herdr:** `herdr-core run --bg`, a terminal that stays alive with no one attached; it's the asker's child in
+  Herdr too (`--parent`, outliving it, and without Herdr's own notes typed into the parent).
+- **tmux:** `new-window -d -a -t <the asker's pane>`; with `beside`, `split-window -d -h`.
+
+A new host is a `SessionLauncher` registered in `Launchers`.
 
 **Lineage:** the launcher sets `FISHBOTS_PARENT=<source:entity>` in the pane and the shared hook forwards it
 (`X-Where-Parent`), so the child says whose it is from its first event; the app also notes it when the fish is

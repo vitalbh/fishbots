@@ -39,6 +39,8 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
 - **The brief goes in `spawn`.** The child starts with no context but the prompt: say what to do, where, what
   "done" means and what to report back. `reply` types a single line into its terminal (line breaks become spaces),
   so keep follow-ups short.
+- The child opens in the terminal host you run in (Rex, Herdr or tmux), in a tab of its own that doesn't take the
+  focus; `--beside` makes it a pane next to yours (Rex, tmux).
 - **`--agent`** picks another agent (`codex`…); the default is yours. `--cwd` is the folder it works in (default:
   the current one). Children that edit the same files step on each other: give each its own folder or git worktree.
 - **`wait` after `reply` is safe**: it waits for what the session says next, not for the reply it already gave.
