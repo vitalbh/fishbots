@@ -346,6 +346,16 @@ extension Tank {
             target = sick.pos + SIMD2(cosf(ang), sinf(ang) * 0.6) * (sick.size * 2.2)
             speed = 60
         }
+        // a launched session keeps to its leader's side: a loose school, each one still about its own business
+        // (whoever waits for you still goes to the glass, and the sick one still sinks)
+        if f.state != .waiting, f.state != .error, f.action == nil, !sleeping(f), let leader = leader(of: f) {
+            let reach = leader.size * 2.6 + 70 + Float(f.phase % 3) * 22
+            let d = target - leader.pos, l = simd_length(d)
+            if l > reach { target = leader.pos + d / l * reach }
+            if simd_distance(f.pos, leader.pos) > reach * 1.7 { speed = max(speed, 110) }   // it fell behind: catches up
+            // and it's dressed as the leader's: the same markings and fin, in its own project's color
+            if f.pattern != leader.pattern || f.cut != leader.cut { f.pattern = leader.pattern; f.cut = leader.cut }
+        }
         // food attracts
         if f.state != .waiting, let idx = food.min(by: { simd_distance(particles[$0].pos, f.pos) < simd_distance(particles[$1].pos, f.pos) }),
            simd_distance(particles[idx].pos, f.pos) < 380 {
@@ -353,6 +363,17 @@ extension Tank {
             speed = 150
         }
         return Heading(target: target, speed: speed, scale: scaleTarget)
+    }
+
+    /// The fish of the session that launched this one, while it's in the tank.
+    func leader(of f: Fish) -> Fish? {
+        guard let id = f.leaderID else { return nil }
+        return fish.first { $0.id == id && !$0.leaving }
+    }
+
+    /// The sessions this one launched, oldest first.
+    func school(of f: Fish) -> [Fish] {
+        fish.filter { $0.leaderID == f.id && !$0.decor && !$0.leaving }.sorted { $0.bornAt < $1.bornAt }
     }
 
     /// Fish swim in bursts and glides: a few strong strokes, then coasting. Averages 1, so the pace stays the same.

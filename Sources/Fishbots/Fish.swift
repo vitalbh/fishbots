@@ -124,6 +124,8 @@ final class Fish {
     var shake: Float = 0
     /// Where the thing is (terminal, Rex session…), so a click can take you there.
     var whereabouts: [String: String] = [:]
+    /// The session that launched this one (`fishbots spawn`), by its fish id: its leader in the tank.
+    var leaderID: String? { whereabouts["parent"] }
     /// Link to open on click (e.g. the build page).
     var link: String?
     /// Second line of the label: session, tab or terminal name.

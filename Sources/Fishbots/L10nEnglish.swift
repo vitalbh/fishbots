@@ -466,6 +466,9 @@ let english: [String: String] = [
     "Mostra a faixa e o artista, brilha quando a música muda e pausa a música ambiente enquanto toca.": "Shows the track and artist, glows when the song changes and pauses the ambient music while it plays.",
     "⏸ pausado": "⏸ paused",
     "peixe-beta": "betta",
+    "cardume · %d": "school · %d",
+    "abrir o cartão dele": "open its card",
+    "quem lançou esta sessão": "the session that launched this one",
     "Sessões podem comandar outras (responder, parar, esperar)": "Sessions can command other sessions (reply, stop, wait)",
     "Deixa um agente conduzir os outros pelo aquário (fishbots reply, stop, wait). Pedidos de permissão continuam com você.": "Lets an agent run the others through the aquarium (fishbots reply, stop, wait). Permission requests stay with you.",
 ]

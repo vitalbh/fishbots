@@ -140,6 +140,10 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     private static var expanded: [String: Set<String>] = [:]
     /// Go to the session (the card's "where" line).
     var go: (() -> Void)?
+    /// The sessions it launched, the one that launched it, and opening another fish's card from this one.
+    var school: [Fish] = []
+    var leader: Fish?
+    var visit: ((Fish) -> Void)?
 
     /// A small clickable piece of text (a link-like borderless button).
     func link(_ s: String, _ size: CGFloat = 11, color: NSColor = .secondaryLabelColor, tip: String? = nil,
@@ -176,7 +180,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     override func loadView() {
         // the music fish has its own card: "now playing"
         if f.sings { view = musicCard(); return }
-        let parts = [header(), now(), places(), said(), activity(), permission(), composer(), hints()]
+        let parts = [header(), now(), places(), family(), said(), activity(), permission(), composer(), hints()]
         let stack = NSStackView(views: parts.flatMap { $0 })
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -223,10 +227,32 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         // a mood says it all (the music fish); a state says since when
         var state = f.mood ?? (f.stateLabel + " · " + Self.ha(Date(timeIntervalSinceNow: -(CACurrentMediaTime() - f.since))))
         if f.compactingSince != nil { state = tr("🫧 compactando…") }
-        let stateColor: NSColor = f.state == .error ? .systemRed : f.state == .waiting ? .systemOrange
-            : f.state == .busy ? .systemTeal : .secondaryLabelColor
+        let stateColor = Self.color(of: f.state)
         let portrait = FishPortraits.image(for: f) { [weak self] in self?.rebuild?() }
         return [row([Porthole(image: portrait, tint: tint), leftCol, NSView(), pill(state, stateColor)], alignment: .top)]
+    }
+
+    static func color(of s: State) -> NSColor {
+        s == .error ? .systemRed : s == .waiting ? .systemOrange : s == .busy ? .systemTeal : .secondaryLabelColor
+    }
+
+    /// Its school: the sessions it launched, each with how it is (a click opens that one's card).
+    private func family() -> [NSView] {
+        guard !school.isEmpty else { return [] }
+        var v: [NSView] = [text(tr("cardume · %d", school.count), 10.5, .medium, color: .tertiaryLabelColor)]
+        for c in school {
+            let name = c.nickname ?? c.displayTitle ?? c.label
+            let title = link(name.count > 44 ? String(name.prefix(43)) + "…" : name, 11.5, color: .labelColor, tip: tr("abrir o cartão dele")) { [weak self] in
+                self?.visit?(c)
+            }
+            let state = pill(c.stateLabel, Self.color(of: c.state))
+            state.setContentHuggingPriority(.required, for: .horizontal)
+            title.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+            let r = row([state, title, NSView()])
+            r.spacing = 8
+            v.append(r)
+        }
+        return v
     }
 
     /// What it's doing right now, in its own words (a session in a Rex pane), and how full its context is.
@@ -259,6 +285,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         var tags: [NSView] = []
         if let b = f.branch, !["main", "master", "HEAD"].contains(b) {
             tags.append(tag(link("⎇ " + b, tip: tr("copiar o nome da branch")) { [weak self] in self?.copy(b) }))
+        }
+        // launched by another session: its leader (a click opens the leader's card)
+        if let l = leader {
+            tags.append(tag(link("↳ " + (l.nickname ?? l.displayTitle ?? l.label).prefix(28), tip: tr("quem lançou esta sessão")) { [weak self] in
+                self?.visit?(l)
+            }))
         }
         let place = (f.sub?.isEmpty == false ? f.sub! : (f.isAgent ? species : ""))
         if !place.isEmpty {

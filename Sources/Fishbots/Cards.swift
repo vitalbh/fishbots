@@ -117,10 +117,13 @@ final class Cards {
 
     /// What, if it changes, makes the open card refresh.
     private func signature(_ f: Fish) -> String {
-        [f.state.rawValue, f.tool ?? "", f.history.last?.name ?? "", f.history.last?.said ?? "", "\(f.history.count)",
+        // its school, and how each one is
+        let school: [String] = tank.school(of: f).map { c in c.id + c.state.rawValue + (c.displayTitle ?? "") }
+        let family: String = school.joined(separator: ",") + "<" + (tank.leader(of: f)?.id ?? "")
+        return [f.state.rawValue, f.tool ?? "", f.history.last?.name ?? "", f.history.last?.said ?? "", "\(f.history.count)",
          f.context.map { "\(Int($0 * 100))" } ?? "", f.model ?? "", f.doing ?? "", "\(f.lastReply?.hashValue ?? 0)", f.asked ?? "",
          f.displayTitle ?? "", f.nickname ?? "", f.sub ?? "", "\(permissions.request(ofFish: f.id)?.id ?? 0)",
-         "\(f.finished.count)", f.compactingSince == nil ? "" : "c"].joined(separator: "|")
+         "\(f.finished.count)", f.compactingSince == nil ? "" : "c", family].joined(separator: "|")
     }
 
     func show(_ f: Fish, keyboard: Bool = false) {
@@ -159,6 +162,9 @@ final class Cards {
             self.decide(p.id, action)
         }
         card.go = { [weak f] in if let f { Whereabouts.go(f) } }
+        card.school = tank.school(of: f)
+        card.leader = tank.leader(of: f)
+        card.visit = { [weak self] other in self?.show(other) }
         card.rebuild = { [weak self, weak f] in
             guard let self, let f, let pop = self.hoverCard, self.hoverCardId == f.id else { return }
             pop.contentViewController = self.cardContent(f)

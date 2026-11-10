@@ -97,7 +97,7 @@ final class Labels {
             if f.compactingSince != nil { state = tr("🫧 compactando…") }
             if let tool = now.requestedTool(f.id) { state = tr("✋ quer usar %@ · clique para responder", tool) }
             else if f.state == .waiting, let q = f.asked { state = tr("✋ te perguntou: ") + q }
-            let s = NSMutableAttributedString(string: f.nickname ?? f.label, attributes: [
+            let s = NSMutableAttributedString(string: (f.leaderID == nil ? "" : "↳ ") + (f.nickname ?? f.label), attributes: [
                 .font: rounded(11, .semibold), .foregroundColor: NSColor(white: 1, alpha: 0.92)])
             // plugin fish stay compact (name and state); details show on hover.
             // Claude sessions and anything needing attention show everything.
@@ -196,7 +196,8 @@ final class Labels {
         if Self.mode == "none" { l.opacity = 0; return }
         func short(_ t: String, _ n: Int) -> String { t.count > n ? String(t.prefix(n - 1)) + "…" : t }
         let near = now.hoverFish == f.id
-        let name = f.nickname.map { short($0, 22) } ?? (f.isAgent ? short(f.displayTitle ?? f.label, 22) : f.label)
+        // "↳": launched by another session (its leader swims nearby)
+        let name = (f.leaderID == nil ? "" : "↳ ") + (f.nickname.map { short($0, 22) } ?? (f.isAgent ? short(f.displayTitle ?? f.label, 22) : f.label))
         let s = NSMutableAttributedString(string: name, attributes: [
             .font: rounded(10.5, .medium), .foregroundColor: NSColor(white: 1, alpha: near ? 0.95 : 0.6)])
         let today = min(5, f.finished.filter { Calendar.current.isDateInToday($0.when) }.count)

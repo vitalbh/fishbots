@@ -430,6 +430,11 @@ born, for hooks that don't. It lives in the fish's whereabouts (`parent`), so it
 of a control route is found by the `X-Where-*` headers the CLI sends, the same ones the hook sends, so an
 orchestrator doesn't need to know its own id. A fish with children is the leader: no "orchestrator" provider.
 
+**In the tank:** the children are a loose school around their leader (`Steering`: each still goes about its own
+state, within reach of the leader; whoever waits for you still comes to the glass, a sick one still sinks), dressed
+with the leader's markings and fin in their own project's color, with "↳" before their name. The leader's card
+lists its school with each one's state (a click opens that fish's card); a child's card has a tag for its leader.
+
 **Guards:** the Preferences switch; 6 children alive per parent and depth 1 (a child doesn't launch children);
 permission requests of the children stay with the person; `spawn` takes no extra arguments for the agent, so it
 can't ask for a session that skips permissions. No token: the server already refuses browsers, and a
