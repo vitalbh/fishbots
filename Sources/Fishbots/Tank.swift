@@ -657,6 +657,67 @@ final class Tank {
         let dt = min(rawDt, 0.05)
         frameDt = dt
         time = CACurrentMediaTime()
+        runScheduled()
+        bubbler()
+
+        scene.update(self, dt: dt)
+        weeds.update(self, dt: dt)
+        let agents = Float(fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.count)
+        crowd += (max(0, min(1, (agents - 4) / 6)) - crowd) * min(1, dt * 0.5)
+        if Int(time * 10) % 50 == 0 { gauges.expire() }
+        breathe(dt: dt)
+        scenery.update(self, dt: dt)
+        pearls.layout(self)
+        rainOnSurface()
+        motes.update(self, dt: dt)
+
+        drift(dt: dt)
+        tickSessions(dt: dt)
+        if Int(time) % 60 == 0 { pearls.rollDay() }
+
+        fauna.update(self, dt: dt)
+        // parallax: slowly follows the mouse; without a mouse, returns to center
+        let gazeTarget: SIMD2<Float> = cursor.map { c in time - cursorAt < 6 ? (c / SIMD2(max(1, size.x), max(1, size.y))) * 2 - 1 : .zero } ?? .zero
+        gaze += (gazeTarget - gaze) * min(1, dt * 1.5)
+
+        chats()
+        tag()
+        blowRings()
+        deliverMail(dt: dt)
+
+        // forgotten sessions leave on their own after 2 h without news
+        for f in fish where !f.decor && !f.leaving && time - f.seen > 7200 { f.leaving = true }
+
+        let food = particles.indices.filter { particles[$0].kind == 3 }
+        // queue at the glass in order of arrival
+        let waiting = fish.filter { $0.state == .waiting && !$0.leaving && !$0.decor }.sorted { $0.since < $1.since }
+
+        for f in fish { steer(f, dt: dt, food: food, waiting: waiting) }
+
+        keepApart(dt: dt)
+        eat(food: food)
+        moveParticles(dt: dt)
+
+        // plugged-in battery releases little bubbles
+        if battery != nil && pluggedIn && time > batteryBubbleAt {
+            bubble(at: batteryPos + SIMD2(Float.random(in: -10...10), 6), size: Float.random(in: 1...2))
+            batteryBubbleAt = time + Double.random(in: 0.3...0.9)
+        }
+
+        // jellyfish
+        jellyPhase += dt
+        jellyPos = [size.x * 0.72 + sinf(jellyPhase * 0.11) * size.x * 0.12,
+                    size.y * 0.62 + sinf(jellyPhase * 0.23) * size.y * 0.1]
+        jellyGlow *= expf(-dt * 0.8)
+
+        // turbidity from the disk (or any "disk" gauge)
+        let disk = gauges.highest("disk") ?? 0
+        let goal = smoothstep(0.85, 0.97, disk)
+        turbidity += (goal - turbidity) * min(1, dt * 0.5)
+    }
+
+    /// What `after` put off until now.
+    private func runScheduled() {
         // scheduled effects
         if !later.isEmpty {
             var keep: [(Double, () -> Void)] = []
@@ -666,7 +727,10 @@ final class Tank {
             }
             later = keep
         }
+    }
 
+    /// The bubbler's stream, and now and then something special.
+    private func bubbler() {
         // now and then the bubbler lets out something special: a bubble ring, or a big bubble that splits in two
         if shapedAt == 0 { shapedAt = time + Double.random(in: 15...30) * Self.scale }
         if time > shapedAt {
@@ -685,24 +749,19 @@ final class Tank {
             bubble(at: [bubblerX + Float.random(in: -4...4), 50], size: Float.random(in: 1.5...3.5))
             bubblerAt = time + Double.random(in: 0.08...0.25)
         }
+    }
 
-        scene.update(self, dt: dt)
-        weeds.update(self, dt: dt)
-        let agents = Float(fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.count)
-        crowd += (max(0, min(1, (agents - 4) / 6)) - crowd) * min(1, dt * 0.5)
-        if Int(time * 10) % 50 == 0 { gauges.expire() }
-        breathe(dt: dt)
-        scenery.update(self, dt: dt)
-        pearls.layout(self)
-        rainOnSurface()
-        motes.update(self, dt: dt)
-
+    /// The current: from the CPU and from the music.
+    private func drift(dt: Float) {
         // current: high CPU gently pushes everything to one side
         let cpu = gauges["mac:cpu"] ?? 0
         var currentTarget = smoothstep(0.55, 0.95, cpu) * 26 * (0.7 + 0.3 * sinf(Float(time) * 0.05))
         if time - musicCurrent.at < 0.5 { currentTarget += musicCurrent.value }
         current += (currentTarget - current) * min(1, dt * 0.3)
+    }
 
+    /// Each session's own clocks: its pace, what it's doing with a tool, sleeping, compacting, growing fat.
+    private func tickSessions(dt: Float) {
         for f in fish where !f.decor {
             f.toolTimes.removeAll { time - $0 > 60 }
             if f.spin > 0 { f.spin = max(0, f.spin - dt * 1.1) }
@@ -754,13 +813,10 @@ final class Tank {
                 bubble(at: f.pos + facing(f) * f.size * 0.5 + [0, 6], size: Float.random(in: 1.5...2.5))
             }
         }
-        if Int(time) % 60 == 0 { pearls.rollDay() }
+    }
 
-        fauna.update(self, dt: dt)
-        // parallax: slowly follows the mouse; without a mouse, returns to center
-        let gazeTarget: SIMD2<Float> = cursor.map { c in time - cursorAt < 6 ? (c / SIMD2(max(1, size.x), max(1, size.y))) * 2 - 1 : .zero } ?? .zero
-        gaze += (gazeTarget - gaze) * min(1, dt * 1.5)
-
+    /// Two idle fish from the same project meet now and then.
+    private func chats() {
         // chats: two fish from the same project, idle and awake, meet snout to snout
         if time > nextChat {
             nextChat = time + Double.random(in: 25...50)
@@ -774,7 +830,10 @@ final class Tank {
             }
         }
         for f in fish where f.chattingWith != nil && time > f.chatUntil { f.chattingWith = nil }
+    }
 
+    /// At night, two idle fish play tag.
+    private func tag() {
         // night-time tag among those idle and awake
         if let b = game, time > b.until { game = nil }
         if game == nil && light < 0.75 && time > nextGame {
@@ -790,7 +849,10 @@ final class Tank {
             sparkle(at: (p.pos + q.pos) / 2, color: [1, 1, 0.8])
             game = (b.runner, b.chaser, b.until)          // tagged! swap
         }
+    }
 
+    /// Idle fish blow a bubble ring now and then.
+    private func blowRings() {
         // bubble ring from the idle ones
         for f in fish where !f.decor && !f.leaving && (f.state == .idle || f.state == .ok) && !sleeping(f) && time > f.ringAt {
             if f.ringAt > 0 && Float.random(in: 0...1) < 0.6 {
@@ -799,7 +861,10 @@ final class Tank {
             }
             f.ringAt = time + Double.random(in: 18...45)
         }
+    }
 
+    /// The seahorses carrying mail (MCP calls) to their fish and back.
+    private func deliverMail(dt: Float) {
         // mail seahorses
         for i in mails.indices {
             mails[i].phase += dt
@@ -822,16 +887,10 @@ final class Tank {
             mails[i].pos.y += sinf(mails[i].phase * 2.2) * 6 * dt
         }
         mails.removeAll { $0.stage == 2 && ($0.pos.x < -60 || $0.pos.x > size.x + 60) }
+    }
 
-        // forgotten sessions leave on their own after 2 h without news
-        for f in fish where !f.decor && !f.leaving && time - f.seen > 7200 { f.leaving = true }
-
-        let food = particles.indices.filter { particles[$0].kind == 3 }
-        // queue at the glass in order of arrival
-        let waiting = fish.filter { $0.state == .waiting && !$0.leaving && !$0.decor }.sorted { $0.since < $1.since }
-
-        for f in fish { steer(f, dt: dt, food: food, waiting: waiting) }
-
+    /// Fish don't swim through each other.
+    private func keepApart(dt: Float) {
         // separation
         for i in fish.indices {
             for j in fish.indices where j > i {
@@ -845,7 +904,10 @@ final class Tank {
                 }
             }
         }
+    }
 
+    /// Whoever reaches a bit of food eats it.
+    private func eat(food: [Int]) {
         // eating
         if !food.isEmpty {
             var eaten = Set<Int>()
@@ -869,7 +931,10 @@ final class Tank {
         fish.removeAll { f in
             f.leaving && (f.pos.x < -80 || f.pos.x > size.x + 80 || f.pos.y > size.y + 70)
         }
+    }
 
+    /// Bubbles, rings, food, sparks and ink: they move, fade, split and pop at the surface.
+    private func moveParticles(dt: Float) {
         // particles
         for i in particles.indices {
             particles[i].life += dt
@@ -916,23 +981,6 @@ final class Tank {
             particles.append(Particle(pos: p, vel: .zero, life: 0, maxLife: 1.1, size: 4, grow: 26, kind: 8, color: [0.85, 0.95, 1, 1]))
         }
         if particles.count > 3000 { particles.removeFirst(particles.count - 3000) }
-
-        // plugged-in battery releases little bubbles
-        if battery != nil && pluggedIn && time > batteryBubbleAt {
-            bubble(at: batteryPos + SIMD2(Float.random(in: -10...10), 6), size: Float.random(in: 1...2))
-            batteryBubbleAt = time + Double.random(in: 0.3...0.9)
-        }
-
-        // jellyfish
-        jellyPhase += dt
-        jellyPos = [size.x * 0.72 + sinf(jellyPhase * 0.11) * size.x * 0.12,
-                    size.y * 0.62 + sinf(jellyPhase * 0.23) * size.y * 0.1]
-        jellyGlow *= expf(-dt * 0.8)
-
-        // turbidity from the disk (or any "disk" gauge)
-        let disk = gauges.highest("disk") ?? 0
-        let goal = smoothstep(0.85, 0.97, disk)
-        turbidity += (goal - turbidity) * min(1, dt * 0.5)
     }
 
     /// Idle for more than 10 min: lies on the sand and sleeps.
