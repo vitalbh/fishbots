@@ -16,7 +16,7 @@ final class MacSource {
         guard let v = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]),
               let freeSlot = v.volumeAvailableCapacityForImportantUsage, let total = v.volumeTotalCapacity, total > 0 else { return }
         let used = 1 - Double(freeSlot) / Double(total)
-        tank.gauge(source: "mac", name: "disk", value: Float(used))
+        tank.gauges.set(source: "mac", name: "disk", value: Float(used))
     }
 }
 
@@ -90,8 +90,8 @@ final class Demo {
                                link: nil, value: nil, color: nil, x: nil)
             endShark = now + 18
         case 1:
-            t.gauge(source: "demo", name: "rain", value: 0.8)
-            t.gauge(source: "demo", name: "waves", value: 0.7)
+            t.gauges.set(source: "demo", name: "rain", value: 0.8)
+            t.gauges.set(source: "demo", name: "waves", value: 0.7)
             endRain = now + 16
         case 2: _ = t.scene.effect("fireworks", t, source: "demo", label: "deploy meu-site", x: 0.5, y: nil, color: nil)
         case 3:
@@ -120,8 +120,8 @@ final class Demo {
         for p in tank.scene.presences where p.source == "demo" {
             tank.scene.remove(source: "demo", id: String(p.id.dropFirst("demo:".count)), party: false, tank)
         }
-        tank.removeGauge(source: "demo", name: "rain")
-        tank.removeGauge(source: "demo", name: "waves")
+        tank.gauges.remove(source: "demo", name: "rain")
+        tank.gauges.remove(source: "demo", name: "waves")
     }
 
     private func step() {
@@ -168,8 +168,8 @@ final class Demo {
         }
         if endRain > 0 && now > endRain {
             endRain = 0
-            tank.removeGauge(source: "demo", name: "rain")
-            tank.removeGauge(source: "demo", name: "waves")
+            tank.gauges.remove(source: "demo", name: "rain")
+            tank.gauges.remove(source: "demo", name: "waves")
         }
         if now > nextDeploy {
             nextDeploy = now + .random(in: 25...45)

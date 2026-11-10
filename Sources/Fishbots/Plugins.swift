@@ -282,7 +282,7 @@ final class Plugins {
     private func remove(_ projectKey: String) {
         if projectKey.hasPrefix("@gauge\t") {
             let p = projectKey.split(separator: "\t", maxSplits: 2).map(String.init)
-            if p.count == 3 { tank.removeGauge(source: p[1], name: p[2]) }
+            if p.count == 3 { tank.gauges.remove(source: p[1], name: p[2]) }
             return
         }
         if projectKey.hasPrefix("@presence\t") {

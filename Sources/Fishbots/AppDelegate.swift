@@ -1403,8 +1403,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // the quake also moves the background (the sprites move in Tank.sprites)
         let u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
                          gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? (Themes.current.sky ?? Sky()).grade(hour: hourNow()) : [1, 1, 1, 0],
-                         scene: [tank.sceneGauge("waves") ?? 0, tank.sceneGauge("rain") ?? 0,
-                                 tank.sceneGauge("temperature") ?? 0.5, tank.sceneGauge("fog") ?? 0],
+                         scene: [tank.gauges.highest("waves") ?? 0, tank.gauges.highest("rain") ?? 0,
+                                 tank.gauges.highest("temperature") ?? 0.5, tank.gauges.highest("fog") ?? 0],
                          sky: (Themes.current.sky ?? Sky()).disc(hour: hourNow()),
                          flashColor: SIMD4(tank.scene.flashColor, 0))
         visual.size = tank.size
@@ -1559,7 +1559,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
         var parts = [tr("clique no peixe: ir até ele"), tr("no vazio: alimentar"), "D demo\(demo.on ? " ✓" : "")", tr("M som") + (synth.muted.load(ordering: .relaxed) ? " ✗" : ""),
                       tr("T flutuar") + (window.level == .floating ? " ✓" : ""), tr("S foco") + (Attention.focus ? " ✓" : ""), tr("L rótulos"), tr("E temas"), "127.0.0.1:\(port)"]
-        for (k, v) in tank.gauges.sorted(by: { $0.key < $1.key }) where k != "mac:battery" && k != "mac:charging" {
+        for (k, v) in tank.gauges.values.sorted(by: { $0.key < $1.key }) where k != "mac:battery" && k != "mac:charging" {
             parts.append("\(k.split(separator: ":").last ?? "") \(Int(v * 100))%")
         }
         if let n = music.pieceName { parts.insert("🎵 " + n, at: 0) }

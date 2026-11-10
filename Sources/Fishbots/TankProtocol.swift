@@ -128,11 +128,11 @@ enum TankProtocol {
         if let gauge = text(m["gauge"], max: 40) {
             // "value": null (or "state": "end") takes it away
             if m["value"] is NSNull || (text(m["state"]).map(State.isEnd) ?? false) {
-                tank.removeGauge(source: source, name: gauge)
+                tank.gauges.remove(source: source, name: gauge)
                 return nil
             }
             guard let v = (m["value"] as? NSNumber)?.floatValue, v.isFinite else { return "gauge without a numeric \"value\" (null removes it)" }
-            tank.gauge(source: source, name: gauge, value: v)
+            tank.gauges.set(source: source, name: gauge, value: v)
             return nil
         }
         return "needs \"entity\", \"presence\", \"effect\", \"event\" or \"gauge\""
@@ -153,7 +153,7 @@ enum TankProtocol {
              "label": $0.label, "detail": $0.detail ?? "", "link": $0.link ?? "", "value": $0.value ?? -1,
              "sound": $0.sound ?? $0.kind.sound]
         }
-        var obj: [String: Any] = ["fish": fishes, "presences": presences, "gauges": tank.gauges, "theme": Themes.current.id]
+        var obj: [String: Any] = ["fish": fishes, "presences": presences, "gauges": tank.gauges.values, "theme": Themes.current.id]
         if let extras = stateExtras?() { obj.merge(extras) { $1 } }
         return (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()
     }

@@ -188,7 +188,7 @@ final class FishbotsSaverView: ScreenSaverView {
         }
         for (k, v) in obj["gauges"] as? [String: NSNumber] ?? [:] {
             let parts = k.split(separator: ":", maxSplits: 1).map(String.init)
-            if parts.count == 2 { tank.gauge(source: parts[0], name: parts[1], value: v.floatValue) }
+            if parts.count == 2 { tank.gauges.set(source: parts[0], name: parts[1], value: v.floatValue) }
         }
         // the presences (docs/scene.md): the same creatures and objects, silent
         var present = Set<String>()
@@ -220,8 +220,8 @@ final class FishbotsSaverView: ScreenSaverView {
         renderer?.weeds = tank.weedUniforms()
         if let r = renderer { tank.shaderTime = r.shaderTime }
         return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Sky().grade(hour: h),
-                         scene: [tank.sceneGauge("waves") ?? 0, tank.sceneGauge("rain") ?? 0,
-                                 tank.sceneGauge("temperature") ?? 0.5, tank.sceneGauge("fog") ?? 0],
+                         scene: [tank.gauges.highest("waves") ?? 0, tank.gauges.highest("rain") ?? 0,
+                                 tank.gauges.highest("temperature") ?? 0.5, tank.gauges.highest("fog") ?? 0],
                          sky: Sky().disc(hour: h)),
                 visual.sprites() + tank.sprites())
     }

@@ -7,7 +7,7 @@ final class Tank {
     var size: SIMD2<Float> = [960, 600]
     private(set) var fish: [Fish] = []
     private(set) var particles: [Particle] = []
-    private(set) var gauges: [String: Float] = [:]
+    let gauges = Gauges()
     var light: Float = 1
     var turbidity: Float = 0
     var jellyGlow: Float = 0
@@ -820,19 +820,11 @@ final class Tank {
     var notice: (String, Double)? { didSet { noticeIcon = nil } }
     var noticeIcon: String?
 
-    /// Gauge names from older plugins, in Portuguese.
-    private static let legacyGauges = ["disco": "disk", "bateria": "battery", "carregando": "charging"]
-
-    /// A scene control (docs/scene.md): the highest value among gauges with this name, from any source ("weather:rain").
-    func sceneGauge(_ name: String) -> Float? {
-        gauges.filter { $0.key.hasSuffix(":" + name) }.map(\.value).max()
-    }
-
     private var rainAt: Double = 0
 
     /// The water's surface height at x, as the background shader draws it (waves included).
     func surfaceY(_ x: Float) -> Float {
-        let u = x / max(1, size.x), t = shaderTime, waves = sceneGauge("waves") ?? 0
+        let u = x / max(1, size.x), t = shaderTime, waves = gauges.highest("waves") ?? 0
         let s = 0.965 + (0.006 * sinf(u * 30 + t * 1.5) + 0.004 * sinf(u * 71 - t * 2.3)) * (1 + 2.5 * waves)
               + 0.007 * waves * sinf(u * 13 - t * 3.1) - 0.004 * waves
         return size.y * s
@@ -840,32 +832,12 @@ final class Tank {
 
     /// Rain: drops hitting the surface (little rings) and, once in a while, a bubble pushed under.
     private func rainOnSurface() {
-        guard let rain = sceneGauge("rain"), rain > 0.01, time > rainAt else { return }
+        guard let rain = gauges.highest("rain"), rain > 0.01, time > rainAt else { return }
         rainAt = time + Double(0.5 / (1 + rain * 30))
         let x = Float.random(in: 0...size.x), surf = surfaceY(x)
         particles.append(Particle(pos: [x, surf], vel: .zero, life: 0, maxLife: 0.8, size: 2, grow: 18 + rain * 14, kind: 8,
                                   color: [0.8, 0.92, 1, 1]))
         if Float.random(in: 0...1) < 0.2 { bubble(at: [x, surf - Float.random(in: 4...20)], size: Float.random(in: 1...1.8)) }
-    }
-
-    func gauge(source: String, name: String, value: Float) {
-        let key = "\(source):\(Self.legacyGauges[name] ?? name)"
-        gauges[key] = max(0, min(1, value))
-        gaugeAt[key] = time
-    }
-
-    /// When each gauge was last sent: one silent for over an hour goes away (a plugin that stopped).
-    private var gaugeAt: [String: Double] = [:]
-    static let gaugeLifetime: Double = 3600
-
-    func removeGauge(source: String, name: String) {
-        let key = "\(source):\(Self.legacyGauges[name] ?? name)"
-        gauges[key] = nil
-        gaugeAt[key] = nil
-    }
-
-    private func expireGauges() {
-        for (k, at) in gaugeAt where time - at > Self.gaugeLifetime { gauges[k] = nil; gaugeAt[k] = nil }
     }
 
     /// When each project first showed up (kept in the settings), and how veteran that makes it.
@@ -1073,7 +1045,7 @@ final class Tank {
         updateWeeds(dt: dt)
         let agents = Float(fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.count)
         crowd += (max(0, min(1, (agents - 4) / 6)) - crowd) * min(1, dt * 0.5)
-        if Int(time * 10) % 50 == 0 { expireGauges() }
+        if Int(time * 10) % 50 == 0 { gauges.expire() }
         breathe(dt: dt)
         updateChest(dt: dt)
         pearls.layout(self)
@@ -1313,7 +1285,7 @@ final class Tank {
         jellyGlow *= expf(-dt * 0.8)
 
         // turbidity from the disk (or any "disk" gauge)
-        let disk = gauges.filter { $0.key.hasSuffix(":disk") }.values.max() ?? 0
+        let disk = gauges.highest("disk") ?? 0
         let goal = smoothstep(0.85, 0.97, disk)
         turbidity += (goal - turbidity) * min(1, dt * 0.5)
     }
