@@ -19,6 +19,8 @@ enum Whereabouts {
         if new["rex_block"] == nil, let (s, b) = foundInRex[f.id] {
             new["rex_session"] = s; new["rex_block"] = b; new["term"] = "rex"; new["rex_lookup"] = "done"
         }
+        // who launched it (fishbots spawn) isn't something the session moves away from
+        if new["parent"] == nil, let p = f.whereabouts["parent"] { new["parent"] = p }
         let changed = new != f.whereabouts
         f.whereabouts = new
         Providers.refresh(f)   // the shape can depend on the terminal

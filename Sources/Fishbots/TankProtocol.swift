@@ -147,6 +147,7 @@ enum TankProtocol {
              "state": $0.state.rawValue, "motif": $0.motif, "leaving": $0.leaving,
              "detail": $0.sub ?? "", "title": $0.displayTitle ?? "", "branch": $0.branch ?? "", "context": $0.context ?? -1, "model": $0.model ?? "", "doing": $0.doing ?? "", "where": $0.whereabouts, "link": $0.link ?? "",
              "agent": $0.isAgent, "species": $0.species, "kind": $0.kindID, "baseKind": $0.baseKind, "sings": $0.sings, "inView": $0.inView,
+             "parent": $0.whereabouts["parent"] ?? "",
              "can": (Providers.of($0.source)?.capabilities($0) ?? []).map(\.rawValue).sorted()]
         }
         let presences: [[String: Any]] = tank.scene.presences.filter { !$0.leaving }.map {

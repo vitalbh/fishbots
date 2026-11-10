@@ -349,8 +349,8 @@ Not a code extension point but the same idea: the on-screen text moves into stri
 bring translations.
 
 ### 11. Session control and launchers
-Status: `reply`, `stop` and `wait` are implemented (`SessionControl.swift`); launching sessions and lineage are
-designed below and not built yet.
+Status: implemented (`SessionControl.swift`, `Launchers.swift`) with Rex as the only launcher. Not built yet: Herdr
+and tmux launchers, opening beside the parent, and showing lineage in the tank (the school, the plan on the card).
 
 The aquarium already sees every agent in every client and can type into most of them. Letting a session use that
 makes it an orchestrator: **the orchestrator is not a feature of the app, it's an ordinary agent session** that
@@ -365,10 +365,11 @@ checks as the card apply, so nothing is typed where the card wouldn't type):
 | `/control/reply` | `fish`, `text` | ok, or why not (not at its prompt, another program in front…) |
 | `/control/stop` | `fish` | ok |
 | `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them is in one of the states: which, its state, its last reply |
-| `/control/spawn` *(planned)* | `agent`, `cwd`, `prompt`, `label`, `launcher` | held until the fish is born: `source`, `entity`, `where` |
+| `/control/spawn` | `agent`, `cwd`, `prompt`, `label`, `launcher`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
 
 `fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish
-takes right now (`can`). From the command line: `fishbots reply | stop | wait`.
+takes right now (`can`) and who launched it (`parent`). From the command line: `fishbots spawn | reply | stop |
+wait`; the `fishbots-orchestrator` skill (`fishbots skill install`) teaches a coding agent the cycle.
 
 - `wait` and `spawn` hold the HTTP answer, like permission requests do (`Server.deferred`, a list of handlers).
 - `wait` is an output (point 8): `SessionControl` is an `EventSink` that answers when the right `TankEvent` comes.
@@ -377,8 +378,14 @@ takes right now (`can`). From the command line: `fishbots reply | stop | wait`.
   it changes state.
 - `reply` types one line into the terminal (line breaks become spaces). A long brief belongs in `spawn`'s prompt,
   which goes as an argument of the agent's command, not typed.
+- `spawn` answers when a fish of that agent shows up in the pane it opened (the hook's `X-Where-*` say which pane).
+  If none does in time (no hook installed, or the agent asks something first, like trusting the folder), it
+  answers 504 with `where`.
+- The new pane doesn't have the asker's environment. What picks the agent's account or profile travels in `env`:
+  `fishbots spawn` sends its own `CLAUDE_CONFIG_DIR` and `CODEX_HOME`, and whatever `--env` names.
+- A session interrupted with `stop` has no event for it, so it stays "busy" until it's sent something.
 
-**Launchers** (planned): where a session is born. Creating one belongs to the host (Rex, Herdr, tmux), not to a
+**Launchers**: where a session is born. Creating one belongs to the host (Rex, Herdr, tmux), not to a
 fish, so it's a registry next to the providers:
 
 ```swift
@@ -386,8 +393,8 @@ struct LaunchRequest {
     let command: [String]          // from the provider
     let cwd: String
     let label: String?
-    let near: Fish?                // open beside the parent, if there is one
-    let env: [String: String]      // FISHBOTS_PARENT=…
+    let near: [String: String]?    // the asker's whereabouts: the new session opens in its Rex session
+    let env: [String: String]      // FISHBOTS_PARENT=…, the account's variables
 }
 
 protocol SessionLauncher: AnyObject {
@@ -398,16 +405,20 @@ protocol SessionLauncher: AnyObject {
 }
 ```
 
-A provider says how its agent starts (`launchCommand(prompt:) -> [String]?`, nil: it can't be launched); manifests
-get a `launch` array with `{prompt}`. Rex first (`rex run` / `rex split -b <the parent's block>`).
+A provider says how its agent starts (`launchCommand(prompt:) -> [String]?`, nil: it can't be launched; Claude Code
+and Codex can); a manifest's `launch` array with `{prompt}` does it for agents without Swift. `RexLauncher` runs
+`rex run -s <the asker's session> --focus=false`: a new window (tab) that doesn't take the focus. A new host is a
+`SessionLauncher` registered in `Launchers`.
 
-**Lineage** (planned): the launcher sets `FISHBOTS_PARENT=<source:entity>` in the pane and the shared hook forwards
-it, so the child says whose it is from its first event; `/state` gets `parent`. The caller of a control route is
-found by the `X-Where-*` headers the CLI sends, the same ones the hook sends, so an orchestrator doesn't need to
-know its own id. A fish with children is the leader: no "orchestrator" provider.
+**Lineage:** the launcher sets `FISHBOTS_PARENT=<source:entity>` in the pane and the shared hook forwards it
+(`X-Where-Parent`), so the child says whose it is from its first event; the app also notes it when the fish is
+born, for hooks that don't. It lives in the fish's whereabouts (`parent`), so it's remembered on reopen. The caller
+of a control route is found by the `X-Where-*` headers the CLI sends, the same ones the hook sends, so an
+orchestrator doesn't need to know its own id. A fish with children is the leader: no "orchestrator" provider.
 
-**Guards:** the Preferences switch; a limit of children per parent and depth 1 (a child doesn't launch children);
-permission requests of the children stay with the person. No token: the server already refuses browsers, and a
+**Guards:** the Preferences switch; 6 children alive per parent and depth 1 (a child doesn't launch children);
+permission requests of the children stay with the person; `spawn` takes no extra arguments for the agent, so it
+can't ask for a session that skips permissions. No token: the server already refuses browsers, and a
 local process could type into the terminals by itself.
 
 ## Order of work

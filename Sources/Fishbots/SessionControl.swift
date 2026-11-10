@@ -1,13 +1,20 @@
 import Foundation
 
 /// Sessions commanding other sessions through the aquarium (docs/extensions.md, 11): the routes under /control.
-/// An orchestrator is just a session that calls them (`fishbots reply | stop | wait`); what a session takes is
-/// still its provider's to say, so nothing here types where the card wouldn't. Off until turned on in Preferences.
+/// An orchestrator is just a session that calls them (`fishbots spawn | reply | stop | wait`); what a session takes
+/// is still its provider's to say, so nothing here types where the card wouldn't. Off until turned on in Preferences.
 ///
+///   POST /control/spawn  {"agent": "claude-code", "cwd": "/…", "prompt": "…", "label": "…", "launcher": "rex",
+///                         "env": {"CLAUDE_CONFIG_DIR": "…"}}
 ///   POST /control/reply  {"fish": "claude-code:abc", "text": "…"}
 ///   POST /control/stop   {"fish": "claude-code:abc"}
 ///   POST /control/wait   {"fish": ["…", "…"], "states": ["done", "waiting", "error"], "timeout": 600}
 ///
+/// `spawn` opens a pane (Launchers.swift) running the agent with the prompt, and holds the answer until the session
+/// in it shows up as a fish. The one asking is found by where it runs (the X-Where-* headers `fishbots` sends, the
+/// hook's own): the new fish is its child. A child doesn't launch others, and a parent has a limit of them.
+/// The new pane doesn't have the asker's environment, so what picks the agent's account or profile comes in `env`
+/// (`fishbots spawn` sends CLAUDE_CONFIG_DIR and CODEX_HOME when it has them).
 /// `wait` holds the answer until one of the fish is in one of the states, and says which, with its last reply.
 /// A fish that was just sent a line doesn't count as it stands (it's still "done" from the turn before): only
 /// what it says next does.
@@ -15,7 +22,9 @@ final class SessionControl: EventSink {
     let id = "session-control"
 
     static var enabled: Bool { UserDefaults.standard.bool(forKey: "sessionControl") }
-    static let routes = ["POST /control/reply", "POST /control/stop", "POST /control/wait"]
+    static let routes = ["POST /control/spawn", "POST /control/reply", "POST /control/stop", "POST /control/wait"]
+    /// Sessions one parent can have alive at once.
+    static let maxChildren = 6
 
     private struct Waiter {
         let id: Int
@@ -24,9 +33,20 @@ final class SessionControl: EventSink {
         let reply: (Int, Data) -> Void
     }
 
+    /// A pane that was opened and whose session hasn't shown up yet.
+    private struct Birth {
+        let id: Int
+        let source: String
+        let place: [String: String]
+        let parent: String?
+        let reply: (Int, Data) -> Void
+    }
+
     private let tank: Tank
+    private let port: () -> UInt16
     private let can: (Capability, Fish) -> Bool
     private var waiters: [Waiter] = []
+    private var births: [Birth] = []
     private var next = 1
     /// Fish that were sent a line and haven't changed state since.
     private var sent: Set<String> = []
@@ -34,8 +54,9 @@ final class SessionControl: EventSink {
     /// The last reply is read from the transcript a moment after the turn ends.
     private let settle: TimeInterval = 1.5
 
-    init(tank: Tank, can: @escaping (Capability, Fish) -> Bool) {
+    init(tank: Tank, port: @escaping () -> UInt16, can: @escaping (Capability, Fish) -> Bool) {
         self.tank = tank
+        self.port = port
         self.can = can
     }
 
@@ -46,6 +67,8 @@ final class SessionControl: EventSink {
         guard method == "POST" else { reply(404, Self.error("unknown route")); return true }
         guard Self.enabled else { reply(403, Self.error("session control is off: turn it on in Preferences → General")); return true }
         let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+        if route == "/control/spawn" { spawn(m, headers, reply); return true }
+
         let names = (m["fish"] as? [String]) ?? (m["fish"] as? String).map { [$0] } ?? []
         var found: [Fish] = []
         for n in names {
@@ -90,13 +113,12 @@ final class SessionControl: EventSink {
             let states = Set(asked)
             // already there (and not just sent a line)?
             if let f = found.first(where: { !sent.contains($0.id) && states.contains($0.state.rawValue) }) {
-                reply(200, Self.snapshot(f)); return true
+                reply(200, Self.json(Self.snapshot(f))); return true
             }
-            let timeout = min(max((m["timeout"] as? NSNumber)?.doubleValue ?? 600, 1), 3600)
             let w = Waiter(id: next, fish: found.map(\.id), states: states, reply: reply)
             next += 1
             waiters.append(w)
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.seconds(m["timeout"], or: 600, upTo: 3600)) { [weak self] in
                 self?.finish(w.id) { _ in Data(#"{"timeout":true}"#.utf8) }
             }
             watch()
@@ -104,6 +126,87 @@ final class SessionControl: EventSink {
             reply(404, Self.error("unknown route"))
         }
         return true
+    }
+
+    // MARK: - a new session
+
+    private func spawn(_ m: [String: Any], _ headers: [String: String], _ reply: @escaping (Int, Data) -> Void) {
+        let parent = caller(headers)
+        if let parent {
+            guard parent.whereabouts["parent"] == nil else {
+                reply(409, Self.error("\(parent.id) was launched by another session: it can't launch its own")); return
+            }
+            guard children(of: parent.id).count < Self.maxChildren else {
+                reply(409, Self.error("\(parent.id) already has \(Self.maxChildren) sessions: wait for one to end")); return
+            }
+        }
+        let agent = m["agent"] as? String ?? parent?.source ?? "claude-code"
+        let prompt = (m["prompt"] as? String).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        guard let provider = Providers.of(agent), let command = provider.launchCommand(prompt: prompt) else {
+            let known = Providers.all.values.filter { $0.launchCommand(prompt: nil) != nil }.map(\.id).sorted().joined(separator: ", ")
+            reply(400, Self.error("don't know how to start \"\(agent)\" (can start: \(known))")); return
+        }
+        guard let folder = (m["cwd"] as? String ?? parent?.whereabouts["cwd"]).map({ NSString(string: $0).expandingTildeInPath }) else {
+            reply(400, Self.error(#"send "cwd": the folder the session works in"#)); return
+        }
+        var isDir: ObjCBool = false
+        guard folder.hasPrefix("/"), FileManager.default.fileExists(atPath: folder, isDirectory: &isDir), isDir.boolValue else {
+            reply(400, Self.error("\(folder) isn't a folder")); return
+        }
+        let wanted = m["launcher"] as? String
+        guard let launcher = Launchers.pick(wanted) else {
+            reply(409, Self.error(wanted.map { "can't launch through \"\($0)\"" } ?? "nowhere to launch a session (Rex isn't installed)")); return
+        }
+        var env: [String: String] = [:]
+        for (k, v) in m["env"] as? [String: String] ?? [:] where k.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil {
+            env[k] = v
+        }
+        if let parent { env["FISHBOTS_PARENT"] = parent.id }
+        // an aquarium on another port (a test instance): the new session's hook reports to this one
+        if port() != 7777 { env["FISHBOTS_PORT"] = String(port()) }
+        let patience = Self.seconds(m["timeout"], or: 30, upTo: 120)
+        let request = LaunchRequest(command: command, cwd: folder, label: m["label"] as? String, near: parent?.whereabouts, env: env)
+        launcher.launch(request) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let e):
+                reply(409, Self.error(e.message))
+            case .success(let place):
+                let b = Birth(id: self.next, source: provider.id, place: place, parent: parent?.id, reply: reply)
+                self.next += 1
+                self.births.append(b)
+                DispatchQueue.main.asyncAfter(deadline: .now() + patience) { [weak self] in
+                    self?.deliver(b.id, 504, ["error": "the pane opened, but no \(provider.id) session reported from it in \(Int(patience)) s (is its hook installed? is it asking something first?)",
+                                              "where": place])
+                }
+                self.watch()
+            }
+        }
+    }
+
+    /// The agent session the request came from, by where it runs.
+    private func caller(_ headers: [String: String]) -> Fish? {
+        for key in Launchers.placeKeys {
+            guard let v = headers["x-where-" + key.replacingOccurrences(of: "_", with: "-")] else { continue }
+            if let f = tank.fish.first(where: { $0.isAgent && !$0.decor && !$0.leaving && $0.whereabouts[key] == v }) { return f }
+        }
+        return nil
+    }
+
+    private func children(of id: String) -> [Fish] {
+        tank.fish.filter { !$0.decor && !$0.leaving && $0.whereabouts["parent"] == id }
+    }
+
+    /// The fish that was born in a launched pane, if it's there already.
+    private func born(_ b: Birth) -> Fish? {
+        guard let key = Launchers.placeKeys.first(where: { b.place[$0] != nil }) else { return nil }
+        return tank.fish.first { $0.source == b.source && !$0.leaving && $0.whereabouts[key] == b.place[key] }
+    }
+
+    private func deliver(_ id: Int, _ status: Int, _ body: [String: Any]) {
+        guard let i = births.firstIndex(where: { $0.id == id }) else { return }
+        births.remove(at: i).reply(status, Self.json(body))
+        rest()
     }
 
     // MARK: - what the tank says
@@ -117,7 +220,7 @@ final class SessionControl: EventSink {
             // the waiter stays in the list meanwhile, so nothing else answers it twice: `finish` takes it out
             DispatchQueue.main.asyncAfter(deadline: .now() + settle) { [weak self] in
                 self?.finish(id) { me in
-                    me.tank.fish.first { $0.id == fishId && !$0.leaving }.map(Self.snapshot) ?? Self.gone(fishId)
+                    Self.json(me.tank.fish.first { $0.id == fishId && !$0.leaving }.map(Self.snapshot) ?? ["fish": fishId, "gone": true])
                 }
             }
         }
@@ -128,20 +231,33 @@ final class SessionControl: EventSink {
         guard let i = waiters.firstIndex(where: { $0.id == id }) else { return }
         let w = waiters.remove(at: i)
         w.reply(200, body(self))
-        if waiters.isEmpty { ticker?.invalidate(); ticker = nil }
+        rest()
     }
 
-    /// While someone waits: a fish that left (its session ended) says nothing more, so it's looked for.
+    /// While someone waits: a new session's fish is looked for, and so is a fish that left (its session ended
+    /// and says nothing more).
     private func watch() {
         guard ticker == nil else { return }
-        ticker = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        ticker = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self else { return }
+            for b in self.births {
+                guard let f = self.born(b) else { continue }
+                if let p = b.parent, f.whereabouts["parent"] == nil { f.whereabouts["parent"] = p }
+                var d = Self.snapshot(f)
+                d["where"] = b.place
+                if let p = b.parent { d["parent"] = p }
+                self.deliver(b.id, 200, d)
+            }
             let alive = Set(self.tank.fish.filter { !$0.leaving }.map(\.id))
             for w in self.waiters {
-                if let lost = w.fish.first(where: { !alive.contains($0) }) { self.finish(w.id) { _ in Self.gone(lost) } }
+                if let lost = w.fish.first(where: { !alive.contains($0) }) { self.finish(w.id) { _ in Self.json(["fish": lost, "gone": true]) } }
             }
             self.sent.formIntersection(alive)
         }
+    }
+
+    private func rest() {
+        if waiters.isEmpty && births.isEmpty { ticker?.invalidate(); ticker = nil }
     }
 
     // MARK: - fish and answers
@@ -154,19 +270,21 @@ final class SessionControl: EventSink {
         return like.count == 1 ? like[0] : nil
     }
 
-    private static func snapshot(_ f: Fish) -> Data {
+    private static func seconds(_ v: Any?, or usual: Double, upTo most: Double) -> Double {
+        min(max((v as? NSNumber)?.doubleValue ?? usual, 1), most)
+    }
+
+    private static func snapshot(_ f: Fish) -> [String: Any] {
         var d: [String: Any] = ["fish": f.id, "state": f.state.rawValue, "label": f.label]
         if let t = f.displayTitle { d["title"] = t }
         if let r = f.lastReplyMarkdown ?? f.lastReply { d["reply"] = r }
         if f.state == .waiting, let q = f.asked { d["asked"] = q }
-        return (try? JSONSerialization.data(withJSONObject: d, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+        return d
     }
 
-    private static func gone(_ id: String) -> Data {
-        (try? JSONSerialization.data(withJSONObject: ["fish": id, "gone": true])) ?? Data()
+    private static func json(_ d: [String: Any]) -> Data {
+        (try? JSONSerialization.data(withJSONObject: d, options: [.prettyPrinted, .sortedKeys])) ?? Data()
     }
 
-    private static func error(_ text: String) -> Data {
-        (try? JSONSerialization.data(withJSONObject: ["error": text])) ?? Data()
-    }
+    private static func error(_ text: String) -> Data { json(["error": text]) }
 }

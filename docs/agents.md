@@ -79,6 +79,9 @@ Without one, `<id>` is also the agent's process name and the fish follows the te
   pack); without it, the kind follows where the session runs (terminal, editor, Rex).
 - `timbre`: `pluck`, `bell`, `pad`, `bass`, `glass`, `bubble`, `soft`, `rhodes`, `flute` or `kalimba`.
 - `events`, `tools`: the agent's names → Claude Code's. Names not listed pass as they are.
+- `launch` (optional): the command that starts a session, as an array, with `{prompt}` where the first prompt goes
+  (`["aider", "--message", "{prompt}"]`). With it, `fishbots spawn --agent <id>` can start the agent in a new pane
+  ([extensions.md](extensions.md), point 11).
 
 Whoever uses the aquarium can still pick another fish for the whole agent (Preferences → General → Agents → Each
 agent's fish) or for one project (the fish menu); those win over the manifest's `fish`.

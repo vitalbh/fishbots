@@ -13,7 +13,8 @@ import AppKit
 ///    "fish": "slender",                      // a fish kind id (packs can add kinds); default: by the terminal
 ///    "timbre": "pluck",                      // pluck, bell, pad, bass, glass, bubble, soft, rhodes, flute, kalimba
 ///    "events": {"BeforeAgent": "UserPromptSubmit"},   // its event names → Claude Code's (unlisted ones pass as-is)
-///    "tools": {"run_command": "Bash"}}       // its tool names → Claude Code's, for the animations
+///    "tools": {"run_command": "Bash"},       // its tool names → Claude Code's, for the animations
+///    "launch": ["aider", "--message", "{prompt}"]}   // how to start it with a first prompt (fishbots spawn); optional
 ///
 /// The events it understands are Claude Code's: SessionStart, UserPromptSubmit, PreToolUse (`tool_name`,
 /// `tool_input`), PostToolUse, Notification (`message`: "permission…" → waiting), Stop (`last_assistant_message`),
@@ -27,6 +28,7 @@ final class ManifestAgent: TerminalAgentProvider, SessionProvider {
     let processNames: [String]
     private let events: [String: String]
     private let tools: [String: String]
+    private let launch: [String]
 
     init(id: String, json: [String: Any] = [:]) {
         self.id = id
@@ -35,6 +37,7 @@ final class ManifestAgent: TerminalAgentProvider, SessionProvider {
         processNames = (json["processNames"] as? [String]).flatMap { $0.isEmpty ? nil : $0 } ?? [id]
         events = json["events"] as? [String: String] ?? [:]
         tools = json["tools"] as? [String: String] ?? [:]
+        launch = json["launch"] as? [String] ?? []
         let kind = json["fish"] as? String
         // the title its events send (session_title) wins over the terminal's
         profile = SourceProfile(isAgent: true, timbre: (json["timbre"] as? String).flatMap { AgentManifests.timbres[$0] } ?? .pluck,
@@ -55,6 +58,13 @@ final class ManifestAgent: TerminalAgentProvider, SessionProvider {
     }
 
     func capabilities(_ f: Fish) -> Set<Capability> { terminalCapabilities(f) }
+
+    /// The manifest's "launch", with {prompt} filled in; without a prompt, the arguments that take it are left out.
+    func launchCommand(prompt: String?) -> [String]? {
+        guard !launch.isEmpty else { return nil }
+        guard let prompt else { return launch.filter { !$0.contains("{prompt}") } }
+        return launch.map { $0.replacingOccurrences(of: "{prompt}", with: prompt) }
+    }
 }
 
 /// Loads agent manifests and answers `/agent/<id>` for agents without one.

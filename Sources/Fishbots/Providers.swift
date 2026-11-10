@@ -30,6 +30,9 @@ protocol SessionProvider: AnyObject {
     func reply(_ f: Fish, _ text: String, done: @escaping (String?) -> Void)
     func stop(_ f: Fish)
     func renameChat(_ f: Fish, _ name: String, done: @escaping (String?) -> Void)
+    /// The command that starts a session of this agent in a terminal, with a first prompt if there is one
+    /// (a launcher runs it: Launchers.swift). nil: it can't be started from the aquarium.
+    func launchCommand(prompt: String?) -> [String]?
 }
 
 extension SessionProvider {
@@ -44,6 +47,7 @@ extension SessionProvider {
     func reply(_ f: Fish, _ text: String, done: @escaping (String?) -> Void) { done(tr("não sei responder essa sessão")) }
     func stop(_ f: Fish) {}
     func renameChat(_ f: Fish, _ name: String, done: @escaping (String?) -> Void) { done(tr("não sei renomear essa conversa")) }
+    func launchCommand(prompt: String?) -> [String]? { nil }
 }
 
 /// The registry of session providers.
@@ -159,6 +163,8 @@ final class ClaudeCodeProvider: TerminalAgentProvider, SessionProvider {
         return c
     }
 
+    func launchCommand(prompt: String?) -> [String]? { ["claude"] + (prompt.map { [$0] } ?? []) }
+
     /// Types /rename in the session: Claude renames the conversation itself.
     func renameChat(_ f: Fish, _ name: String, done: @escaping (String?) -> Void) {
         Whereabouts.reply(f, "/rename " + name) { [weak f] error in
@@ -183,6 +189,8 @@ final class CodexProvider: TerminalAgentProvider, SessionProvider {
     }
 
     func capabilities(_ f: Fish) -> Set<Capability> { terminalCapabilities(f).union([.renameChat]) }
+
+    func launchCommand(prompt: String?) -> [String]? { ["codex"] + (prompt.map { [$0] } ?? []) }
 
     /// Adds a line to Codex's index (~/.codex/session_index.jsonl), which is where the name lives.
     func renameChat(_ f: Fish, _ name: String, done: @escaping (String?) -> Void) {

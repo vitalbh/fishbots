@@ -51,5 +51,6 @@ printf '%s' "$input" | curl -s -m 1 -H 'Expect:' -H 'Content-Type: application/j
   -H "X-Where-App: ${app}" \
   -H "X-Where-Pid: ${pid}" \
   -H "X-Where-Entrypoint: ${CLAUDE_CODE_ENTRYPOINT:-}" \
+  -H "X-Where-Parent: ${FISHBOTS_PARENT:-}" \
   --data-binary @- "http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}/$route" >/dev/null 2>&1
 exit 0
