@@ -421,6 +421,10 @@ final class Music {
 
     private func signals(_ f: Fish, s: Int, t: Double, now: Double) {
         guard s == 0 else { return }
+        // still asking whether you're looking at its session: it calls on the next bar
+        if f.looking { return }
+        // a call for a new state: first ask (InView) whether you're looking at its session
+        if f.changed, [.waiting, .error, .alert].contains(f.state), f.lookedSince != f.since { InView.check(f); return }
         let changed = f.changed
         f.changed = false
         switch f.state {
@@ -428,17 +432,21 @@ final class Music {
             resolve(f, at: t, now: now)
         case .waiting:
             guard changed || tank.time - f.reminder > 150 else { return }
+            // a reminder: ask again first (you may have gone to the session, or left it)
+            if !changed && Date().timeIntervalSince(f.lookedAt) > 10 { InView.check(f); return }
             f.reminder = tank.time
-            motif(f, at: t, now: now, vel: 0.42, octave: 0, only: 2)
+            // you're looking at its session: it knocks without sound, and the question isn't read
+            let quiet = f.inView
+            if !quiet { motif(f, at: t, now: now, vel: 0.42, octave: 0, only: 2) }
             var end = t + 4 * samplesPerStep
             if Attention.level(f.source, .waiting) >= .attention {
-                knock(f, at: t + 12 * samplesPerStep, now: now)
-                knock(f, at: t + 14 * samplesPerStep, now: now)
+                knock(f, at: t + 12 * samplesPerStep, now: now, silent: quiet)
+                knock(f, at: t + 14 * samplesPerStep, now: now, silent: quiet)
                 end = t + 15 * samplesPerStep
             }
-            if changed { called?(f, (end - now) / sr + 0.35) }
+            if changed && !quiet { called?(f, (end - now) / sr + 0.35) }
         case .error, .alert:
-            if changed && Attention.level(f.source, f.state) >= .attention {
+            if changed && !f.inView && Attention.level(f.source, f.state) >= .attention {
                 motif(f, at: t, now: now, vel: 0.42, octave: 0, lastShift: 1)
             }
         default:
@@ -446,8 +454,8 @@ final class Music {
         }
     }
 
-    private func knock(_ f: Fish, at t: Double, now: Double) {
-        synth.playRaw(at: Int64(t), freq: 1, vel: 0.35, timbre: .glass, pan: pan(f))
+    private func knock(_ f: Fish, at t: Double, now: Double, silent: Bool = false) {
+        if !silent { synth.playRaw(at: Int64(t), freq: 1, vel: 0.35, timbre: .glass, pan: pan(f)) }
         tank.after((t - now) / sr) { [weak f, weak tank] in
             guard let f, let tank else { return }
             let dir: Float = f.vel.x >= 0 ? 1 : -1
