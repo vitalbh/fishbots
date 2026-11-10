@@ -167,111 +167,113 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     override func loadView() {
         // the music fish has its own card: "now playing"
         if f.sings { view = musicCard(); return }
-        var v: [NSView] = []
-        let open = Self.expanded[f.id] ?? []
-        let species = ["oval": "Rex", "slender": "terminal", "puffer": "Claude", "angelfish": "editor", "octopus": "GitHub",
-                       "stingray": "Codex"][f.kindID].map(tr) ?? tr(FishKinds.all[min(f.species, FishKinds.all.count - 1)].name)
+        let parts = [header(), now(), places(), said(), activity(), permission(), composer(), hints()]
+        let stack = NSStackView(views: parts.flatMap { $0 })
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 9
+        stack.edgeInsets = NSEdgeInsets(top: 16, left: 22, bottom: 14, right: 18)
+        stack.widthAnchor.constraint(equalToConstant: width + 40).isActive = true
+        view = glass(around: stack)
+    }
 
-        // ── header: name and title on the left; state and context on the right
+    /// The fish's color, for what's drawn in it (the porthole's rim, the waves, the water level, the bubbles).
+    private var tint: NSColor { NSColor(red: CGFloat(f.color.x), green: CGFloat(f.color.y), blue: CGFloat(f.color.z), alpha: 1) }
+    /// The same, lighter: text in the fish's color that still reads on dark water.
+    private var tintText: NSColor { tint.blended(withFraction: 0.45, of: .white) ?? tint }
+    private var hasReply: Bool { !(f.lastReply ?? "").isEmpty && [.done, .waiting, .idle, .ok].contains(f.state) && request == nil }
+    private var open: Set<String> { Self.expanded[f.id] ?? [] }
+
+    /// The fish behind its porthole, who it is, and how it is.
+    private func header() -> [NSView] {
+        let room = width - Porthole.size.width - 150
         var left: [NSView] = []
         let name = text(f.nickname ?? f.label, 15, .semibold)
         name.font = rounded(15, .semibold)
-        name.preferredMaxLayoutWidth = width - 150
+        name.preferredMaxLayoutWidth = room
         left.append(name)
         if let t = f.displayTitle, !t.isEmpty {
             let title = text(t, 12, .medium, color: .secondaryLabelColor)
-            title.preferredMaxLayoutWidth = width - 150
+            title.preferredMaxLayoutWidth = room
             left.append(title)
         }
         if f.nickname != nil { left.append(text(f.label, 10.5, color: .tertiaryLabelColor)) }
-        // what it says it's doing right now, in its own words (a session in a Rex pane)
-        if f.state == .busy, let d = f.doing {
-            let doing = text("▸ " + d, 11, color: .systemTeal)
-            doing.preferredMaxLayoutWidth = width - 150
-            left.append(doing)
+        // its model and how long it's been around, in one quiet line
+        var facts: [String] = []
+        if let m = f.modelName { facts.append(m) }
+        if f.isAgent {
+            let age = Date().timeIntervalSince(f.createdAt)
+            facts.append(tr("ativa %@", age < 60 ? tr("agora") : Journal.duration(age)))
         }
+        if !facts.isEmpty { left.append(text(facts.joined(separator: "  ·  "), 10.5, color: .tertiaryLabelColor)) }
         let leftCol = NSStackView(views: left)
         leftCol.orientation = .vertical
         leftCol.alignment = .leading
         leftCol.spacing = 2
 
-        var right: [NSView] = []
         // a mood says it all (the music fish); a state says since when
         var state = f.mood ?? (f.stateLabel + " · " + Self.ha(Date(timeIntervalSinceNow: -(CACurrentMediaTime() - f.since))))
         if f.compactingSince != nil { state = tr("🫧 compactando…") }
         let stateColor: NSColor = f.state == .error ? .systemRed : f.state == .waiting ? .systemOrange
             : f.state == .busy ? .systemTeal : .secondaryLabelColor
-        right.append(pill(state, stateColor))
-        if let c = f.context {
-            let bar = NSLevelIndicator()
-            bar.levelIndicatorStyle = .continuousCapacity
-            bar.minValue = 0; bar.maxValue = 1
-            bar.warningValue = 0.7; bar.criticalValue = 0.9
-            bar.doubleValue = Double(c)
-            bar.widthAnchor.constraint(equalToConstant: 70).isActive = true
-            let pct = text(tr("contexto %d%%", Int((c * 100).rounded())), 10.5, color: .secondaryLabelColor)
-            let line = NSStackView(views: [pct, bar])
-            line.spacing = 6
-            right.append(line)
-        }
-        if let m = f.modelName { right.append(text(m, 10.5, color: .secondaryLabelColor)) }
-        if f.isAgent {
-            let age = Date().timeIntervalSince(f.createdAt)
-            right.append(text(tr("ativa %@", age < 60 ? tr("agora") : Journal.duration(age)), 10.5, color: .tertiaryLabelColor))
-        }
-        let rightCol = NSStackView(views: right)
-        rightCol.orientation = .vertical
-        rightCol.alignment = .trailing
-        rightCol.spacing = 4
-        if let art = f.art {
-            // the album art (the music fish), rounded, beside the name
-            let iv = NSImageView(image: NSImage(cgImage: art, size: NSSize(width: 56, height: 56)))
-            iv.imageScaling = .scaleProportionallyUpOrDown
-            iv.wantsLayer = true
-            iv.layer?.cornerRadius = 6
-            iv.layer?.masksToBounds = true
-            iv.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([iv.widthAnchor.constraint(equalToConstant: 56), iv.heightAnchor.constraint(equalToConstant: 56)])
-            name.preferredMaxLayoutWidth = width - 216
-            v.append(row([iv, leftCol, NSView(), rightCol], alignment: .top))
-        } else {
-            v.append(row([leftCol, NSView(), rightCol], alignment: .top))
-        }
+        let portrait = FishPortraits.image(for: f) { [weak self] in self?.rebuild?() }
+        return [row([Porthole(image: portrait, tint: tint), leftCol, NSView(), pill(state, stateColor)], alignment: .top)]
+    }
 
-        // where it runs (links): the branch, the place (go there), the folder
-        var places: [NSView] = []
-        if let b = f.branch, !["main", "master", "HEAD"].contains(b) {
-            places.append(link("⎇ " + b, tip: tr("copiar o nome da branch")) { [weak self] in self?.copy(b) })
-        }
-        let place = (f.sub?.isEmpty == false ? f.sub! : (f.isAgent ? species : ""))
-        if !place.isEmpty {
-            places.append(link(place, tip: tr(f.link != nil ? "abrir" : "ir até lá")) { [weak self] in self?.go?() })
-        }
-        if let cwd = f.whereabouts["cwd"] {
-            places.append(link("📁 " + (cwd as NSString).lastPathComponent, tip: tr("abrir a pasta no Finder")) {
-                NSWorkspace.shared.open(URL(fileURLWithPath: cwd))
-            })
-        }
-        if !places.isEmpty {
-            let r = NSStackView(views: places)
-            r.spacing = 12
+    /// What it's doing right now, in its own words (a session in a Rex pane), and how full its context is.
+    private func now() -> [NSView] {
+        var v: [NSView] = []
+        if f.state == .busy, let d = f.doing { v.append(text("▸ " + d, 11.5, .medium, color: tintText)) }
+        if let c = f.context {
+            let pct = text(tr("contexto %d%%", Int((c * 100).rounded())), 10.5, color: c > 0.9 ? .systemRed : c > 0.7 ? .systemOrange : .secondaryLabelColor)
+            pct.setContentHuggingPriority(.required, for: .horizontal)
+            pct.setContentCompressionResistancePriority(.required, for: .horizontal)
+            let r = NSStackView(views: [WaterGauge(level: CGFloat(c), tint: tint), pct])
+            r.spacing = 10
+            r.widthAnchor.constraint(equalToConstant: width).isActive = true
             v.append(r)
         }
-
-        // how far along the song is (the music fish)
+        // how far along the song is (a fish with a song that isn't the music fish)
         if let p = f.progress, p() != nil {
             let bar = SongBar(progress: p)
             bar.widthAnchor.constraint(equalToConstant: width).isActive = true
             songBar = bar
             v.append(bar)
         }
+        return v
+    }
 
+    /// Where it runs, as little tags you can click: the branch (copies it), the place (goes there), the folder.
+    private func places() -> [NSView] {
+        let species = ["oval": "Rex", "slender": "terminal", "puffer": "Claude", "angelfish": "editor", "octopus": "GitHub",
+                       "stingray": "Codex"][f.kindID].map(tr) ?? tr(FishKinds.all[min(f.species, FishKinds.all.count - 1)].name)
+        var tags: [NSView] = []
+        if let b = f.branch, !["main", "master", "HEAD"].contains(b) {
+            tags.append(tag(link("⎇ " + b, tip: tr("copiar o nome da branch")) { [weak self] in self?.copy(b) }))
+        }
+        let place = (f.sub?.isEmpty == false ? f.sub! : (f.isAgent ? species : ""))
+        if !place.isEmpty {
+            tags.append(tag(link(place, tip: tr(f.link != nil ? "abrir" : "ir até lá")) { [weak self] in self?.go?() }))
+        }
+        if let cwd = f.whereabouts["cwd"] {
+            tags.append(tag(link("📁 " + (cwd as NSString).lastPathComponent, tip: tr("abrir a pasta no Finder")) {
+                NSWorkspace.shared.open(URL(fileURLWithPath: cwd))
+            }))
+        }
+        guard !tags.isEmpty else { return [] }
+        let r = NSStackView(views: tags)
+        r.spacing = 6
+        return [r]
+    }
+
+    /// What it says: the question, highlighted; then the last reply.
+    private func said() -> [NSView] {
+        var v: [NSView] = []
         // ── what it says: the question, highlighted; then the last reply
         if let q = f.asked, f.state == .waiting, request == nil {
             v.append(divider())
             v.append(tinted(text(tr("✋ ") + q, 13, .medium, color: .labelColor), .systemOrange))
         }
-        let hasReply = !(f.lastReply ?? "").isEmpty && [.done, .waiting, .idle, .ok].contains(f.state) && request == nil
         if hasReply, let r = f.lastReply {
             if f.asked == nil || f.state != .waiting { v.append(divider()) }
             let final = Self.textEnding(r, width > 400 ? 800 : 380, lines: width > 400 ? 10 : 6)
@@ -292,59 +294,74 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             fullReply = r
         }
 
-        // ── activity, compact: latest tools (click: the history with times) and today's tasks (click: all of them)
-        let fmt = DateFormatter(); fmt.timeStyle = .medium; fmt.dateStyle = .none
+        return v
+    }
+
+    /// What it's been doing, as bubbles going up: the latest tools with its own words about each (the same tool
+    /// several times in a row with nothing said is one line), then today's tasks.
+    private func activity() -> [NSView] {
+        var v: [NSView] = []
         func toolName(_ n: String) -> String { n.hasPrefix("mcp__") ? "mcp·" + (n.components(separatedBy: "__").dropFirst().first ?? "") : n }
         let today = f.finished.filter { Calendar.current.isDateInToday($0.when) }
-        var activity: [NSView] = []
-        if !f.history.isEmpty {
-            // the latest first, the same tool several times in a row as one ("Bash ×3")
-            var runs: [(name: String, count: Int)] = []
-            for h in f.history.reversed() {
-                let n = toolName(h.name)
-                if let last = runs.last, last.name == n { runs[runs.count - 1].count += 1 } else { runs.append((n, 1)) }
+        var lines: [(when: Date, name: String, count: Int, said: String?)] = []
+        for h in f.history.reversed() {
+            let n = toolName(h.name)
+            if h.said == nil, let last = lines.last, last.name == n, last.said == nil { lines[lines.count - 1].count += 1 }
+            else { lines.append((h.when, n, 1, h.said)) }
+        }
+        guard !lines.isEmpty || !today.isEmpty else { return lastError() }
+        v.append(divider())
+        let more = open.contains("tools"), all = open.contains("tasks")
+        let fmt = DateFormatter(); fmt.timeStyle = .short; fmt.dateStyle = .none
+        let bubbles = ["◯", "○", "∘"]
+        for (i, l) in lines.prefix(more ? lines.count : 3).enumerated() {
+            let line = NSMutableAttributedString(string: (i < bubbles.count ? bubbles[i] : "·") + "  ", attributes: [
+                .font: NSFont.systemFont(ofSize: 10.5), .foregroundColor: tintText.withAlphaComponent(i == 0 ? 0.95 : 0.6)])
+            line.append(NSAttributedString(string: fmt.string(from: l.when) + "  ", attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .regular), .foregroundColor: NSColor.tertiaryLabelColor]))
+            line.append(NSAttributedString(string: l.name + (l.count > 1 ? " ×\(l.count)" : ""), attributes: [
+                .font: rounded(10.5, .medium), .foregroundColor: i == 0 ? NSColor.labelColor : NSColor.secondaryLabelColor]))
+            if let s = l.said {
+                line.append(NSAttributedString(string: "  " + (s.count > 64 ? String(s.prefix(63)) + "…" : s), attributes: [
+                    .font: NSFont.systemFont(ofSize: 10.5), .foregroundColor: NSColor.secondaryLabelColor]))
             }
-            let names = runs.prefix(4).map { $0.count > 1 ? "\($0.name) ×\($0.count)" : $0.name }
-            let more = open.contains("tools")
-            activity.append(link((more ? "▾ " : "▸ ") + "🛠 " + names.joined(separator: " · ") + "  (\(Self.ha(f.history.last!.when)))",
-                                 tip: tr(more ? "recolher" : "ver o histórico")) { [weak self] in self?.toggle("tools") })
+            let row = text("", 10.5)
+            row.attributedStringValue = line
+            row.maximumNumberOfLines = 1
+            row.lineBreakMode = .byTruncatingTail
+            v.append(row)
+        }
+        var links: [NSView] = []
+        if lines.count > 3 {
+            links.append(link((more ? "▾ " : "▸ ") + tr(more ? "recolher" : "ver o histórico"), 10.5, color: .tertiaryLabelColor) { [weak self] in self?.toggle("tools") })
         }
         if !today.isEmpty {
-            let all = open.contains("tasks")
-            activity.append(link((all ? "▾ " : "▸ ") + tr(today.count == 1 ? "✓ %d tarefa hoje" : "✓ %d tarefas hoje", today.count),
-                                 tip: tr(all ? "recolher" : "ver todas")) { [weak self] in self?.toggle("tasks") })
+            links.append(link((all ? "▾ " : "▸ ") + tr(today.count == 1 ? "✓ %d tarefa hoje" : "✓ %d tarefas hoje", today.count), 10.5,
+                              tip: tr(all ? "recolher" : "ver todas")) { [weak self] in self?.toggle("tasks") })
         }
-        if !activity.isEmpty {
-            v.append(divider())
-            let r = NSStackView(views: activity)
+        if !links.isEmpty {
+            let r = NSStackView(views: links)
             r.spacing = 14
             v.append(r)
         }
-        if open.contains("tools") {
-            // each one with what the session said it was doing, when it said (a session in a Rex pane)
-            for h in f.history.reversed() {
-                let line = NSMutableAttributedString(string: "   \(fmt.string(from: h.when))  \(toolName(h.name))", attributes: [
-                    .font: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular), .foregroundColor: NSColor.tertiaryLabelColor])
-                if let s = h.said {
-                    line.append(NSAttributedString(string: "  " + (s.count > 56 ? String(s.prefix(55)) + "…" : s), attributes: [
-                        .font: NSFont.systemFont(ofSize: 10.5), .foregroundColor: NSColor.secondaryLabelColor]))
-                }
-                let row = text("", 10.5)
-                row.attributedStringValue = line
-                v.append(row)
-            }
-        }
-        if open.contains("tasks") {
+        if all {
             let short = DateFormatter(); short.timeStyle = .short; short.dateStyle = .none
             for t in today.reversed() {
                 v.append(link("   \(short.string(from: t.when))  \(t.title)", tip: tr("copiar o título")) { [weak self] in self?.copy(t.title) })
             }
         }
-        if let e = f.lastError, Date().timeIntervalSince(e) < 3600, f.state != .error {
-            v.append(text(tr("✗ teve erro %@", Self.ha(e)), 11, color: .systemRed))
-        }
+        return v + lastError()
+    }
 
-        // ── a permission request: answer right here
+    private func lastError() -> [NSView] {
+        guard let e = f.lastError, Date().timeIntervalSince(e) < 3600, f.state != .error else { return [] }
+        return [text(tr("✗ teve erro %@", Self.ha(e)), 11, color: .systemRed)]
+    }
+
+
+    /// A permission request: answer right here.
+    private func permission() -> [NSView] {
+        var v: [NSView] = []
         if let p = request {
             v.append(divider())
             v.append(text(tr("✋ quer usar %@", p.tool), 13, .semibold, color: .systemOrange))
@@ -357,6 +374,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             v.append(row([b(tr("Ir até lá"), "go"), NSView(), b(tr("Negar"), "deny"), b(tr("Permitir"), "allow", "\r")]))
         }
 
+        return v
+    }
+
+    /// The composer: a big field on its own, then the actions below.
+    private func composer() -> [NSView] {
+        var v: [NSView] = []
         // ── the composer: a big field on its own, then the actions below
         if request == nil, reply != nil {
             v.append(divider())
@@ -413,6 +436,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         }
         if field != nil && !keyboardHint { v.append(text(tr("vai digitado no terminal da sessão"), 10, color: .tertiaryLabelColor)) }
 
+        return v
+    }
+
+    /// The keys (opened with Tab) or the clicks.
+    private func hints() -> [NSView] {
+        var v: [NSView] = []
         // ── the keys (opened with Tab) or the clicks
         if (request == nil && reply == nil) || keyboardHint {
             // the keys this fish really takes: speaking and writing only where the session can be replied to
@@ -427,14 +456,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                 : tr(f.link != nil ? "clique: abrir  ·  botão direito: menu" : "clique: ir até lá  ·  botão direito: menu")
             v.append(text(hint, 10, color: .tertiaryLabelColor))
         }
-
-        let stack = NSStackView(views: v)
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 14, left: 18, bottom: 14, right: 18)
-        stack.widthAnchor.constraint(equalToConstant: width + 36).isActive = true
-        view = glass(around: stack)
+        return v
     }
 
     static func listenTitle(_ on: Bool) -> String { on ? tr("■ Parar leitura") : tr("🔊 Ouvir") }
@@ -452,11 +474,16 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         return r
     }
 
-    private func divider() -> NSView {
-        let d = NSBox()
-        d.boxType = .separator
-        d.widthAnchor.constraint(equalToConstant: width).isActive = true
-        return d
+    private func divider() -> NSView { WaveLine(width: width, tint: tint) }
+
+    /// A link on a soft rounded patch (where it runs).
+    private func tag(_ link: NSButton) -> NSView {
+        let box = NSStackView(views: [link])
+        box.edgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
+        box.wantsLayer = true
+        box.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.07).cgColor
+        box.layer?.cornerRadius = 9
+        return box
     }
 
     /// A rounded little label with a tint (the state).
@@ -495,24 +522,20 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         return NSColor(red: CGFloat(c.x), green: CGFloat(c.y), blue: CGFloat(c.z), alpha: 0.97)
     }
 
-    /// Dark glass in the fish's color: a deep-water background, a soft glow of its color from the top and a
-    /// thin stripe of it on the left.
+    /// A piece of the aquarium behind glass: water in the fish's color, lighter toward the surface, light drifting
+    /// through it and bubbles going up along the left.
     private func glass(around content: NSView) -> NSView {
         let bg = NSView()
         bg.appearance = NSAppearance(named: .darkAqua)
         bg.wantsLayer = true
         bg.layer?.backgroundColor = backdrop.cgColor
-        let tint = NSColor(red: CGFloat(f.color.x), green: CGFloat(f.color.y), blue: CGFloat(f.color.z), alpha: 1)
-        let glow = CAGradientLayer()
-        glow.colors = [tint.withAlphaComponent(0.2).cgColor, tint.withAlphaComponent(0.03).cgColor, NSColor.clear.cgColor]
-        glow.locations = [0, 0.4, 1]
-        glow.startPoint = CGPoint(x: 0.5, y: 1)
-        glow.endPoint = CGPoint(x: 0.5, y: 0)
-        let stripe = CALayer()
-        stripe.backgroundColor = tint.withAlphaComponent(0.9).cgColor
-        stripe.cornerRadius = 1.5
-        bg.layer?.addSublayer(glow)
-        bg.layer?.addSublayer(stripe)
+        bg.layer?.masksToBounds = true
+        let water = CAGradientLayer()
+        water.colors = [tint.withAlphaComponent(0.26).cgColor, tint.withAlphaComponent(0.07).cgColor, NSColor.clear.cgColor]
+        water.locations = [0, 0.35, 1]
+        water.startPoint = CGPoint(x: 0.5, y: 1)
+        water.endPoint = CGPoint(x: 0.5, y: 0)
+        bg.layer?.addSublayer(water)
         content.translatesAutoresizingMaskIntoConstraints = false
         bg.addSubview(content)
         NSLayoutConstraint.activate([
@@ -522,8 +545,13 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         bg.layoutSubtreeIfNeeded()
         let size = bg.fittingSize
         bg.frame = NSRect(origin: .zero, size: size)
-        glow.frame = bg.bounds
-        stripe.frame = CGRect(x: 7, y: 12, width: 3, height: max(0, size.height - 24))
+        water.frame = bg.bounds
+        // behind the text: the light, then the bubbles
+        let light = CardWater.light(in: bg.bounds)
+        bg.layer?.insertSublayer(light, above: water)
+        let bubbles = CardWater.bubbles(height: size.height, tint: tint)
+        bubbles.frame = bg.bounds
+        bg.layer?.insertSublayer(bubbles, above: light)
         return bg
     }
 

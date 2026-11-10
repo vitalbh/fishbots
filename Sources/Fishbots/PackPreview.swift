@@ -153,6 +153,19 @@ enum PackPreview {
     /// A small picture of each theme (water, light, seaweed, sand and its own background), for the Tema menu: one
     /// render for all of them, cut into pieces. Prepare on the main thread (it reads the registries), draw anywhere
     /// (it compiles the shader, which takes a moment).
+    /// A fish drawn big for its card (CardGlass): its kind in its color, pattern and fin cut, on a bit of water.
+    /// The job is made on the main thread (it reads the kinds); drawing it can happen anywhere.
+    struct PortraitJob { let cell: Cell; let base: String }
+    static func portraitJob(species: Int, color c: SIMD3<Float>, pattern: Int, cut: Int) -> PortraitJob {
+        let k = FishKinds.all[species]
+        let call = "draw_kind(\(species), c, 1.3, 0.1, float4(\(c.x), \(c.y), \(c.z), 1), float4(1, \(pattern + cut * 8), \(species), 0.2), float4(0.4, 0.1, 0, 0))"
+        return PortraitJob(cell: Cell(call: call, aspect: k.swim.extent.x / k.swim.extent.y, label: "", sand: false), base: FishKinds.shaderSource())
+    }
+    static func portrait(_ job: PortraitJob) -> CGImage? {
+        guard let device = MTLCreateSystemDefaultDevice() else { return nil }
+        return renderImage(device, [job.cell], cellW: 252, labels: false, scale: 1, cols: 1, maxRows: 1, base: job.base)
+    }
+
     struct SwatchJob { let ids: [String]; let cells: [Cell]; let base: String; let cellW: Int }
     static func swatchJob(_ themes: [Theme], cellW: Int = 120) -> SwatchJob {
         SwatchJob(ids: themes.map(\.id), cells: themes.map(themeCell), base: FishKinds.shaderSource(), cellW: cellW)
