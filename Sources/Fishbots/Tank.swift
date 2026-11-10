@@ -49,18 +49,8 @@ final class Tank {
     private var bubblerAt: Double = 0
     private(set) var time: Double = CACurrentMediaTime()
 
-    /// Pearls of the day: each finished task leaves one on the bottom (they vanish when the day changes).
-    struct Pearl: Codable {
-        var u: Float
-        var color: [Float]
-        var title: String
-        var project: String
-        var hour: Double
-    }
-    private(set) var pearls: [Pearl] = []
-    private var pearlsDay = ""
-    private var bornAt: [Double] = []        // new-pearl glow (this run only)
-    var keepPearls = true                   // the screensaver doesn't save
+    /// Pearls of the day, on the sand.
+    let pearls = Pearls()
     /// For testing: FISHBOTS_FAST=1 shortens the timings (sleeping, fogged glass, lingering error).
     static let scale: Double = Env.value("FAST") == "1" || ProcessInfo.processInfo.environment["AQUARIO_RAPIDO"] == "1" ? 0.04 : 1
     /// Mail seahorses (MCP tools): bring a little letter in the server's color.
@@ -82,7 +72,6 @@ final class Tank {
     func musicStream(_ v: Float) { musicCurrent = (v, time) }
 
     init() {
-        loadPearls()
         setSchools(School.usual)
     }
 
@@ -238,7 +227,7 @@ final class Tank {
                 f.resolve = true
                 burst(at: f.pos, n: 3)
                 if f.isAgent || f.source == "test" {
-                    pearl(color: f.color, title: f.displayTitle ?? f.label, project: f.label)
+                    pearls.add(color: f.color, title: f.displayTitle ?? f.label, project: f.label, in: self)
                 }
             }
             if state == .error {
@@ -338,87 +327,14 @@ final class Tank {
         }
     }
 
-    private static let pearlsKey = "pearls"
-    private static func today() -> String {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: Date())
-    }
-
-    private func loadPearls() {
-        pearlsDay = Self.today()
-        guard let d = UserDefaults.standard.data(forKey: Self.pearlsKey),
-              let saved = try? JSONDecoder().decode([String: [Pearl]].self, from: d) else { return }
-        pearls = saved[pearlsDay] ?? []
-        bornAt = pearls.map { _ in 0 }
-    }
-
-    private func savePearls() {
-        guard keepPearls, let d = try? JSONEncoder().encode([pearlsDay: pearls]) else { return }
-        UserDefaults.standard.set(d, forKey: Self.pearlsKey)
-    }
-
-    func pearl(color: SIMD3<Float>, title: String, project: String) {
-        if Self.today() != pearlsDay { pearls = []; bornAt = []; pearlsDay = Self.today() }
-        guard pearls.count < 80 else { return }
-        // scattered over the sand, away from the battery and the bubbler
-        var u = Float.random(in: 0.16...0.74)
-        for _ in 0..<8 where pearls.contains(where: { abs($0.u - u) < 0.012 }) { u = Float.random(in: 0.16...0.74) }
-        pearls.append(Pearl(u: u, color: [color.x, color.y, color.z], title: title, project: project, hour: Date().timeIntervalSince1970))
-        bornAt.append(time)
-        savePearls()
-    }
-
     /// The pearls of a period light up one after another.
     func highlightPearls(since: Date, until: Date) {
-        var k = 0
-        for (i, p) in pearls.enumerated() where p.hour >= since.timeIntervalSince1970 && p.hour <= until.timeIntervalSince1970 {
-            let delay = Double(k) * 0.35
-            k += 1
-            after(delay) { [weak self] in
-                guard let self, i < self.bornAt.count else { return }
-                self.bornAt[i] = self.time
-                self.sparkle(at: self.pearlPos(self.pearls[i]) + [0, 6], color: [1, 0.95, 0.8])
+        for (k, i) in pearls.indices(since: since, until: until).enumerated() {
+            after(Double(k) * 0.35) { [weak self] in
+                guard let self, let at = self.pearls.light(i, now: self.time) else { return }
+                self.sparkle(at: at + [0, 6], color: [1, 0.95, 0.8])
             }
         }
-    }
-
-    /// The day's pearls are a timeline on the sand: from the left (the first one, or 8:00) to the right (now),
-    /// sliding left slowly as the day goes on. Pearls close in time pile up a little.
-    func pearlPos(_ p: Pearl) -> SIMD2<Float> {
-        if let i = pearls.firstIndex(where: { $0.hour == p.hour && $0.title == p.title }), i < timeline.count { return timeline[i] }
-        return [size.x * p.u, size.y * sand(p.u) + 4]
-    }
-
-    private var timeline: [SIMD2<Float>] = []
-
-    private func layoutTimeline() {
-        let now = Date().timeIntervalSince1970
-        let eight = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date())?.timeIntervalSince1970 ?? now - 4 * 3600
-        let t0 = min(pearls.map(\.hour).min() ?? eight, eight)
-        let t1 = max(now, t0 + 4 * 3600)
-        var out = [SIMD2<Float>](repeating: .zero, count: pearls.count)
-        // pearls close in time gather in a little heap (the first ones at the bottom), clear of the rocks and the chest
-        var heaps: [(x: Float, members: [Int])] = []
-        var lastX: Float = -100
-        for i in pearls.indices.sorted(by: { pearls[$0].hour < pearls[$1].hour }) {
-            let x = size.x * (0.06 + 0.88 * Float((pearls[i].hour - t0) / (t1 - t0)))
-            if x - lastX < 9, !heaps.isEmpty { heaps[heaps.count - 1].members.append(i) } else { heaps.append((x, [i])) }
-            lastX = x
-        }
-        let gap: Float = 8
-        for h in heaps {
-            var b = 1
-            while b * (b + 1) / 2 < h.members.count { b += 1 }      // the bottom row of a heap that holds them all
-            let x0 = clearOfScenery(h.x + Float(b - 1) * gap / 2) - Float(b - 1) * gap / 2
-            var k = 0
-            for row in 0..<b {
-                for col in 0..<(b - row) where k < h.members.count {
-                    let x = x0 + (Float(col) + Float(row) * 0.5) * gap
-                    out[h.members[k]] = [x, size.y * sand(x / max(1, size.x)) + 4 + Float(row) * gap * 0.8]
-                    k += 1
-                }
-            }
-        }
-        timeline = out
     }
 
     /// Music notes rising from a singing fish's head.
@@ -446,12 +362,6 @@ final class Tank {
             if abs(x - c.x) < half { return c.x + (x < c.x ? -half : half) }
         }
         return x
-    }
-
-    /// The pearl under the point (to show its title).
-    func pearl(at q: SIMD2<Float>) -> Pearl? {
-        pearls.min { simd_distance(pearlPos($0), q) < simd_distance(pearlPos($1), q) }
-            .flatMap { simd_distance(pearlPos($0), q) < 12 ? $0 : nil }
     }
 
     func tool(source: String, entity: String, name: String) {
@@ -671,9 +581,9 @@ final class Tank {
             if rayLight(at) > 0.06 { sparkle(at: at, color: [1, 0.96, 0.85]) }
         }
         // by day a pearl on the sand catches the light now and then
-        if light > 0.8, time > pearlGlintAt, let p = pearls.randomElement() {
+        if light > 0.8, time > pearlGlintAt, let p = pearls.all.randomElement() {
             pearlGlintAt = time + Double.random(in: 2.5...6)
-            sparkle(at: pearlPos(p) + [1.5, 3], color: [1, 0.97, 0.9])
+            sparkle(at: pearls.pos(p) + [1.5, 3], color: [1, 0.97, 0.9])
         }
         for f in fish where !f.decor && !f.leaving && (f.state == .idle || f.state == .ok) && !sleeping(f)
             && simd_length(f.vel) < 25 && Float.random(in: 0...1) < dt * 0.06 {
@@ -1166,7 +1076,7 @@ final class Tank {
         if Int(time * 10) % 50 == 0 { expireGauges() }
         breathe(dt: dt)
         updateChest(dt: dt)
-        layoutTimeline()
+        pearls.layout(self)
         rainOnSurface()
         updateMotes(dt: dt)
 
@@ -1227,7 +1137,7 @@ final class Tank {
                 bubble(at: f.pos + facing(f) * f.size * 0.5 + [0, 6], size: Float.random(in: 1.5...2.5))
             }
         }
-        if Int(time) % 60 == 0 && Self.today() != pearlsDay { pearls = []; bornAt = []; pearlsDay = Self.today() }
+        if Int(time) % 60 == 0 { pearls.rollDay() }
 
         fauna.update(self, dt: dt)
         // parallax: slowly follows the mouse; without a mouse, returns to center
@@ -1832,17 +1742,17 @@ final class Tank {
         }
         // pearls of the day, on the sand
         let pearlLook = looks["pearl"].flatMap { SceneryKinds.index(of: $0) }
-        for (i, p) in pearls.enumerated() {
-            let new = i < bornAt.count && bornAt[i] > 0 ? max(0, 1 - Float(time - bornAt[i]) / 3) : 0
+        for (i, p) in pearls.all.enumerated() {
+            let new = pearls.glow(i, now: time)
             if let li = pearlLook {
                 // the theme's pearl: col is the project's color, glow while it's new
                 let k = SceneryKinds.all[li]
-                out.append(Sprite(pos: pearlPos(p), dir: [1, 0], size: 7, kind: 35, glow: new, phase: Float(time),
+                out.append(Sprite(pos: pearls.pos(i), dir: [1, 0], size: 7, kind: 35, glow: new, phase: Float(time),
                                   color: [p.color[0], p.color[1], p.color[2], 1], extra: [1, (Float(i) * 0.618).truncatingRemainder(dividingBy: 1), Float(li), 0],
                                   aux: [k.extent.x, k.extent.y, 0, 0]))
                 continue
             }
-            out.append(Sprite(pos: pearlPos(p), dir: [1, 0], size: 6, kind: 12, glow: new, phase: Float(i),
+            out.append(Sprite(pos: pearls.pos(i), dir: [1, 0], size: 6, kind: 12, glow: new, phase: Float(i),
                               color: [p.color[0], p.color[1], p.color[2], 1], extra: [1, 0, 0, 0]))
         }
         // list pebbles (TodoWrite): the done ones glow in the fish's color

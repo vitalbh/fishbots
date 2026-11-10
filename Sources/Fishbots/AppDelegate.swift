@@ -120,7 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private var cardSignature = ""
     private var cardCheckedAt = Date.distantPast
     private var hoverBattery = false
-    private var hoverPearl: Tank.Pearl?
+    private var hoverPearl: Pearl?
     /// Presences (docs/scene.md): their text layers and the one under the mouse.
     private var presenceLayers: [String: CATextLayer] = [:]
     private var hoverPresence: String?
@@ -244,7 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             self.hoverBattery = self.tank.battery != nil && simd_distance(q, self.tank.batteryPos) < 26
             let presence = f == nil ? self.tank.scene.presence(at: q) : nil
             self.hoverPresence = presence?.id
-            self.hoverPearl = f == nil && presence == nil ? self.tank.pearl(at: q) : nil
+            self.hoverPearl = f == nil && presence == nil ? self.tank.pearls.at(q) : nil
             return f != nil || presence != nil || self.tank.chest(at: q)
         }
         // session, tab and title names change: refresh every so often
@@ -629,7 +629,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             case .done:
                 journal.record(.done, f.label, fish: f.id)
                 // productive day (10 tasks): the whale swims by, once a day
-                tank.fauna.maybeWhale(tank, tasksToday: tank.pearls.count)
+                tank.fauna.maybeWhale(tank, tasksToday: tank.pearls.all.count)
             case .error: journal.record(.error, f.label, fish: f.id)
             case .waiting:
                 journal.record(.waiting, f.label, fish: f.id)   // (the question is read after the knocks: music.called)
@@ -850,7 +850,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             tank.ring(at: q, color: [1, 1, 1], size: p.kind.size * 0.4, grow: 120, life: 0.6)
             if let l = p.link, let u = URL(string: l) { NSWorkspace.shared.open(u) }
             else { tank.notice = (p.detail.map { "\(p.label): \($0)" } ?? p.label, tank.time) }
-        } else if let pearl = tank.pearl(at: q) {
+        } else if let pearl = tank.pearls.at(q) {
             // a pearl of the day: what was done around that time
             let at = Date(timeIntervalSince1970: pearl.hour)
             let hour = DateFormatter.localizedString(from: at, dateStyle: .none, timeStyle: .short)
@@ -1601,7 +1601,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             pearlText.fontSize = 10
             pearlText.alignmentMode = .center
             pearlText.foregroundColor = NSColor(white: 1, alpha: 0.85).cgColor
-            let q = tank.pearlPos(p)
+            let q = tank.pearls.pos(p)
             pearlText.frame = CGRect(x: CGFloat(q.x) - 140, y: CGFloat(q.y) + 10, width: 280, height: 28)
             pearlText.opacity = 1
         } else {

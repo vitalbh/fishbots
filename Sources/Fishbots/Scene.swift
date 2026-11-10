@@ -482,7 +482,7 @@ final class Scene {
             t.scare(at)
         case "pearl":
             icon = "⚪︎"
-            t.pearl(color: tint ?? [0.95, 0.92, 0.85], title: label ?? source, project: source)
+            t.pearls.add(color: tint ?? [0.95, 0.92, 0.85], title: label ?? source, project: source, in: t)
         case "lightning":
             icon = "⚡︎"
             lightningAt = t.time

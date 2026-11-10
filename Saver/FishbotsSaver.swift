@@ -34,7 +34,7 @@ final class FishbotsSaverView: ScreenSaverView {
         journal("init preview=\(isPreview) frame=\(frame.size)")
         animationTimeInterval = 1.0 / 30
         wantsLayer = true
-        tank.keepPearls = false
+        tank.pearls.keep = false
         let v = MTKView(frame: bounds, device: MTLCreateSystemDefaultDevice())
         v.autoresizingMask = [.width, .height]
         v.colorPixelFormat = .bgra8Unorm

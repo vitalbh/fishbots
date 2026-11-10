@@ -93,10 +93,10 @@ final class Crabs: Creature {
             c.phase += dt
             if c.errandAt == 0 { c.errandAt = t.time + Double.random(in: 40...120) * Tank.scale }
             // now and then, an errand: something shiny from the pearls' row to the treasure chest, then back home
-            if c.errand == 0, c.buried < 0.5, t.time > c.errandAt, let p = t.pearls.randomElement(),
+            if c.errand == 0, c.buried < 0.5, t.time > c.errandAt, let p = t.pearls.all.randomElement(),
                let chest = t.scenery.first(where: { $0.id == "chest" }) {
                 _ = chest
-                c.errand = 1; c.home = c.x; c.goal = t.pearlPos(p).x
+                c.errand = 1; c.home = c.x; c.goal = t.pearls.pos(p).x
             }
             if c.errand > 0 {
                 c.walking = true
