@@ -364,7 +364,7 @@ checks as the card apply, so nothing is typed where the card wouldn't type):
 |---|---|---|
 | `/control/reply` | `fish`, `text` | ok, or why not (not at its prompt, another program in front…) |
 | `/control/stop` | `fish` | ok |
-| `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them is in one of the states: which, its state, its last reply |
+| `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them stops working (done, waiting, error, idle; or the `states` asked for): which, its state, its last reply |
 | `/control/spawn` | `agent`, `cwd`, `prompt`, `label`, `launcher`, `beside`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
 
 `fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish
@@ -386,7 +386,9 @@ wait`; the `fishbots-orchestrator` skill (`fishbots skill install`) teaches a co
   (`Whereabouts.put`), so reply and Esc reach it.
 - The new pane doesn't have the asker's environment. What picks the agent's account or profile travels in `env`:
   `fishbots spawn` sends its own `CLAUDE_CONFIG_DIR` and `CODEX_HOME`, and whatever `--env` names.
-- A session interrupted with `stop` has no event for it, so it stays "busy" until it's sent something.
+- A session interrupted with `stop` (or with Esc by hand) has no hook event for it. In Rex and Herdr its terminal
+  says the program went idle, and a fish still busy two seconds after that becomes idle (`TerminalPrograms`), which
+  `wait` takes as stopped. In other terminals it stays "busy" until it's sent something.
 
 **Launchers**: where a session is born. Creating one belongs to the host (Rex, Herdr, tmux), not to a
 fish, so it's a registry next to the providers:

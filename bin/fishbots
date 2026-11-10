@@ -19,7 +19,8 @@
 #                                            NAME or NAME=value
 #   fishbots reply <fish> <text>             type a line into a session (fish: "source:entity", or the start of the entity)
 #   fishbots stop <fish>                     Esc: interrupt what it's doing
-#   fishbots wait [--states a,b] [--timeout secs] <fish>…   until one is done, waiting or error: which, and its reply
+#   fishbots wait [--states a,b] [--timeout secs] <fish>…   until one stops working (done, waiting, error, or idle
+#                                            after an interruption): which, and its reply
 #                                            (these four need "Sessions can command other sessions" in Preferences)
 #
 #   fishbots pack new <id> [folder]          start a pack from the template (themes, fish, scenery, creatures)
@@ -285,7 +286,7 @@ case "$cmd" in
              *) break ;;
            esac
          done
-         [ $# -ge 1 ] || { echo "usage: fishbots wait [--states done,waiting,error] [--timeout secs] <fish>…" >&2; exit 2; }
+         [ $# -ge 1 ] || { echo "usage: fishbots wait [--states done,waiting,error,idle] [--timeout secs] <fish>…" >&2; exit 2; }
          case "$timeout" in ''|*[!0-9]*) echo "fishbots: --timeout takes seconds" >&2; exit 2 ;; esac
          list=""; for f in "$@"; do list="$list${list:+,}\"$(esc "$f")\""; done
          s=""; [ -n "$states" ] && s=",\"states\":[\"$(esc "$states" | sed 's/,/","/g')\"]"

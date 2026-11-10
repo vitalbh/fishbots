@@ -8,14 +8,16 @@ import Foundation
 ///                         "beside": true, "env": {"CLAUDE_CONFIG_DIR": "…"}}
 ///   POST /control/reply  {"fish": "claude-code:abc", "text": "…"}
 ///   POST /control/stop   {"fish": "claude-code:abc"}
-///   POST /control/wait   {"fish": ["…", "…"], "states": ["done", "waiting", "error"], "timeout": 600}
+///   POST /control/wait   {"fish": ["…", "…"], "states": ["done", "waiting", "error", "idle"], "timeout": 600}
 ///
 /// `spawn` opens a pane (Launchers.swift) running the agent with the prompt, and holds the answer until the session
 /// in it shows up as a fish. The one asking is found by where it runs (the X-Where-* headers `fishbots` sends, the
 /// hook's own): the new fish is its child. A child doesn't launch others, and a parent has a limit of them.
 /// The new pane doesn't have the asker's environment, so what picks the agent's account or profile comes in `env`
 /// (`fishbots spawn` sends CLAUDE_CONFIG_DIR and CODEX_HOME when it has them).
-/// `wait` holds the answer until one of the fish is in one of the states, and says which, with its last reply.
+/// `wait` holds the answer until one of the fish is in one of the states (by default, until it stops working:
+/// done, waiting for an answer, error, or idle, which is how an interrupted one ends), and says which, with its
+/// last reply.
 /// A fish that was just sent a line doesn't count as it stands (it's still "done" from the turn before): only
 /// what it says next does.
 final class SessionControl: EventSink {
@@ -111,7 +113,7 @@ final class SessionControl: EventSink {
             provider.stop(f)
             reply(200, Data(#"{"ok":true}"#.utf8))
         case "/control/wait":
-            let asked = (m["states"] as? [String] ?? ["done", "waiting", "error"]).compactMap { State(wire: $0)?.rawValue }
+            let asked = (m["states"] as? [String] ?? ["done", "waiting", "error", "idle"]).compactMap { State(wire: $0)?.rawValue }
             guard !asked.isEmpty else { reply(400, Self.error("no known state in \"states\"")); return true }
             let states = Set(asked)
             // already there (and not just sent a line)?

@@ -48,6 +48,9 @@ final class TerminalPrograms {
     private let tank: Tank
     init(tank: Tank) { self.tank = tank }
 
+    /// Terminals whose program said it stopped working, and when (see `rested`).
+    private var resting: [String: Date] = [:]
+
     // MARK: - which programs become fish (config.json)
 
     private struct Rule { var enabled = true; var only: Set<String>?; var ignore: Set<String> = [] }
@@ -85,6 +88,7 @@ final class TerminalPrograms {
         // a session with hooks: its terminal only adds what it says it's doing
         if !hooked(at).isEmpty {
             tank.doing(at: at.key, at.id, record?.state == "working" ? record?.msg : nil)
+            rested(at, record)
             return
         }
         guard let r = record, let app = r.app, Self.accepts(app, in: at.source) else { ended(at); return }
@@ -104,6 +108,23 @@ final class TerminalPrograms {
         f.asked = state == .waiting ? (r.msg ?? r.kind.map { tr("✋ esperando você") + " (" + $0 + ")" }) : nil
         tank.doing(at: at.key, at.id, state == .busy ? r.msg : nil)
         if state == .done || state == .error, let m = r.msg { f.lastReply = m }
+    }
+
+    /// A session interrupted with Esc has no hook to say so: its fish would stay busy for good. Its terminal knows,
+    /// though (the program says it's idle). When a turn ends by itself the hook says so right after, so the terminal
+    /// is only believed if the fish is still busy a moment later.
+    private func rested(_ at: Place, _ record: ProgramStatus?) {
+        let key = at.key + ":" + at.id
+        guard let r = record, r.state == "idle" || r.state == "done" else { resting[key] = nil; return }
+        let said = Date()
+        resting[key] = said
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self, self.resting[key] == said else { return }
+            self.resting[key] = nil
+            for f in self.hooked(at) where f.state == .busy && f.compactingSince == nil {
+                self.tank.upsert(source: f.source, entity: String(f.id.dropFirst(f.source.count + 1)), state: .idle, label: nil)
+            }
+        }
     }
 
     /// The terminal's title changed: the conversation's title, for a session with hooks.
