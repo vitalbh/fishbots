@@ -16,12 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private var mac: MacSource?
     private(set) var demo: Demo!
     private var musicTimer: Timer?
-    var textLayers: [String: CATextLayer] = [:]
-    let footer = CATextLayer()
-    var footerOpacity: Float = 1
-    let banner = CATextLayer()
-    let batteryText = CATextLayer()
-    let calmText = CATextLayer()
+    let labelLayers = Labels()
     private var hotkeys: [HotkeyAction: Hotkey] = [:]
     private var activity: NSObjectProtocol?
     private(set) var port: UInt16 = 7777
@@ -44,10 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     var cardCheckedAt = Date.distantPast
     private(set) var hoverBattery = false
     private(set) var hoverPearl: Pearl?
-    /// Presences (docs/scene.md): their text layers and the one under the mouse.
-    var presenceLayers: [String: CATextLayer] = [:]
+    /// The presence (docs/scene.md) under the mouse.
     private(set) var hoverPresence: String?
-    let pearlText = CATextLayer()
     private(set) var plugins: Plugins?
     private var nowPlaying: NowPlaying?
     let menuPlugins = NSMenu(title: "Plugins")
@@ -150,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         labels.autoresizingMask = [.width, .height]
         labels.wantsLayer = true
         window.contentView!.addSubview(labels)
-        setupFooter()
+        labelLayers.attach(to: labels, scale: window.backingScaleFactor)
 
         renderer.frame = { [unowned self] dt in self.frame(dt) }
         renderer.onGPUFrame = { [unowned self] ms, failed in self.packGuard.gpu(ms: ms, failed: failed) }
