@@ -121,7 +121,9 @@ Ideas for packs: coral reef, deep sea (dark, bioluminescent), Japanese pond (koi
 `packs/examples/`: `coral` (a reef: clownfish, anemones, chromis, a blue tang, the reef wall, marimba), `koi` (a Japanese
 pond: koi, a stone lantern, lily pads, a shrine for the chest, frogs, koinobori, a water wheel, the namazu, koto) and
 `arctic` (under the ice: an ice ceiling, polar cod, a seal, a narwhal, the frozen chest, its own cold sky) and `kelp`
-(a kelp forest: giant kelp to the surface, an urchin barren, the sheephead, garibaldi, a sea otter, sea lions).
+(a kelp forest: giant kelp to the surface, an urchin barren, the sheephead, garibaldi, a sea otter, sea lions) and
+`trench` (an abyssal trench: no daylight, black smokers, tube worms, a whale fall, comb jellies, a siphonophore, a
+bathysphere for the chest, session fish as lanternfish lit in the project's color).
 
 #### A theme's own background and looks
 A pack theme can draw its own far background and give the built-in pieces another look:
