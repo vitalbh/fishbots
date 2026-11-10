@@ -143,7 +143,8 @@ A state change also leaves a ring in the water. Coming back from `error` makes a
 ### Text
 
 Like the fish labels, and following the labels setting (L: minimal, full, none):
-- the `label` always shows (in "none", only on hover);
+- the `label` always shows (in "none", nothing shows but on hover, even while it needs you: its glow and its color
+  already say so);
 - the second line shows the `detail` (or the state's name) in the state's color while it needs you, and for a few
   seconds after anything changes;
 - on hover: everything, plus "↗" when there is a link.

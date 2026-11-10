@@ -248,7 +248,8 @@ final class Labels {
                 return t
             }()
             let near = now.hoverPresence == p.id
-            if Self.mode == "none" && !near && !p.needsYou { l.opacity = 0; continue }
+            // labels off: only on hover, even while it needs you (its glow, its color and its sound already say so)
+            if Self.mode == "none" && !near { l.opacity = 0; continue }
             if tank.compact && !p.needsYou { l.opacity = 0; continue }
             // a light on the side glass is quiet while all is well: its text shows when it needs you, for a few
             // seconds after its state changes, and on hover
