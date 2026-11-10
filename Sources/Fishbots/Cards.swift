@@ -1,25 +1,54 @@
 import AppKit
 import simd
 
-/// A fish's card and what you do from it: read it aloud, reply, stop, rename, answer a permission request, and go through the ones needing you with the keyboard.
-extension AppDelegate {
-    // MARK: - voice reading
+/// The cards over the water: the one that opens when the mouse rests on a fish (or Tab picks it), the bubble of a
+/// permission request, and what you do from them: reply, stop, allow or deny, go there. It owns what's open and
+/// what the mouse and the keyboard are on; the app tells it where the mouse is and calls `control` every frame.
+final class Cards {
+    private let tank: Tank
+    private let permissions: Permissions
+    /// The water's view, where the bubbles point. Made with the window, a little after this.
+    var view: TankView!
+    /// Reads a fish's question or last reply aloud (the app's voice).
+    var read: ((Fish) -> Void)?
 
-    var readQuestions: Bool { UserDefaults.standard.bool(forKey: "readQuestions") }
-    @objc func toggleReadQuestions() { UserDefaults.standard.set(!readQuestions, forKey: "readQuestions") }
+    /// The fish under the mouse, and since when.
+    private(set) var hoverId: String?
+    private var hoverSince = Date()
+    private var hoverCard: NSPopover?
+    private var hoverCardId: String?
+    private var cardSignature = ""
+    private var cardCheckedAt = Date.distantPast
+    /// The fish chosen with Tab (its card stays open until Esc or the mouse goes to another fish).
+    private(set) var keyboardPick: String?
+    private var requestBubble: NSPopover?
 
-    /// If on (and neither muted nor in focus), reads the question aloud: "aquariozinho pergunta: …". It's called once
-    /// the fish has finished calling (motif and knocks on the glass), so the voice doesn't cover them.
-    func readQuestion(_ f: Fish, after delay: Double) {
-        guard readQuestions, !synth.muted.load(ordering: .relaxed), !Attention.focus else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.4, delay)) { [weak self, weak f] in
-            guard let f, f.state == .waiting, let q = f.asked else { return }
-            Speaker.shared.speak(tr("%@ pergunta: %@", f.nickname ?? f.displayTitle ?? f.label, q))
-            _ = self
-        }
+    init(tank: Tank, permissions: Permissions) {
+        self.tank = tank
+        self.permissions = permissions
     }
 
-    // MARK: - session actions
+    var isOpen: Bool { hoverCard != nil }
+    /// The open card, if it's a fish's.
+    var card: FishCard? { hoverCard?.contentViewController as? FishCard }
+
+    /// The mouse is over this fish now (nil: over none).
+    func hover(_ id: String?) {
+        if id != hoverId { hoverSince = Date() }
+        hoverId = id
+    }
+
+    /// Opens a fish's card as if the mouse had rested on it (it stays while nothing else takes the mouse's place).
+    func open(_ f: Fish) {
+        hoverId = f.id
+        hoverSince = Date(timeIntervalSinceNow: -1)
+        show(f)
+    }
+
+    /// The card was dismissed: it only comes back when the mouse goes over the fish again.
+    func forgetHover() { hoverId = nil }
+
+    // MARK: - what a session takes
 
     /// What the fish's session provider can do now. Nothing that types into the session while a permission request is open.
     func can(_ c: Capability, _ f: Fish) -> Bool {
@@ -29,7 +58,7 @@ extension AppDelegate {
     func canReply(_ f: Fish) -> Bool { can(.reply, f) }
     func canStop(_ f: Fish) -> Bool { can(.stop, f) }
 
-    private func sendReply(_ f: Fish, _ text: String) {
+    func sendReply(_ f: Fish, _ text: String) {
         guard let provider = Providers.of(f.source) else { return }
         provider.reply(f, text) { [weak self, weak f] error in
             guard let self, let f else { return }
@@ -40,52 +69,10 @@ extension AppDelegate {
         }
     }
 
-    /// A simple text box (to reply, give a name, rename in Rex).
-    private func ask(_ title: String, _ text: String = "", _ button: String = tr("Ok")) -> String? {
-        let a = NSAlert()
-        a.messageText = title
-        a.addButton(withTitle: button)
-        a.addButton(withTitle: tr("Cancelar"))
-        let field = NSTextField(string: text)
-        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
-        a.accessoryView = field
-        a.window.initialFirstResponder = field
-        NSApp.activate(ignoringOtherApps: true)
-        return a.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
-    }
-
-    @objc func menuReply() {
-        guard let f = menuFish, let t = ask(tr("Responder %@", f.nickname ?? f.label), "", tr("Enviar")), !t.isEmpty else { return }
-        sendReply(f, t)
-    }
-    @objc func menuStop() { if let f = menuFish { Providers.of(f.source)?.stop(f) } }
-    @objc func menuNickname() {
-        guard let f = menuFish, let t = ask(tr("Nome do peixe"), f.nickname ?? "", tr("Dar nome")) else { return }
-        f.nickname = t
-    }
-    /// Each provider renames its own way (Claude: types /rename; Codex: writes to its index).
-    @objc func menuRenameChat() {
-        guard let f = menuFish, let provider = Providers.of(f.source),
-              let t = ask(tr("Renomear a conversa"), f.displayTitle ?? "", tr("Renomear")),
-              !t.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        provider.renameChat(f, t.trimmingCharacters(in: .whitespaces)) { [weak self] error in
-            guard let self, let error else { return }
-            self.tank.notice = (tr("não renomeei: ") + error, self.tank.time)
-        }
-    }
-    @objc func menuRenamePane() {
-        guard let f = menuFish, let t = ask(tr("Renomear o painel no Rex"), "", tr("Renomear")), !t.isEmpty else { return }
-        Whereabouts.renamePane(f, t)
-    }
-    @objc func menuRenameRex() {
-        guard let f = menuFish, let t = ask(tr("Renomear a sessão no Rex"), f.sub?.components(separatedBy: " › ").first ?? "", tr("Renomear")),
-              !t.isEmpty else { return }
-        Whereabouts.renameRex(f, t)
-    }
 
     // MARK: - hover card
 
-    func controlCard() {
+    func control() {
         // the fish under the mouse (or with the card open) swims in circles in place
         tank.focused = hoverCardId ?? hoverId
         let now = Date()
@@ -117,13 +104,13 @@ extension AppDelegate {
                 pop.contentViewController = cardContent(f)
             }
         }
-        if let id = hoverId, now.timeIntervalSince(hoverSince) > 0.5, hoverCardId != id, popover?.isShown != true,
-           let f = tank.fish.first(where: { $0.id == id }), window.isVisible {
-            showCard(f)
+        if let id = hoverId, now.timeIntervalSince(hoverSince) > 0.5, hoverCardId != id, requestBubble?.isShown != true,
+           let f = tank.fish.first(where: { $0.id == id }), view.window?.isVisible == true {
+            show(f)
         } else if hoverCard != nil, hoverId == nil, !mouseInCard {
-            closeCard()
+            close()
         } else if let id = hoverId, hoverCardId != nil, hoverCardId != id, !mouseInCard {
-            closeCard()
+            close()
         }
     }
 
@@ -135,8 +122,8 @@ extension AppDelegate {
          "\(f.finished.count)", f.compactingSince == nil ? "" : "c"].joined(separator: "|")
     }
 
-    func showCard(_ f: Fish, keyboard: Bool = false) {
-        closeCard()
+    func show(_ f: Fish, keyboard: Bool = false) {
+        close()
         let pop = NSPopover()
         pop.behavior = .applicationDefined
         pop.animates = false
@@ -156,18 +143,18 @@ extension AppDelegate {
         let request = permissions.request(ofFish: f.id)
         let resp: ((String) -> Void)? = canReply(f) ? { [weak self, weak f] text in
             guard let self, let f else { return }
-            self.closeCard()
+            self.close()
             self.sendReply(f, text)
         } : nil
         let stopFn: (() -> Void)? = canStop(f) ? { [weak self, weak f] in
             guard let self, let f else { return }
-            self.closeCard()
+            self.close()
             Providers.of(f.source)?.stop(f)
             self.tank.notice = (tr("Esc em %@", f.nickname ?? f.label), self.tank.time)
         } : nil
         let card = FishCard(fish: f, request: request, reply: resp, stop: stopFn) { [weak self] action in
             guard let self, let p = request else { return }
-            self.closeCard()
+            self.close()
             self.decide(p.id, action)
         }
         card.go = { [weak f] in if let f { Whereabouts.go(f) } }
@@ -179,7 +166,7 @@ extension AppDelegate {
         return card
     }
 
-    func closeCard() {
+    func close() {
         hoverCard?.close()
         hoverCard = nil
         hoverCardId = nil
@@ -188,7 +175,7 @@ extension AppDelegate {
     // MARK: - permission request
 
     func showRequest(_ p: Permissions.Request, fish f: Fish) {
-        popover?.close()
+        requestBubble?.close()
         let pop = NSPopover()
         pop.behavior = .transient
         pop.contentViewController = RequestView(request: p, label: f.label) { [weak self, weak pop] action in
@@ -198,7 +185,7 @@ extension AppDelegate {
         }
         let r = NSRect(x: CGFloat(f.pos.x) - 20, y: CGFloat(f.pos.y) - 20, width: 40, height: 40)
         pop.show(relativeTo: r, of: view, preferredEdge: .maxY)
-        popover = pop
+        requestBubble = pop
     }
 
     /// "allow", "deny" or "go" (no decision: takes you to the session to answer there).
@@ -218,9 +205,6 @@ extension AppDelegate {
         }
     }
 
-    @objc func menuAllow(_ i: NSMenuItem) { if let id = i.representedObject as? Int { decide(id, "allow") } }
-    @objc func menuDeny(_ i: NSMenuItem) { if let id = i.representedObject as? Int { decide(id, "deny") } }
-
     // MARK: - keyboard: moving through who needs you
 
 
@@ -239,7 +223,7 @@ extension AppDelegate {
     private func pick(_ f: Fish) {
         keyboardPick = f.id
         hoverId = nil
-        showCard(f, keyboard: true)
+        show(f, keyboard: true)
         // a session that takes replies: the field is ready to type (Enter sends)
         if canReply(f) { (hoverCard?.contentViewController as? FishCard)?.focusReply() }
         f.glow = max(f.glow, 0.6)
@@ -248,12 +232,12 @@ extension AppDelegate {
 
     /// Tab / ⇧Tab, Return, Esc, ⌘R (hear), ⌘D (speak), ⌘↩ (go), and A/N on a permission request (no text field there).
     /// Returns false when the key isn't about the keyboard pick (then it does what it always did).
-    func nav(_ k: String) -> Bool {
+    func key(_ k: String) -> Bool {
         let list = needingYou
         let current = keyboardPick.flatMap { id in tank.fish.first { $0.id == id && !$0.leaving } }
         switch k {
         case "⇥", "⇤":
-            guard !list.isEmpty else { keyboardPick = nil; closeCard(); tank.notice = (tr("✓ ninguém esperando"), tank.time); return true }
+            guard !list.isEmpty else { keyboardPick = nil; close(); tank.notice = (tr("✓ ninguém esperando"), tank.time); return true }
             let i = current.flatMap { c in list.firstIndex { $0 === c } }
             let next = i.map { (k == "⇥" ? $0 + 1 : $0 - 1 + list.count) % list.count } ?? (k == "⇥" ? 0 : list.count - 1)
             pick(list[next])
@@ -261,25 +245,92 @@ extension AppDelegate {
         case "⎋":
             guard keyboardPick != nil || hoverCard != nil else { return false }
             keyboardPick = nil
-            closeCard()
+            close()
             return true
         default: break
         }
         guard let f = current else { return false }
         switch k {
         case "↩", "⌘↩":
-            closeCard(); keyboardPick = nil
+            close(); keyboardPick = nil
             if !Whereabouts.go(f) { tank.notice = (tr("%@: não sei onde fica", f.label), tank.time) }
-        case "⌘r": read(f)
+        case "⌘r": read?(f)
         case "⌘d":
             guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return true }
             (hoverCard?.contentViewController as? FishCard)?.toggleDictation()
         case "a", "n":
             guard let p = permissions.request(ofFish: f.id) else { return false }
-            closeCard(); keyboardPick = nil
+            close(); keyboardPick = nil
             decide(p.id, k == "a" ? "allow" : "deny")
         default: return false
         }
         return true
     }
+}
+
+/// The app's side of the cards: the voice, and the right-click menu's actions on a fish.
+extension AppDelegate {
+    // MARK: - voice reading
+
+    var readQuestions: Bool { UserDefaults.standard.bool(forKey: "readQuestions") }
+    @objc func toggleReadQuestions() { UserDefaults.standard.set(!readQuestions, forKey: "readQuestions") }
+
+    /// If on (and neither muted nor in focus), reads the question aloud: "aquariozinho pergunta: …". It's called once
+    /// the fish has finished calling (motif and knocks on the glass), so the voice doesn't cover them.
+    func readQuestion(_ f: Fish, after delay: Double) {
+        guard readQuestions, !synth.muted.load(ordering: .relaxed), !Attention.focus else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.4, delay)) { [weak self, weak f] in
+            guard let f, f.state == .waiting, let q = f.asked else { return }
+            Speaker.shared.speak(tr("%@ pergunta: %@", f.nickname ?? f.displayTitle ?? f.label, q))
+            _ = self
+        }
+    }
+
+    // MARK: - menu actions on a fish
+
+    /// A simple text box (to reply, give a name, rename in Rex).
+    private func ask(_ title: String, _ text: String = "", _ button: String = tr("Ok")) -> String? {
+        let a = NSAlert()
+        a.messageText = title
+        a.addButton(withTitle: button)
+        a.addButton(withTitle: tr("Cancelar"))
+        let field = NSTextField(string: text)
+        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
+        a.accessoryView = field
+        a.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        return a.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
+    }
+
+    @objc func menuReply() {
+        guard let f = menuFish, let t = ask(tr("Responder %@", f.nickname ?? f.label), "", tr("Enviar")), !t.isEmpty else { return }
+        cards.sendReply(f, t)
+    }
+    @objc func menuStop() { if let f = menuFish { Providers.of(f.source)?.stop(f) } }
+    @objc func menuNickname() {
+        guard let f = menuFish, let t = ask(tr("Nome do peixe"), f.nickname ?? "", tr("Dar nome")) else { return }
+        f.nickname = t
+    }
+    /// Each provider renames its own way (Claude: types /rename; Codex: writes to its index).
+    @objc func menuRenameChat() {
+        guard let f = menuFish, let provider = Providers.of(f.source),
+              let t = ask(tr("Renomear a conversa"), f.displayTitle ?? "", tr("Renomear")),
+              !t.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        provider.renameChat(f, t.trimmingCharacters(in: .whitespaces)) { [weak self] error in
+            guard let self, let error else { return }
+            self.tank.notice = (tr("não renomeei: ") + error, self.tank.time)
+        }
+    }
+    @objc func menuRenamePane() {
+        guard let f = menuFish, let t = ask(tr("Renomear o painel no Rex"), "", tr("Renomear")), !t.isEmpty else { return }
+        Whereabouts.renamePane(f, t)
+    }
+    @objc func menuRenameRex() {
+        guard let f = menuFish, let t = ask(tr("Renomear a sessão no Rex"), f.sub?.components(separatedBy: " › ").first ?? "", tr("Renomear")),
+              !t.isEmpty else { return }
+        Whereabouts.renameRex(f, t)
+    }
+
+    @objc func menuAllow(_ i: NSMenuItem) { if let id = i.representedObject as? Int { cards.decide(id, "allow") } }
+    @objc func menuDeny(_ i: NSMenuItem) { if let id = i.representedObject as? Int { cards.decide(id, "deny") } }
 }

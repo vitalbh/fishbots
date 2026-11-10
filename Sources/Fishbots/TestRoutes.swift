@@ -13,9 +13,7 @@ extension AppDelegate {
             // to test the hover card without moving the mouse
             let goal = path.components(separatedBy: "f=").dropFirst().first?.removingPercentEncoding
             if let f = self.tank.fish.first(where: { ($0.isAgent || goal != nil) && !$0.leaving && (goal == nil || $0.id.hasSuffix(goal!)) }) {
-                self.hoverId = f.id                      // pretend the mouse is over it, so the card doesn't close
-                self.hoverSince = Date(timeIntervalSinceNow: -1)
-                self.showCard(f)
+                self.cards.open(f)        // as if the mouse were over it, so the card doesn't close
             }
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/preferences":

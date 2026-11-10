@@ -222,10 +222,10 @@ extension AppDelegate {
         kinds.submenu = km
         m.addItem(kinds)
 
-        if canReply(f) { m.addItem(item("Responder…", #selector(menuReply))) }
-        if canStop(f) { m.addItem(item("Parar (Esc)", #selector(menuStop))) }
+        if cards.canReply(f) { m.addItem(item("Responder…", #selector(menuReply))) }
+        if cards.canStop(f) { m.addItem(item("Parar (Esc)", #selector(menuStop))) }
         m.addItem(item(f.nickname == nil ? "Dar um nome…" : "Mudar o nome…", #selector(menuNickname)))
-        if can(.renameChat, f) {
+        if cards.can(.renameChat, f) {
             m.addItem(item("Renomear a conversa…", #selector(menuRenameChat)))
         }
         if f.whereabouts["rex_block"] != nil { m.addItem(item("Renomear o painel no Rex…", #selector(menuRenamePane))) }

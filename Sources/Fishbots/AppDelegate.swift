@@ -30,13 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     let journal = Journal()
     private var outsideButton: NSButton?
     private var card: SummaryView?
-    var popover: NSPopover?
-    var hoverId: String?
-    var hoverSince = Date()
-    var hoverCard: NSPopover?
-    var hoverCardId: String?
-    var cardSignature = ""
-    var cardCheckedAt = Date.distantPast
+    /// The fish's card, the request bubble and the keyboard's pick (Cards.swift).
+    lazy var cards = Cards(tank: tank, permissions: permissions)
     private(set) var hoverBattery = false
     private(set) var hoverPearl: Pearl?
     /// The presence (docs/scene.md) under the mouse.
@@ -49,8 +44,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// The fish a right-click menu is about, and the delegate that plays a motif as the mouse goes over it.
     var menuFish: Fish?
     let previewMotif = MotifMenuDelegate()
-    /// The fish chosen with Tab (its card stays open until Esc or the mouse goes to another fish).
-    var keyboardPick: String?
 
     /// The theme on the tank, the packs and their pictures (ThemeKeeper); the menus and windows are in ThemesAndPacks.swift.
     lazy var themeKeeper = ThemeKeeper(tank: tank, visual: visual)
@@ -76,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         L10n.onChange = { [unowned self] in
             self.buildMenu()
             self.notifier.languageChanged()
-            self.closeCard()
+            self.cards.close()
         }
         tank.profile = Providers.profile
         Packs.load()   // before the renderer compiles the shader (fish kinds) and the theme is applied
@@ -147,17 +140,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         themeKeeper.onChange = { [unowned self] in self.buildMenu() }
         themeKeeper.onTheme = { [unowned self] in self.preferences.refresh() }   // its Theme row shows the current one
         themeKeeper.apply()
+        cards.view = view
+        cards.read = { [unowned self] f in self.read(f) }
         view.onKey = { [unowned self] k in self.key(k) }
         // while a card is open, its keys work even with its reply field focused: all of them when it was opened from
         // the keyboard (Tab), only Esc when the mouse opened it
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [unowned self] e in
-            guard self.hoverCard != nil else { return e }
-            if self.keyboardPick == nil {
+            guard self.cards.isOpen else { return e }
+            if self.cards.keyboardPick == nil {
                 // a card opened by the mouse: Esc closes it too, even while writing in its reply field (and it only
                 // comes back when the mouse goes over the fish again)
                 guard e.keyCode == 53 else { return e }
-                self.hoverId = nil
-                return self.nav("⎋") ? nil : e
+                self.cards.forgetHover()
+                return self.cards.key("⎋") ? nil : e
             }
             let cmd = e.modifierFlags.contains(.command)
             let k: String?
@@ -168,7 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             default: k = cmd ? (e.charactersIgnoringModifiers?.lowercased()).map { "⌘" + $0 } : nil
             }
             guard let key = k, ["⇥", "⇤", "⎋", "⌘↩", "⌘r", "⌘d"].contains(key) else { return e }
-            return self.nav(key) ? nil : e
+            return self.cards.key(key) ? nil : e
         }
         view.onClick = { [unowned self] p in self.click(p) }
         view.dragMovesWindow = { [unowned self] in self.tank.compact }
@@ -189,8 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             let q: SIMD2<Float> = [Float(p.x), Float(p.y)]
             self.tank.moveCursor(q)
             let f = self.tank.fish(at: q)
-            if f?.id != self.hoverId { self.hoverSince = Date() }
-            self.hoverId = f?.id
+            self.cards.hover(f?.id)
             self.hoverBattery = self.tank.battery != nil && simd_distance(q, self.tank.batteryPos) < 26
             let presence = f == nil ? self.tank.scene.presence(at: q) : nil
             self.hoverPresence = presence?.id
@@ -269,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             Outputs.emit(TankEvent(type: "party", fish: f))
         }
         journal.returned = { [unowned self] in self.showOutsideButton() }
-        notifier.decide = { [unowned self] request, action in self.decide(request, action) }
+        notifier.decide = { [unowned self] request, action in self.cards.decide(request, action) }
         notifier.go = { [unowned self] id in
             if let f = self.tank.fish.first(where: { $0.id == id }) { Whereabouts.go(f) }
         }
@@ -339,14 +333,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// Opens the card of whoever has waited longest with the microphone on: speak, then Enter sends.
     @objc func replyByVoice() {
         // already listening: the same shortcut turns the microphone off
-        if Dictation.shared.listening, let card = hoverCard?.contentViewController as? FishCard { card.toggleDictation(); return }
+        if Dictation.shared.listening, let card = cards.card { card.toggleDictation(); return }
         guard let f = longestWaiting else { show(); tank.notice = (tr("✓ ninguém esperando"), tank.time); return }
         show()
-        guard canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return }
-        hoverId = f.id
-        hoverSince = Date(timeIntervalSinceNow: -1)
-        showCard(f)
-        (hoverCard?.contentViewController as? FishCard)?.startDictation()
+        guard cards.canReply(f) else { tank.notice = (f.label + ": " + tr("não sei responder essa sessão"), tank.time); return }
+        cards.open(f)
+        cards.card?.startDictation()
     }
 
     /// The session waiting for you the longest: its terminal comes forward (the global shortcut, ⌃⌥F by default).
@@ -462,10 +454,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     // MARK: - server
 
     private func click(_ p: CGPoint) {
-        closeCard()
+        cards.close()
         let q: SIMD2<Float> = [Float(p.x), Float(p.y)]
         if let f = tank.fish(at: q), let p = permissions.request(ofFish: f.id) {
-            showRequest(p, fish: f)
+            cards.showRequest(p, fish: f)
             return
         }
         if let f = tank.fish(at: q), f.offer != nil {
@@ -656,7 +648,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     // MARK: - keys and menu
 
     func key(_ k: String) {
-        if nav(k) { return }
+        if cards.key(k) { return }
         switch k {
         case "d": toggleDemo()
         case "m": toggleMute()

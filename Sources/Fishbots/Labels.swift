@@ -292,7 +292,7 @@ extension AppDelegate {
     /// The labels follow the frame; then the card, which follows the mouse.
     func updateLabels() {
         var now = LabelsMoment()
-        now.hoverFish = hoverId
+        now.hoverFish = cards.hoverId
         now.hoverPresence = hoverPresence
         now.hoverPearl = hoverPearl
         now.hoverBattery = hoverBattery
@@ -302,7 +302,7 @@ extension AppDelegate {
         labelLayers.update(tank, now, scale: window.backingScaleFactor)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        controlCard()
+        cards.control()
         CATransaction.commit()
     }
 
