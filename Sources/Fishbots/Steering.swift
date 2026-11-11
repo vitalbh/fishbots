@@ -264,7 +264,12 @@ extension Tank {
             let rowGap = min(110, h * 0.2)
             let x = w * 0.5 + (Float(col) - Float(inRow - 1) / 2) * gap
             let y = h * 0.42 + (Float(rows - 1) / 2 - Float(row)) * rowGap
-            target = [x, y + sinf(Float(time) * 2 + Float(i)) * 6]
+            // it doesn't park: each one swims a slow, lopsided figure eight around its place, out of step with its
+            // neighbours, so the queue reads as fish waiting and not as a shelf (never so wide that two swap places)
+            let t = Float(time) * 0.32 + Float(f.phase) * 2.1
+            let roam: SIMD2<Float> = [sinf(t) * gap * 0.26 + sinf(t * 2.3 + 0.7) * gap * 0.06,
+                                      sinf(t * 1.6 + 1.3) * min(rowGap * 0.2, 22) + Float(f.phase % 7 - 3) * 4]
+            target = [x, y] + roam
             speed = 120
             let crowded = rows > 1
             scaleTarget = (crowded ? 1.3 : 1.55) + min(crowded ? 0.2 : 0.35, Float(time - f.since) / 60 * 0.06)
