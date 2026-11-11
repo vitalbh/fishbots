@@ -364,8 +364,9 @@ checks as the card apply, so nothing is typed where the card wouldn't type):
 |---|---|---|
 | `/control/reply` | `fish`, `text` | ok, or why not (not at its prompt, another program in front…) |
 | `/control/stop` | `fish` | ok |
+| `/control/close` | `fish` | closes the pane of a session the asker launched (the launcher's `close`); its fish leaves |
 | `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them stops working (done, waiting, error, idle; or the `states` asked for): which, its state, its last reply |
-| `/control/spawn` | `agent`, `cwd`, `prompt`, `label`, `launcher`, `beside`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
+| `/control/spawn` | `agent`, `cwd`, `prompt`, `label`, `launcher`, `tab`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
 
 `fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish
 takes right now (`can`) and who launched it (`parent`). From the command line: `fishbots spawn | reply | stop |
@@ -399,7 +400,8 @@ struct LaunchRequest {
     let cwd: String
     let label: String?
     let near: [String: String]?    // the asker's whereabouts: the new session opens where it is
-    let beside: Bool               // a pane next to the asker's, not a tab of its own
+    let tab: Bool                  // a tab of its own, not a pane next to the asker's
+    let siblings: [[String: String]]   // the asker's other children, oldest first: the new pane joins their column
     let env: [String: String]      // FISHBOTS_PARENT=…, the account's variables
 }
 
@@ -409,6 +411,7 @@ protocol SessionLauncher: AnyObject {
     func hosts(_ whereabouts: [String: String]) -> Bool   // is this where that session runs?
     /// The new pane's whereabouts (rex_session, rex_block…), or an error.
     func launch(_ r: LaunchRequest, done: @escaping (Result<[String: String], Error>) -> Void)
+    func close(_ place: [String: String], done: @escaping (String?) -> Void)   // the pane it opened; nil: closed
 }
 ```
 
@@ -417,10 +420,11 @@ and Codex can); a manifest's `launch` array with `{prompt}` does it for agents w
 open in the host it runs in (`hosts`); `launcher` in the request picks another, and without an asker in any of
 them it's the first one installed. None takes the focus:
 
-- **Rex:** `rex run -s <the asker's session>`, a new window (tab); with `beside`, `rex split -b <the asker's block>`.
+- **Rex:** `rex run --split right -b <the asker's block>`, then `--split below` a sibling (`Launchers.anchor`: the
+  column stays about even); with `tab`, `rex run -s <the asker's session>`, a new window.
 - **Herdr:** `herdr-core run --bg`, a terminal that stays alive with no one attached; it's the asker's child in
   Herdr too (`--parent`, outliving it, and without Herdr's own notes typed into the parent).
-- **tmux:** `new-window -d -a -t <the asker's pane>`; with `beside`, `split-window -d -h`.
+- **tmux:** `split-window -d -h -t <the asker's pane>`, then `-v` under a sibling; with `tab`, `new-window -d -a`.
 
 A new host is a `SessionLauncher` registered in `Launchers`.
 
@@ -435,7 +439,7 @@ state, within reach of the leader; whoever waits for you still comes to the glas
 with the leader's markings and fin in their own project's color, with "↳" before their name. The leader's card
 lists its school with each one's state (a click opens that fish's card); a child's card has a tag for its leader.
 
-**Guards:** the Preferences switch; 6 children alive per parent and depth 1 (a child doesn't launch children);
+**Guards:** the Preferences switch; 6 children at work per parent (the ones that finished and sit at their prompt do not count) and depth 1 (a child doesn't launch children);
 permission requests of the children stay with the person; `spawn` takes no extra arguments for the agent, so it
 can't ask for a session that skips permissions. No token: the server already refuses browsers, and a
 local process could type into the terminals by itself.

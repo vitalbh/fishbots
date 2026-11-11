@@ -25,10 +25,15 @@ When you finish, reply with a summary of what changed and anything left open."
 fishbots wait --timeout 1200 claude-code:2d265f0e claude-code:7c1a90b3
 #    → {"fish": "…", "state": "done", "reply": "<its last reply, markdown>"}
 #      or {"timeout": true}, or {"fish": "…", "gone": true} if its session ended
+#    every one of them instead of the first: one answer per fish, in the order given
+fishbots wait --all --timeout 1200 claude-code:2d265f0e claude-code:7c1a90b3
 
 # 3. follow up in the same session, or leave it
 fishbots reply claude-code:2d265f0e "Also cover the empty-page case."
 fishbots stop claude-code:2d265f0e        # Esc: interrupt what it's doing
+
+# 4. when you have what you need from them, close their panes (only the ones you launched)
+fishbots close claude-code:2d265f0e claude-code:7c1a90b3
 ```
 
 A fish is named `source:entity`; the start of the entity is enough when it's unique (`2d265f0e`).
@@ -39,18 +44,20 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
 - **The brief goes in `spawn`.** The child starts with no context but the prompt: say what to do, where, what
   "done" means and what to report back. `reply` types a single line into its terminal (line breaks become spaces),
   so keep follow-ups short.
-- The child opens in the terminal host you run in (Rex, Herdr or tmux), in a tab of its own that doesn't take the
-  focus; `--beside` makes it a pane next to yours (Rex, tmux).
+- The child opens in the terminal host you run in (Rex, Herdr or tmux), in a pane next to yours that doesn't take
+  the focus (the next ones stack in that column); `--tab` gives it a tab of its own (Rex, tmux).
 - **`--agent`** picks another agent (`codex`…); the default is yours. `--cwd` is the folder it works in (default:
   the current one). Children that edit the same files step on each other: give each its own folder or git worktree.
 - **`wait` after `reply` is safe**: it waits for what the session says next, not for the reply it already gave.
   `state: "waiting"` comes with `asked`: answer it with `reply`, or pass it on to the person.
 - **Permission requests stay with the person.** A child that needs approval shows up as waiting in the aquarium;
   you can't approve it. Say so instead of retrying.
-- **Limits:** at most 6 children alive at a time, and a child can't start children of its own.
+- **Limits:** at most 6 children at work at a time (the ones that finished do not count), and a child can't start children of its own.
 - **A `spawn` that times out** opened the pane but no session reported from it (the agent's Fishbots hook isn't
   installed, or it's asking something first, like trusting the folder). The error carries `where`; tell the person.
 - A session interrupted with `stop` ends up `idle` (in Rex and Herdr; elsewhere it may keep saying `busy`, so
-  `reply` to it instead of waiting). `idle` from `wait` means it stopped without finishing: its `reply` is from the
-  turn before.
-- Panes stay open when the work is done so the person can read them. Don't close what you didn't open.
+  `reply` to it instead of waiting): its `reply` is then from the turn before. `idle` only says it's at its prompt:
+  a session that finished a minute ago or more is `idle` too, with its final reply, so it isn't a failure by itself.
+- **Tidy up after yourself.** A child's pane stays open until you `close` it: do that once you've read its result
+  and won't follow up, unless the person wants to look at it (then say which ones you left). At most 6 children
+  work at the same time; the ones that finished don't count. Never close what you didn't open.

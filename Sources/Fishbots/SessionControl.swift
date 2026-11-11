@@ -5,7 +5,7 @@ import Foundation
 /// is still its provider's to say, so nothing here types where the card wouldn't. Off until turned on in Preferences.
 ///
 ///   POST /control/spawn  {"agent": "claude-code", "cwd": "/…", "prompt": "…", "label": "…", "launcher": "rex",
-///                         "beside": true, "env": {"CLAUDE_CONFIG_DIR": "…"}}
+///                         "tab": true, "env": {"CLAUDE_CONFIG_DIR": "…"}}
 ///   POST /control/reply  {"fish": "claude-code:abc", "text": "…"}
 ///   POST /control/stop   {"fish": "claude-code:abc"}
 ///   POST /control/wait   {"fish": ["…", "…"], "states": ["done", "waiting", "error", "idle"], "timeout": 600}
@@ -24,8 +24,9 @@ final class SessionControl: EventSink {
     let id = "session-control"
 
     static var enabled: Bool { UserDefaults.standard.bool(forKey: "sessionControl") }
-    static let routes = ["POST /control/spawn", "POST /control/reply", "POST /control/stop", "POST /control/wait"]
-    /// Sessions one parent can have alive at once.
+    static let routes = ["POST /control/spawn", "POST /control/reply", "POST /control/stop", "POST /control/wait",
+                         "POST /control/close"]
+    /// Sessions one parent can have at work at once (the ones that finished and sit at their prompt don't count).
     static let maxChildren = 6
 
     private struct Waiter {
@@ -112,6 +113,20 @@ final class SessionControl: EventSink {
             }
             provider.stop(f)
             reply(200, Data(#"{"ok":true}"#.utf8))
+        case "/control/close":
+            // only what the asker itself launched: its pane closes, whatever it's doing, and its fish leaves
+            let f = found[0]
+            guard let asker = caller(headers), f.whereabouts["parent"] == asker.id else {
+                reply(409, Self.error("\(f.id) wasn't launched by the session asking: only its own children can be closed")); return true
+            }
+            guard let launcher = Launchers.all.first(where: { $0.hosts(f.whereabouts) }) else {
+                reply(409, Self.error("\(f.id) isn't in a pane that can be closed")); return true
+            }
+            launcher.close(f.whereabouts) { [weak self, weak f] failure in
+                if let failure { reply(409, Self.error(failure)); return }
+                if let f { self?.tank.remove(source: f.source, entity: String(f.id.dropFirst(f.source.count + 1))) }
+                reply(200, Data(#"{"ok":true}"#.utf8))
+            }
         case "/control/wait":
             let asked = (m["states"] as? [String] ?? ["done", "waiting", "error", "idle"]).compactMap { State(wire: $0)?.rawValue }
             guard !asked.isEmpty else { reply(400, Self.error("no known state in \"states\"")); return true }
@@ -141,8 +156,8 @@ final class SessionControl: EventSink {
             guard parent.whereabouts["parent"] == nil else {
                 reply(409, Self.error("\(parent.id) was launched by another session: it can't launch its own")); return
             }
-            guard children(of: parent.id).count < Self.maxChildren else {
-                reply(409, Self.error("\(parent.id) already has \(Self.maxChildren) sessions: wait for one to end")); return
+            guard children(of: parent.id).filter({ ![.done, .idle, .ok].contains($0.state) }).count < Self.maxChildren else {
+                reply(409, Self.error("\(parent.id) already has \(Self.maxChildren) sessions at work: wait for one to finish")); return
             }
         }
         let agent = m["agent"] as? String ?? parent?.source ?? "claude-code"
@@ -173,7 +188,9 @@ final class SessionControl: EventSink {
         let patience = Self.seconds(m["timeout"], or: 30, upTo: 120)
         let before = Set(tank.fish.filter { $0.source == provider.id }.map(\.id))
         let request = LaunchRequest(command: command, cwd: folder, label: m["label"] as? String, near: parent?.whereabouts,
-                                    beside: m["beside"] as? Bool ?? false, env: env)
+                                    tab: m["tab"] as? Bool ?? false,
+                                    siblings: (parent.map { children(of: $0.id) } ?? []).sorted { $0.bornAt < $1.bornAt }.map(\.whereabouts),
+                                    env: env)
         launcher.launch(request) { [weak self] result in
             guard let self else { return }
             switch result {

@@ -11,17 +11,19 @@
 #   fishbots summon <creature|all>                     a passing creature comes by now (whale, turtle, sunfish…)
 #   fishbots show                                      current state as JSON
 #
-#   fishbots spawn [--agent id] [--cwd dir] [--label text] [--beside] [--env NAME]… [prompt]   start a session in
-#                                            a new tab of the terminal this runs in (Rex, Herdr, tmux; --beside: a
-#                                            pane next to this one; --launcher picks another), as a child of this
+#   fishbots spawn [--agent id] [--cwd dir] [--label text] [--tab] [--env NAME]… [prompt]   start a session in
+#                                            a pane next to this one, in the terminal this runs in (Rex, Herdr, tmux;
+#                                            --tab: a tab of its own; --launcher picks another), as a child of this
 #                                            session; prints its fish once it's born. It gets this shell's
 #                                            CLAUDE_CONFIG_DIR and CODEX_HOME (the same account), and any --env
 #                                            NAME or NAME=value
 #   fishbots reply <fish> <text>             type a line into a session (fish: "source:entity", or the start of the entity)
 #   fishbots stop <fish>                     Esc: interrupt what it's doing
-#   fishbots wait [--states a,b] [--timeout secs] <fish>…   until one stops working (done, waiting, error, or idle
-#                                            after an interruption): which, and its reply
-#                                            (these four need "Sessions can command other sessions" in Preferences)
+#   fishbots wait [--all] [--states a,b] [--timeout secs] <fish>…   until one stops working (done, waiting, error,
+#                                            or idle after an interruption): which, and its reply. --all: until
+#                                            every one has, one answer per fish
+#   fishbots close <fish>…                   close the pane of a session this one launched (its fish leaves)
+#                                            (these five need "Sessions can command other sessions" in Preferences)
 #
 #   fishbots pack new <id> [folder]          start a pack from the template (themes, fish, scenery, creatures)
 #   fishbots pack check <folder>             validate it and compile its drawings (errors at the pack's file:line)
@@ -240,7 +242,7 @@ case "$cmd" in
            post "{\"source\":\"$(esc "$1")\",\"presence\":\"$(esc "$2")\",\"kind\":\"$(esc "$3")\",\"state\":\"$(esc "$4")\"$l$d}"
          fi ;;
   show)  curl -s -m 2 "$URL/state" || { echo "fishbots: is the app running?" >&2; exit 1; } ;;
-  spawn) agent=""; dir="$PWD"; label=""; launcher=""; timeout=30; beside=""; vars="CLAUDE_CONFIG_DIR CODEX_HOME"; set_vars=""
+  spawn) agent=""; dir="$PWD"; label=""; launcher=""; timeout=30; tab=""; vars="CLAUDE_CONFIG_DIR CODEX_HOME"; set_vars=""
          while [ $# -gt 0 ]; do
            case "$1" in
              --agent) agent="$2"; shift 2 ;;
@@ -248,13 +250,13 @@ case "$cmd" in
              --label) label="$2"; shift 2 ;;
              --launcher) launcher="$2"; shift 2 ;;
              --timeout) timeout="$2"; shift 2 ;;
-             --beside) beside=1; shift ;;
+             --tab) tab=1; shift ;;
              --env) case "$2" in
                       *=*) set_vars="$set_vars,\"$(esc "${2%%=*}")\":\"$(esc "${2#*=}")\"" ;;
                       *) vars="$vars $2" ;;
                     esac; shift 2 ;;
              --) shift; break ;;
-             --*) echo "usage: fishbots spawn [--agent id] [--cwd dir] [--label text] [--beside] [--env NAME[=value]]… [--launcher id] [--timeout secs] [prompt]" >&2; exit 2 ;;
+             --*) echo "usage: fishbots spawn [--agent id] [--cwd dir] [--label text] [--tab] [--env NAME[=value]]… [--launcher id] [--timeout secs] [prompt]" >&2; exit 2 ;;
              *) break ;;
            esac
          done
@@ -264,7 +266,7 @@ case "$cmd" in
          [ -n "$agent" ] && j="$j,\"agent\":\"$(esc "$agent")\""
          [ -n "$label" ] && j="$j,\"label\":\"$(esc "$label")\""
          [ -n "$launcher" ] && j="$j,\"launcher\":\"$(esc "$launcher")\""
-         [ -n "$beside" ] && j="$j,\"beside\":true"
+         [ -n "$tab" ] && j="$j,\"tab\":true"
          [ $# -gt 0 ] && j="$j,\"prompt\":\"$(esclines "$*")\""
          e="$set_vars"
          for v in $vars; do
@@ -278,18 +280,30 @@ case "$cmd" in
          control reply 20 "{\"fish\":\"$(esc "$f")\",\"text\":\"$(esc "$(printf '%s' "$*" | tr '\n\r\t' '   ')")\"}" ;;
   stop)  [ $# -ge 1 ] || { echo "usage: fishbots stop <fish>" >&2; exit 2; }
          control stop 5 "{\"fish\":\"$(esc "$1")\"}" ;;
-  wait)  states=""; timeout=600
+  close) [ $# -ge 1 ] || { echo "usage: fishbots close <fish>…" >&2; exit 2; }
+         bad=0; for f in "$@"; do ( control close 15 "{\"fish\":\"$(esc "$f")\"}" ) || bad=1; done; exit $bad ;;
+  wait)  states=""; timeout=600; all=""
          while [ $# -gt 0 ]; do
            case "$1" in
+             --all) all=1; shift ;;
              --states) states="$2"; shift 2 ;;
              --timeout) timeout="$2"; shift 2 ;;
              *) break ;;
            esac
          done
-         [ $# -ge 1 ] || { echo "usage: fishbots wait [--states done,waiting,error,idle] [--timeout secs] <fish>…" >&2; exit 2; }
+         [ $# -ge 1 ] || { echo "usage: fishbots wait [--all] [--states done,waiting,error,idle] [--timeout secs] <fish>…" >&2; exit 2; }
          case "$timeout" in ''|*[!0-9]*) echo "fishbots: --timeout takes seconds" >&2; exit 2 ;; esac
          list=""; for f in "$@"; do list="$list${list:+,}\"$(esc "$f")\""; done
          s=""; [ -n "$states" ] && s=",\"states\":[\"$(esc "$states" | sed 's/,/","/g')\"]"
+         if [ -n "$all" ]; then
+           # each in turn, within the same total time: one that already stopped answers at once
+           until=$(( $(date +%s) + timeout )); bad=0
+           for f in "$@"; do
+             left=$(( until - $(date +%s) )); [ $left -lt 1 ] && left=1
+             ( control wait $((left + 10)) "{\"fish\":[\"$(esc "$f")\"]$s,\"timeout\":$left}" ) || bad=1
+           done
+           exit $bad
+         fi
          control wait $((timeout + 10)) "{\"fish\":[$list]$s,\"timeout\":$timeout}" ;;
   pack)  pack "$@" ;;
   agent) agent "$@" ;;

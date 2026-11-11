@@ -200,7 +200,7 @@ General), which is what an orchestrating agent needs ([docs/extensions.md](docs/
 `fishbots skill install` teaches your agent the cycle):
 
 ```sh
-fishbots spawn --cwd ../api "implement X; when done, sum it up"   # a new session in a new tab (Rex, Herdr, tmux), as this one's child
+fishbots spawn --cwd ../api "implement X; when done, sum it up"   # a new session in a pane beside this one (Rex, Herdr, tmux), as its child
 fishbots wait claude-code:1f3a codex:9b2c     # until one stops working: which, how, and its last reply
 fishbots reply claude-code:1f3a "use the new table"
 fishbots stop claude-code:1f3a
