@@ -140,6 +140,8 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     private static var expanded: [String: Set<String>] = [:]
     /// Go to the session (the card's "where" line).
     var go: (() -> Void)?
+    /// Ends the session (closes its pane), where the aquarium can; it asks first.
+    var end: (() -> Void)?
     /// The sessions it launched, the one that launched it, and opening another fish's card from this one.
     var school: [Fish] = []
     var leader: Fish?
@@ -180,7 +182,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     override func loadView() {
         // the music fish has its own card: "now playing"
         if f.sings { view = musicCard(); return }
-        let parts = [header(), now(), places(), family(), said(), activity(), permission(), composer(), hints()]
+        let parts = [header(), now(), places(), family(), said(), activity(), permission(), composer(), hints(), ending()]
         let stack = NSStackView(views: parts.flatMap { $0 })
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -288,7 +290,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         }
         // launched by another session: its leader (a click opens the leader's card)
         if let l = leader {
-            tags.append(tag(link("↳ " + (l.nickname ?? l.displayTitle ?? l.label).prefix(28), tip: tr("quem lançou esta sessão")) { [weak self] in
+            tags.append(tag(link("↳ " + (l.nickname ?? l.displayTitle ?? l.label).prefix(14), tip: tr("quem lançou esta sessão")) { [weak self] in
                 self?.visit?(l)
             }))
         }
@@ -409,7 +411,42 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     /// A permission request: answer right here.
     private func permission() -> [NSView] {
         var v: [NSView] = []
-        if let p = request {
+        if let p = request, let q = p.question {
+            // a question with a menu of answers: each answer is a button, and anything else can be written
+            v.append(divider())
+            v.append(tinted(text("✋ " + q.text, 12.5, .semibold, color: .labelColor), .systemOrange))
+            for (i, o) in q.options.enumerated() {
+                let b = NSButton(title: "\(i + 1). " + o.label, target: self, action: #selector(clicked(_:)))
+                b.identifier = NSUserInterfaceItemIdentifier("answer:\(i + 1)")
+                b.bezelStyle = .rounded
+                b.toolTip = o.about.isEmpty ? nil : o.about
+                if i < 9 { b.keyEquivalent = "\(i + 1)" }
+                let about = text(o.about, 10.5, color: .secondaryLabelColor)
+                about.lineBreakMode = .byTruncatingTail
+                about.maximumNumberOfLines = 1
+                about.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+                v.append(row([b, about, NSView()]))
+            }
+            let other = NSTextField(string: "")
+            other.placeholderString = tr("outra resposta… (↩ envia)")
+            other.bezelStyle = .roundedBezel
+            other.font = .systemFont(ofSize: 12)
+            other.target = self
+            other.action = #selector(answered(_:))
+            other.cell?.sendsActionOnEndEditing = false
+            other.widthAnchor.constraint(equalToConstant: width).isActive = true
+            v.append(other)
+            let there = NSButton(title: tr("Ir até lá"), target: self, action: #selector(clicked(_:)))
+            there.identifier = NSUserInterfaceItemIdentifier("go"); there.bezelStyle = .rounded
+            v.append(row([there, NSView()]))
+        } else if let p = request, p.tool == "AskUserQuestion" {
+            // several questions, or several answers to one: that's the terminal's menu to fill in
+            v.append(divider())
+            v.append(tinted(text("✋ " + tr("Ela tem perguntas para você, com opções: responda no terminal."), 12, color: .labelColor), .systemOrange))
+            let there = NSButton(title: tr("Ir até lá"), target: self, action: #selector(clicked(_:)))
+            there.identifier = NSUserInterfaceItemIdentifier("allow-go"); there.bezelStyle = .rounded; there.keyEquivalent = "\r"
+            v.append(row([NSView(), there]))
+        } else if let p = request {
             v.append(divider())
             v.append(text(tr("✋ quer usar %@", p.tool), 13, .semibold, color: .systemOrange))
             v.append(tinted(text(p.summary, 11.5, color: .labelColor, mono: true), .secondaryLabelColor))
@@ -484,6 +521,14 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         if field != nil && !keyboardHint { v.append(text(tr("vai digitado no terminal da sessão"), 10, color: .tertiaryLabelColor)) }
 
         return v
+    }
+
+    /// Ending the session, out of the way at the bottom right.
+    private func ending() -> [NSView] {
+        guard let end, request == nil else { return [] }
+        let b = link(tr("✕ encerrar sessão"), 10.5, color: NSColor.systemRed.blended(withFraction: 0.35, of: .white) ?? .systemRed,
+                     tip: tr("Fecha o painel dela no terminal (pergunta antes)")) { end() }
+        return [row([NSView(), b])]
     }
 
     /// The keys (opened with Tab) or the clicks.
@@ -595,6 +640,10 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     }
 
     @objc private func clicked(_ b: NSButton) { decide(b.identifier?.rawValue ?? "") }
+    @objc private func answered(_ field: NSTextField) {
+        let t = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !t.isEmpty { decide("answer:" + t) }
+    }
     private var sent = false
     /// Enter while the microphone is on: send once the transcription has its final words (or after 2 s).
     private var sendWhenDone = false

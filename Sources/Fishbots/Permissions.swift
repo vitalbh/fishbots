@@ -4,6 +4,37 @@ import AppKit
 /// The request also shows up in the terminal; whoever answers first wins. If the session moves on
 /// (answered in the terminal), the request here closes by itself, with no decision.
 final class Permissions {
+    /// The agent asking the person something with a menu of answers (Claude Code's AskUserQuestion): one question,
+    /// one answer. Allowing the tool only shows that menu in the terminal; answering it here hands the tool its
+    /// answer, and no menu is shown.
+    struct Question {
+        let text: String
+        let options: [(label: String, about: String)]
+
+        init?(tool: String, input: [String: Any]) {
+            guard tool == "AskUserQuestion", let all = input["questions"] as? [[String: Any]], all.count == 1,
+                  let text = all[0]["question"] as? String, all[0]["multiSelect"] as? Bool != true else { return nil }
+            self.text = text
+            options = (all[0]["options"] as? [[String: Any]] ?? []).compactMap { o in
+                (o["label"] as? String).map { ($0, o["description"] as? String ?? "") }
+            }
+        }
+
+        /// The option meant by what was typed (its number or its label); anything else is an answer in the
+        /// person's own words.
+        func resolve(_ typed: String) -> String {
+            let t = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let n = Int(t), options.indices.contains(n - 1) { return options[n - 1].label }
+            return options.first { $0.label.caseInsensitiveCompare(t) == .orderedSame }?.label ?? t
+        }
+
+        /// The question with its numbered answers, as text (what a session waiting on this one is told).
+        var asText: String {
+            ([text] + options.enumerated().map { "\($0.offset + 1). \($0.element.label)" + ($0.element.about.isEmpty ? "" : " — " + $0.element.about) })
+                .joined(separator: "\n")
+        }
+    }
+
     struct Request {
         let id: Int
         let source: String
@@ -11,6 +42,9 @@ final class Permissions {
         let tool: String
         let summary: String       // the command, the file, the URL…
         let since: Date
+        /// What the tool was called with, and the question in it if it's one with a menu.
+        var input: [String: Any] = [:]
+        var question: Question? = nil
         let reply: (Int, Data) -> Void
         var fishId: String { "\(source):\(session)" }
     }
@@ -26,8 +60,10 @@ final class Permissions {
         for p in pending where p.session == session && p.source == source { p.reply(200, Data("{}".utf8)) }
         pending.removeAll { $0.session == session && $0.source == source }
         let tool = m["tool_name"] as? String ?? "ferramenta"
+        let input = m["tool_input"] as? [String: Any] ?? [:]
+        let question = Question(tool: tool, input: input)
         let p = Request(id: next, source: source, session: session, tool: tool,
-                       summary: Self.summary(tool, m["tool_input"] as? [String: Any] ?? [:]), since: Date(), reply: reply)
+                       summary: question?.text ?? Self.summary(tool, input), since: Date(), input: input, question: question, reply: reply)
         next += 1
         pending.append(p)
         changed?()
@@ -51,6 +87,20 @@ final class Permissions {
 
     func request(ofFish id: String) -> Request? { pending.last { $0.fishId == id } }
     func request(id: Int) -> Request? { pending.first { $0.id == id } }
+
+    /// Answers a question with a menu: the tool runs with the answer already in it (`answers`), so the terminal
+    /// shows no menu. False: this request isn't such a question.
+    @discardableResult
+    func answer(_ id: Int, _ typed: String) -> Bool {
+        guard let i = pending.firstIndex(where: { $0.id == id }), let q = pending[i].question else { return false }
+        let p = pending.remove(at: i)
+        var input = p.input
+        input["answers"] = [q.text: q.resolve(typed)]
+        let body = (try? JSONSerialization.data(withJSONObject: ["behavior": "allow", "updatedInput": input])) ?? Data(#"{"behavior":"allow"}"#.utf8)
+        p.reply(200, body)
+        changed?()
+        return true
+    }
 
     /// Replies: "allow", "deny" or nil (no decision: follows the terminal's normal flow).
     func reply(_ id: Int, _ decision: String?) {

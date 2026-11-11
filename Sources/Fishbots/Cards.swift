@@ -57,6 +57,14 @@ final class Cards {
         return c == .stop || permissions.request(ofFish: f.id) == nil
     }
     func canReply(_ f: Fish) -> Bool { can(.reply, f) }
+
+    /// A session's line for another (`fishbots reply`) when that one is asking something with a menu: it's the
+    /// answer. False: it isn't asking that way.
+    func answer(_ f: Fish, _ text: String) -> Bool {
+        guard let p = permissions.request(ofFish: f.id), p.question != nil else { return false }
+        decide(p.id, "answer:" + text)
+        return true
+    }
     func canStop(_ f: Fish) -> Bool { can(.stop, f) }
 
     func sendReply(_ f: Fish, _ text: String) {
@@ -162,6 +170,9 @@ final class Cards {
             self.decide(p.id, action)
         }
         card.go = { [weak f] in if let f { Whereabouts.go(f) } }
+        if SessionControl.canEnd(f) {
+            card.end = { [weak f] in if let f { (NSApp.delegate as? AppDelegate)?.endSession(f) } }
+        }
         card.school = tank.school(of: f)
         card.leader = tank.leader(of: f)
         card.visit = { [weak self] other in self?.show(other) }
@@ -221,6 +232,14 @@ final class Cards {
         guard let p = permissions.request(id: id) else { return }
         let f = tank.fish(source: p.source, entity: p.session)
         switch action {
+        case let a where a.hasPrefix("answer:"):
+            // a question with a menu, answered here: the tool gets its answer and the terminal shows no menu
+            guard permissions.answer(id, String(a.dropFirst("answer:".count))) else { return }
+            if let f {
+                f.glow = 1
+                tank.ring(at: f.pos, color: [0.5, 1, 0.6], size: f.size * 0.5, grow: 120, life: 0.7)
+                tank.upsert(source: p.source, entity: p.session, state: .busy, label: nil)
+            }
         case "allow", "deny":
             permissions.reply(id, action)
             if let f {
@@ -228,6 +247,10 @@ final class Cards {
                 tank.ring(at: f.pos, color: action == "allow" ? [0.5, 1, 0.6] : [1, 0.5, 0.45], size: f.size * 0.5, grow: 120, life: 0.7)
                 tank.upsert(source: p.source, entity: p.session, state: .busy, label: nil)
             }
+        case "allow-go":
+            // questions the terminal's menu has to take: let it show them, and go there
+            permissions.reply(id, "allow")
+            if let f { Whereabouts.go(f) }
         default:
             if let f { Whereabouts.go(f) }
         }

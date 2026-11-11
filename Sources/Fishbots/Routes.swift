@@ -11,6 +11,7 @@ extension AppDelegate {
             }
             Outputs.register(sessionControl)
             server?.deferred.append(sessionControl.handle)
+            sessionControl.answer = { [unowned self] f, text in self.cards.answer(f, text) }
             server?.deferred.append { [unowned self] method, path, headers, body, reply in
                 let route = path.split(separator: "?").first.map(String.init) ?? path
                 guard method == "POST", let (provider, isPermission) = Providers.route(route), isPermission else { return false }
@@ -23,6 +24,8 @@ extension AppDelegate {
                     _ = provider.handle(route: mainRoute, body: d, headers: headers, tank: self.tank)
                 }
                 if let p = self.permissions.add(m, source: source, reply: reply), let f = self.tank.fish(source: source, entity: p.session) {
+                    // a question with a menu: what it asks, with its answers, for the card and for a session waiting on it
+                    if let q = p.question { f.asked = q.asText }
                     Outputs.emit(TankEvent(type: "permission", fish: f, detail: p.tool + ": " + p.summary))
                     if Attention.level(source, .waiting) == .urgent { self.notifier.notify(f, request: p.id, summary: p.tool + ": " + p.summary) }
                 }

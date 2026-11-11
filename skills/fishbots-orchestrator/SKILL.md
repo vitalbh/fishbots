@@ -53,7 +53,9 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
 - **`--agent`** picks another agent (`codex`…); the default is yours. `--cwd` is the folder it works in (default:
   the current one). Children that edit the same files step on each other: give each its own folder or git worktree.
 - **`wait` after `reply` is safe**: it waits for what the session says next, not for the reply it already gave.
-  `state: "waiting"` comes with `asked`: answer it with `reply`, or pass it on to the person.
+  `state: "waiting"` comes with `asked`: answer it with `reply`, or pass it on to the person. When `asked` lists
+  numbered answers (the child asked with a menu), `reply` with the number or the label picks one, and any other
+  text is an answer in your own words.
 - **Permission requests stay with the person.** A child that needs approval shows up as waiting in the aquarium;
   you can't approve it. Say so instead of retrying.
 - **Limits:** at most 6 children at work at a time (the ones that finished do not count), and a child can't start children of its own.

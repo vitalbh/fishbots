@@ -59,6 +59,8 @@ final class SessionControl: EventSink {
     private var ticker: Timer?
     /// The last reply is read from the transcript a moment after the turn ends.
     private let settle: TimeInterval = 1.5
+    /// A line for a session that's asking something with a menu of answers: it's the answer (true if it was).
+    var answer: ((Fish, String) -> Bool)?
 
     init(tank: Tank, port: @escaping () -> UInt16, can: @escaping (Capability, Fish) -> Bool) {
         self.tank = tank
@@ -88,6 +90,10 @@ final class SessionControl: EventSink {
             let f = found[0]
             guard let text = m["text"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 reply(400, Self.error(#"send {"fish": "…", "text": "…"}"#)); return true
+            }
+            if answer?(f, text) == true {
+                sent.insert(f.id)
+                reply(200, Data(#"{"ok":true,"answered":true}"#.utf8)); return true
             }
             guard can(.reply, f), let provider = Providers.of(f.source) else {
                 reply(409, Self.error("\(f.id) can't take a reply now (state: \(f.state.rawValue))")); return true
@@ -169,6 +175,23 @@ final class SessionControl: EventSink {
             return home == NSString(string: k.usual).expandingTildeInPath ? [:] : [k.variable: home]
         }
         return (UserDefaults.standard.dictionary(forKey: "launchAccount") as? [String: [String: String]])?[agent] ?? [:]
+    }
+
+    /// Can the aquarium close this session's pane? (It runs where a launcher can reach: Rex, Herdr, tmux.)
+    static func canEnd(_ f: Fish) -> Bool {
+        f.isAgent && !f.decor && Launchers.all.contains { $0.available && $0.hosts(f.whereabouts) }
+    }
+
+    /// The person ends a session from its card: its pane closes, whatever it's doing, and its fish leaves. `done`
+    /// gets what went wrong, or nil.
+    func end(_ f: Fish, done: @escaping (String?) -> Void) {
+        guard let launcher = Launchers.all.first(where: { $0.available && $0.hosts(f.whereabouts) }) else {
+            done("\(f.id) isn't in a pane that can be closed"); return
+        }
+        launcher.close(f.whereabouts) { [weak self, weak f] failure in
+            if failure == nil, let f { self?.tank.remove(source: f.source, entity: String(f.id.dropFirst(f.source.count + 1))) }
+            done(failure)
+        }
     }
 
     /// From the aquarium itself (the "Nova sessão…" menu): a session of the person's own, nobody's child. `done`
