@@ -95,11 +95,10 @@ final class RexLauncher: SessionLauncher {
         let session = r.near?["rex_session"]
         var args = ["--autostart=false", "--timeout", "10s"]
         if r.beside, let block = r.near?["rex_block"] { args += ["split", "-b", block] } else { args += ["run"] }
-        // --interactive: agents often get into PATH from ~/.zshrc
-        args += ["--focus=false", "--interactive", "--json", "-c", r.cwd]
+        args += ["--focus=false", "--json", "-c", r.cwd]
         if let session { args += ["-s", session] }
         if let l = r.label, !l.isEmpty { args += ["--label", l] }
-        Launchers.run(bin, args + ["--"] + r.argv) { out, err in
+        let finish: (String, String) -> Void = { out, err in
             guard let block = (Whereabouts.json(Data(out.utf8))?["block_ids"] as? [String])?.first else {
                 done(.failure(Launchers.failure("rex", err))); return
             }
@@ -107,6 +106,19 @@ final class RexLauncher: SessionLauncher {
             if let session { place["rex_session"] = session }
             done(.success(place))
         }
+        // --interactive: agents often get into PATH from ~/.zshrc. A Rex from before that flag refuses it: there the
+        // user's own shell reads its startup files and then becomes the command.
+        Launchers.run(bin, args + ["--interactive", "--"] + r.argv) { out, err in
+            guard err.contains("unknown flag: --interactive") else { finish(out, err); return }
+            Launchers.run(bin, args + ["--"] + Self.throughShell(r.argv), done: finish)
+        }
+    }
+
+    /// The command run by the user's interactive login shell (zsh or bash; any other shell: the command as it is).
+    static func throughShell(_ argv: [String]) -> [String] {
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        guard ["zsh", "bash"].contains((shell as NSString).lastPathComponent) else { return argv }
+        return [shell, "-ilc", #"exec "$@""#, "fishbots"] + argv
     }
 }
 
