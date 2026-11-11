@@ -196,8 +196,8 @@ Some gauge names change the whole scene, whatever the source (the highest value 
 
 | Gauge | 0 … 1 |
 |---|---|
-| `rain` | thin slanted streaks in the air above the water, drops ringing on the surface, a darker day |
-| `waves` | a calm surface … a rough one (floating bottles ride it) |
+| `rain` | thin slanted streaks in the air above the water, drops ringing on the surface and their rings of light on the sand, a darker day |
+| `waves` | a calm surface … a rough one (floating bottles ride it; the bands of light it throws on the sand sharpen) |
 | `temperature` | cold (bluer water) … 0.5 neutral … warm (amber, greener water) |
 | `fog` | a haze over everything |
 

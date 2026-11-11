@@ -17,6 +17,7 @@ extension Tank {
         out += scene.sprites(self, front: true)
         // marine snow up close, in front of the fish
         out += motes.sprites(self, front: true)
+        out += dust.sprites(self, front: true)
         // the snail on the glass
         out += dressFauna(fauna.front(self))
         out += onTheGlass()
@@ -60,6 +61,7 @@ extension Tank {
 
         // marine snow far away, and the shadows on the sand (under the fish and whatever swims)
         out += motes.sprites(self, front: false)
+        out += dust.sprites(self, front: false)
         for f in fish where !isHidden(f) {
             if let s = shadow(under: f.pos, size: f.size * (1 - 0.35 * f.depth), strength: (f.leaving ? 0.4 : 1) * (1 - f.depth * 0.6)) { out.append(s) }
         }

@@ -123,7 +123,10 @@ pond: koi, a stone lantern, lily pads, a shrine for the chest, frogs, koinobori,
 `arctic` (under the ice: an ice ceiling, polar cod, a seal, a narwhal, the frozen chest, its own cold sky) and `kelp`
 (a kelp forest: giant kelp to the surface, an urchin barren, the sheephead, garibaldi, a sea otter, sea lions) and
 `trench` (an abyssal trench: no daylight, black smokers, tube worms, a whale fall, comb jellies, a siphonophore, a
-bathysphere for the chest, session fish as lanternfish lit in the project's color).
+bathysphere for the chest, session fish as lanternfish lit in the project's color) and `amazon` (the Amazon's
+blackwater: the flooded forest behind tea-colored water, giant water lilies, a sunken branch, a Marajoara urn for the
+chest, session fish as discus, piranhas and peacock bass, cardinal tetras, an arapaima, the pink river dolphin, a river
+stingray, a pleco on the glass, an electric eel, a black caiman for the shark).
 
 #### A theme's own background and looks
 A pack theme can draw its own far background and give the built-in pieces another look:
@@ -254,6 +257,10 @@ next to the built-in timbres. Up to 16 sounds in all packs together.
 ### 7. Fauna
 Each creature (crab, turtle, whale, snail, lanternfish) is a `Creature` with `update`, sprites per layer
 (background, middle, front) and a rule for when it shows up. A theme lists which creatures it uses.
+
+A creature that carries a light says so in `lamps(_:)` (where, how far it reaches, its color and strength): the
+strongest four go to the shader (`lamp_light`), and the seaweed, the sand and the marine snow around them take the
+light. The lanternfish and the anglerfish do.
 
 #### Creatures from packs
 A pack can't bring code, so a creature from a pack is its drawing (a Metal function) plus one of the app's ready-made

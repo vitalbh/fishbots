@@ -601,14 +601,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let d = UserDefaults.standard
         renderer.bloom = Env.value("BLOOM").flatMap(Float.init) ?? Float(d.object(forKey: "bloom") as? Double ?? 1.1)
         tank.motes.show = d.object(forKey: "marineSnow") as? Bool ?? true
+        tank.dust.show = d.object(forKey: "goldenDust") as? Bool ?? true
         let hourColors = d.object(forKey: "hourColors") as? Bool ?? true
         // the quake also moves the background (the sprites move in Tank.sprites)
-        let u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
+        var u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
                          gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? (Themes.current.sky ?? Sky()).grade(hour: hourNow()) : [1, 1, 1, 0],
                          scene: [tank.gauges.highest("waves") ?? 0, tank.gauges.highest("rain") ?? 0,
                                  tank.gauges.highest("temperature") ?? 0.5, tank.gauges.highest("fog") ?? 0],
                          sky: (Themes.current.sky ?? Sky()).disc(hour: hourNow()),
                          flashColor: SIMD4(tank.scene.flashColor, 0))
+        u.setLamps(tank.fauna.lamps(tank))
         visual.size = tank.size
         if visual.sway == nil {
             visual.sway = { [unowned self] x, s in self.tank.weeds.dance(self.tank, at: x, strength: s) }

@@ -422,6 +422,7 @@ final class Tank {
 
     /// Marine snow, stirred by whatever moves the water.
     let motes = Motes()
+    let dust = Dust()
 
     /// Night: the water is dark enough for the plankton to show (bioluminescence).
     var isNight: Bool { light < 0.75 }
@@ -689,6 +690,7 @@ final class Tank {
         pearls.layout(self)
         rainOnSurface()
         motes.update(self, dt: dt)
+        dust.update(self, dt: dt)
 
         drift(dt: dt)
         tickSessions(dt: dt)

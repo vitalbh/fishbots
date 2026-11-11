@@ -80,19 +80,23 @@ final class Motes {
         let light = t.light
         let tint: SIMD3<Float> = SIMD3<Float>(0.78, 0.9, 0.95) * (0.55 + 0.45 * light)
         let look = t.themeLook("mote")
+        let lamps = t.fauna.lamps(t)
         return motes.filter { ($0.depth < 0.3) == front }.map { m in
             let shift = t.gaze * (-12 * (1 - m.depth))
             let twinkle = 0.75 + 0.25 * sinf(m.phase * 1.7)
             let lit = min(2.5, t.rayLight(m.pos) * 7)
-            let glow = min(1, (front ? 0.62 : 0.38) * twinkle * (1 + lit))
+            // a lamp nearby (a lanternfish's lure) lights the snow in its own color
+            let lamp = lamps.isEmpty ? SIMD3<Float>.zero : Lamp.light(lamps, at: m.pos)
+            let lampLit = max(lamp.x, max(lamp.y, lamp.z))
+            let glow = min(1, (front ? 0.62 : 0.38) * twinkle * (1 + lit) + lampLit * 0.9)
             if let (i, k) = look {
                 // the theme's own drifting bits (petals, ice crystals): bigger than a speck, turning slowly
                 return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * 3.2, kind: 35, glow: glow, phase: Float(t.time),
                               color: SIMD4(k.color * (0.55 + 0.45 * light), front ? 0.9 : 0.6), extra: [1, m.phase.truncatingRemainder(dividingBy: 1), Float(i), 0],
                               aux: [k.extent.x, k.extent.y, 0, 0])
             }
-            return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * (1 + lit * 0.25), kind: 33, glow: glow,
-                          phase: 0, color: SIMD4(tint * (1 + lit * 0.3), 1), extra: [1, 0, 0, 0])
+            return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * (1 + lit * 0.25 + lampLit * 0.5), kind: 33, glow: glow,
+                          phase: 0, color: SIMD4(tint * (1 + lit * 0.3) + lamp * 1.1, 1), extra: [1, 0, 0, 0])
         }
     }
 }

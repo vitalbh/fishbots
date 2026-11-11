@@ -34,6 +34,23 @@ float caustic(float2 p, float t) {
     return pow(abs(c), 8.0);
 }
 
+// The surface's height around its rest line at x (0…1 across the tank): the water line, and the lens that throws
+// the caustics on the sand (wave_focus).
+float surface_wave(float x, float t, float waves) {
+    return (0.006 * sin(x * 30.0 + t * 1.5) + 0.004 * sin(x * 71.0 - t * 2.3)) * (1.0 + 2.5 * waves)
+         + 0.007 * waves * sin(x * 13.0 - t * 3.1) - 0.004 * waves;
+}
+
+// How much the surface above x gathers the light below it (1: as much as flat water). Each crest is a lens: the
+// brightness goes with the surface's curvature, 1 / (1 - gain × curvature), so the bands on the sand travel with
+// the waves and sharpen into lines as the water gets rough.
+float wave_focus(float x, float t, float waves) {
+    float curv = (0.45 * sin(x * 30.0 + t * 1.5) + 0.55 * sin(x * 71.0 - t * 2.3) + 0.4 * waves * sin(x * 13.0 - t * 3.1))
+               / (1.0 + 0.4 * waves);
+    float gain = mix(0.62, 0.93, waves);
+    return min(sqrt(1.0 - gain * gain) / max(1.0 - gain * curv, 0.06), 4.0);
+}
+
 // a pack theme's background (generated at "@fish-kinds", see FishKinds.shaderSource)
 float4 draw_background_pack(int k, float2 uv, float t, float light, float2 gaze, float3 water, float4 extra);
 
@@ -45,6 +62,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float aspect = u.res.x / u.res.y;
     float t = u.time;
     float L = u.light;
+    float3 lampL = lamp_light(uv * u.res, u);                          // a lanternfish's lure nearby
 
     float3 deep = th.deep.rgb;
     float3 shallow = th.shallow.rgb;
@@ -79,8 +97,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
 
     // water surface
     float waves = u.scene.x;
-    float surf = 0.965 + (0.006 * sin(uv.x * 30.0 + t * 1.5) + 0.004 * sin(uv.x * 71.0 - t * 2.3)) * (1.0 + 2.5 * waves)
-               + 0.007 * waves * sin(uv.x * 13.0 - t * 3.1) - 0.004 * waves;
+    float surf = 0.965 + surface_wave(uv.x, t, waves);
     if (uv.y > surf) {
         col = mix(col, th.surface.rgb * (0.4 + 0.6 * L), 0.55);
         // the sky above the water: orange with a low sun, dark blue with stars at night
@@ -154,7 +171,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
             float dx = (ux - x0 - sway) * aspect;
             float w = 0.005 * (1.0 - 0.7 * k01);
             float blade = 1.0 - smoothstep(w * 0.4, w * 1.3, abs(dx));
-            col = mix(col, mix(fog, th.farWeed.rgb, 0.35), blade * 0.5);
+            col = mix(col, mix(fog, th.farWeed.rgb, 0.35) + th.weedHigh.rgb * lampL * 0.35, blade * 0.5);
         }
     }
 
@@ -245,6 +262,8 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
             green += th.weedHigh.rgb * smoothstep(0.55, 1.0, k01) * 0.12 * L;
             green *= mix(float3(1.0), float3(1.2, 0.82, 0.62), u.sky.z * u.sky.y * 2.2);   // reddish in the sunset
             green *= 1.0 - u.grade.w * 0.3;                                              // darker at night
+            // a lamp nearby (a lanternfish's lure) lights it in its own color, the edges facing it a little more
+            green += (mix(th.weedLow.rgb, th.weedHigh.rgb, k01) * 1.5 + 0.04) * lampL;
             col = mix(col, green, blade * 0.9);
         }
     }
@@ -288,7 +307,35 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
         sand += th.sandLight.rgb * step(0.997, grain) * 0.35 * L * (0.5 + 0.5 * sin(t * 2.0 + grain * 900.0));
         // the caustics play on it, stretched by the slant
         float cs = clamp(caustic(fq * float2(6.0, 9.0) - 120.0, t * 0.35), 0.0, 1.0);
-        sand += float3(0.6, 0.7, 0.6) * mix(c, cs, 0.7) * (0.12 + 0.22 * u.sky.y * (1.0 - u.grade.w)) * L;   // stronger under a high sun
+        // gathered by the real waves: under each crest of the surface a band of light, following the slant of the rays
+        // down from where it crossed the water line, and bending a little as the floor goes back
+        // (two sheets of it, leaning opposite ways into the distance, so the bands cross into a net)
+        float xs = uv.x - 0.35 * (0.965 - uv.y) / aspect + (vnoise(fq * float2(1.5, 5.0)) - 0.5) * 0.03;
+        float lean = (1.0 / persp - 1.0) * 0.011;
+        float wf = 0.5 * (wave_focus(xs + lean, t, waves) + wave_focus(xs - lean * 1.7 + 0.37, t * 0.93, waves));
+        float net = mix(c, cs, 0.7);
+        float sunny = (0.12 + 0.22 * u.sky.y * (1.0 - u.grade.w)) * L;                 // stronger under a high sun
+        sand += float3(0.6, 0.7, 0.6) * net * (0.35 + 0.75 * wf) * sunny;
+        sand *= 1.0 + (wf - 1.0) * 2.8 * sunny * (0.8 + 0.5 * net);                     // the bands: brighter under a crest, dimmer between
+        // rain: each drop's ring of light spreading on the sand under it (flattened by the slant), more with more rain
+        if (u.scene.y > 0.01) {
+            float rings = 0.0;
+            for (int i = 0; i < 2; i++) {
+                float fi = float(i);
+                float2 rc = float2(fp.x, fp.y * 0.36) * (5.0 + fi * 2.0) + fi * 13.7;
+                float2 id = floor(rc);
+                float h = hash21(id + fi * 31.0);
+                float tt = t / (1.3 + h * 1.5) + h * 9.0;
+                float n = floor(tt), ph = fract(tt);
+                if (hash21(id + n * 0.371 + 5.0) > u.scene.y * 0.85) continue;
+                float2 ctr = (float2(hash21(id + n * 1.3 + 1.0), hash21(id + n * 0.7 + 4.0)) - 0.5) * 0.3;
+                float rr = length(fract(rc) - 0.5 - ctr);
+                float w = 0.02 + ph * 0.02;
+                rings += (exp(-pow((rr - ph * 0.33) / w, 2.0)) + exp(-pow((rr - ph * 0.19) / w, 2.0)) * 0.4) * (1.0 - ph) * (1.0 - ph);
+            }
+            sand += float3(0.62, 0.74, 0.76) * rings * 0.6 * L * (1.0 - 0.6 * depth);
+        }
+        sand += th.sandLight.rgb * lampL * 0.45;                           // a lamp's pool of light on the floor
         // darker toward the glass, hazier toward the back, and the back line catches a little light
         sand *= mix(0.62, 1.0, smoothstep(0.0, 0.7, depth));
         sand = mix(sand, fog * 0.9, depth * depth * 0.35);

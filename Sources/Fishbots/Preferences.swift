@@ -220,6 +220,7 @@ private struct LookTab: View {
                 Toggle(tr("Cores da capa do álbum na luz da água e na aurora"), isOn: prefs.flag("albumColors", default: true))
                     .help(tr("Enquanto o Spotify ou o Música tocam, as duas cores mais marcantes da capa tingem os raios de luz, as cáusticas e a aurora."))
                 Toggle(tr("Neve marinha"), isOn: prefs.flag("marineSnow", default: true))
+                Toggle(tr("Poeira dourada nos raios de sol"), isOn: prefs.flag("goldenDust", default: true))
             }
             Section(tr("Visualizador")) {
                 Picker(tr("Visualizador"), selection: prefs.bind({ UserDefaults.standard.string(forKey: "visual") ?? "auto" },

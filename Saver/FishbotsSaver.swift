@@ -219,11 +219,12 @@ final class FishbotsSaverView: ScreenSaverView {
         if !isPreview { updateLabels() }
         renderer?.weeds = tank.weeds.uniforms()
         if let r = renderer { tank.shaderTime = r.shaderTime }
-        return (Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Sky().grade(hour: h),
+        var u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: 0, pix: .zero, grade: Sky().grade(hour: h),
                          scene: [tank.gauges.highest("waves") ?? 0, tank.gauges.highest("rain") ?? 0,
                                  tank.gauges.highest("temperature") ?? 0.5, tank.gauges.highest("fog") ?? 0],
-                         sky: Sky().disc(hour: h)),
-                visual.sprites() + tank.sprites())
+                         sky: Sky().disc(hour: h))
+        u.setLamps(tank.fauna.lamps(tank))
+        return (u, visual.sprites() + tank.sprites())
     }
 
     /// Name and state under each fish; whoever is waiting for you shows up in yellow.

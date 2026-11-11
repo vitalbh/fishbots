@@ -16,7 +16,20 @@ struct Uniforms {
     float4 scene;     // continuous controls from gauges: waves, rain, temperature (0.5 neutral), fog
     float4 sky;       // the sun or moon through the surface: x, strength, warmth
     float4 flashColor; // the lightning's color (the plugin's or the theme's)
+    float4 lamps[4];   // lamps in the water (Fauna.lamps): xy in points, z how far the light reaches, w how strong
+    float4 lampColors[4];
 };
+
+// The lamps' light falling on a point (in points): what's around a lanternfish's lure takes its color.
+float3 lamp_light(float2 p, constant Uniforms& u) {
+    float3 l = float3(0.0);
+    for (int i = 0; i < 4; i++) {
+        if (u.lamps[i].w < 0.002) continue;
+        float2 d = (p - u.lamps[i].xy) / u.lamps[i].z;
+        l += u.lampColors[i].rgb * (u.lamps[i].w * exp(-dot(d, d) * 2.2));
+    }
+    return min(l, float3(1.3));                                        // several together don't burn it out
+}
 
 // Water temperature and fog, applied to everything (background and sprites).
 float3 scene_tint(float3 c, float a, constant Uniforms& u) {

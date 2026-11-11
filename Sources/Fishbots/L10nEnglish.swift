@@ -322,6 +322,7 @@ let english: [String: String] = [
     "Forte": "Strong",
     "Cores da hora (amanhecer, fim de tarde, noite)": "Colors of the hour (dawn, late afternoon, night)",
     "Neve marinha": "Marine snow",
+    "Poeira dourada nos raios de sol": "Golden dust in the sun rays",
     "Aurora de fundo": "Background aurora",
     "Automático (pelo estilo e pelo tema)": "Automatic (by style and theme)",
     "Rótulos": "Labels",

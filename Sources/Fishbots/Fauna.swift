@@ -4,6 +4,23 @@ import simd
 /// Where a creature is drawn, relative to the monitored fish.
 enum FaunaLayer { case background, middle, front }
 
+/// A light a creature carries in the water (a lure): the marine snow and the seaweed around it are lit by it.
+struct Lamp {
+    var pos: SIMD2<Float>
+    /// How far the light reaches, in points.
+    var radius: Float
+    var color: SIMD3<Float>
+    var strength: Float
+
+    /// The light of these lamps falling on a point: the same falloff as the shader's (lamp_light).
+    static func light(_ lamps: [Lamp], at p: SIMD2<Float>) -> SIMD3<Float> {
+        simd_min(lamps.reduce(.zero) { sum, l in
+            let d = (p - l.pos) / l.radius
+            return sum + l.color * (l.strength * expf(-simd_length_squared(d) * 2.2))
+        }, SIMD3(repeating: 1.3))
+    }
+}
+
 /// An ambient creature: it means nothing, it just brings the aquarium to life. Each one decides when it shows up.
 /// See docs/extensions.md.
 protocol Creature: AnyObject {
@@ -12,8 +29,13 @@ protocol Creature: AnyObject {
     func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite]
     /// Comes by now, if it's one that passes now and then (`{"summon": …}`); false: it's always around, or never comes.
     func summon(_ t: Tank) -> Bool
+    /// The lights it carries right now (most carry none).
+    func lamps(_ t: Tank) -> [Lamp]
 }
-extension Creature { func summon(_ t: Tank) -> Bool { false } }
+extension Creature {
+    func summon(_ t: Tank) -> Bool { false }
+    func lamps(_ t: Tank) -> [Lamp] { [] }
+}
 
 /// The tank's creatures: crabs in the sand, a turtle that swims across now and then, a snail on the glass,
 /// starfish, lanternfish at night and, rarely, a whale passing in the distance. The theme can pick which ones live here.
@@ -63,6 +85,8 @@ final class Fauna {
     func background(_ t: Tank) -> [Sprite] { creatures.flatMap { $0.sprites(t, layer: .background) } }
     func middle(_ t: Tank) -> [Sprite] { creatures.flatMap { $0.sprites(t, layer: .middle) } }
     func front(_ t: Tank) -> [Sprite] { creatures.flatMap { $0.sprites(t, layer: .front) } }
+    /// Every light the creatures carry.
+    func lamps(_ t: Tank) -> [Lamp] { creatures.flatMap { $0.lamps(t) } }
 }
 
 // MARK: - built-in creatures
@@ -301,6 +325,16 @@ final class Lanterns: Creature {
                           color: [0.12, 0.14, 0.2, night], extra: [dir, 0, kind, 0])
         }
     }
+
+    /// The light on its stalk, in front of the head, flickering as it's drawn (draw_fish, the lanternfish's lamp).
+    func lamps(_ t: Tank) -> [Lamp] {
+        guard night > 0.02 else { return [] }
+        return lanterns.map { l in
+            let phase = l.phase * 5
+            let flick = 0.8 + 0.2 * sinf(phase * 1.7) * sinf(phase * 0.63 + 1)
+            return Lamp(pos: l.pos + [(l.vel.x >= 0 ? 1 : -1) * 12, 6], radius: 110, color: [0.6, 1, 0.85], strength: night * flick)
+        }
+    }
 }
 
 /// The whale: rare, in the distance (or a gift when the day was productive).
@@ -447,6 +481,13 @@ final class Anglerfish: Creature {
         let c = SIMD3<Float>(0.2, 0.15, 0.14) * (0.6 + 0.4 * t.light)
         return [Sprite(pos: p, dir: [dir, 0], size: size, kind: 39, glow: 1, phase: phase, color: SIMD4(c, 1),
                        extra: [dir, open, 0, 0], aux: [1.3, 1.0, 0, 0])]
+    }
+
+    /// Its lure, brighter the darker the water.
+    func lamps(_ t: Tank) -> [Lamp] {
+        guard let p = pos else { return [] }
+        let dark = 1 - smoothstep(0.7, 0.95, t.light)
+        return [Lamp(pos: p + [dir * size * 0.9, size * 0.6], radius: 130, color: [0.55, 0.95, 1], strength: (0.35 + 0.65 * dark) * (0.85 + 0.15 * sinf(phase * 1.3)))]
     }
 }
 
