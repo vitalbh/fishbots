@@ -66,19 +66,33 @@ final class Crowding {
 }
 
 extension Tank {
-    /// A quiet session in its project's shoal: the oldest leads about its own business and the others keep a
-    /// place in a loose ball around it (a sunflower spiral, turning slowly); fanned out, the ball opens wide.
-    /// nil: it's in no shoal, or it's off doing something (nibbling, foraging) and comes back after.
+    /// A quiet session in its project's shoal: the oldest leads and the others keep a place in a loose ball around
+    /// it (a sunflower spiral, turning slowly); fanned out, the ball opens wide. The leader goes where it would along
+    /// the tank, but up in the open water (a resting fish keeps low, and a ball down there gets squashed on the
+    /// sand). nil: it's in no shoal, or it's off doing something (nibbling, foraging) and comes back after.
     func shoaled(_ f: Fish, target: SIMD2<Float>, speed: Float, scale: Float) -> Heading? {
-        guard let mates = crowding.shoals[f.projectKey], let i = mates.firstIndex(where: { $0 === f }), i > 0,
+        guard let mates = crowding.shoals[f.projectKey], let i = mates.firstIndex(where: { $0 === f }),
               f.action == nil else { return nil }
+        if i == 0 {
+            // a long winding round over its home stretch and a little into the neighbours', up and down most of
+            // the water: brisk while any of them works, easy when they all rest
+            let working = mates.contains { $0.state == .busy || $0.state == .born }
+            let home = crowding.homes[f.projectKey] ?? 0.1...0.9
+            let cx = (home.lowerBound + home.upperBound) / 2
+            let ax = max((home.upperBound - home.lowerBound) * 0.8, 0.2)
+            let t = Float(time) * (working ? 0.13 : 0.08) + Float(f.phase) * 1.7
+            let x = cx + ax * (0.8 * sinf(t) + 0.2 * sinf(t * 2.3 + 1))
+            let y = 0.55 + 0.22 * sinf(t * 1.37 + 0.8) + 0.05 * cosf(t * 3.1)
+            // (off the side glass by more than the ball's width, so the ones around it don't press against it)
+            return Heading(target: [size.x * max(0.12, min(0.88, x)), size.y * y], speed: working ? 95 : 60, scale: scale)
+        }
         let lead = mates[0]
         let open: Float = crowding.fanned(f.projectKey) ? 2.6 : 1
-        let a = Float(i) * 2.39996 + Float(time) * 0.12
-        let r = (lead.size * 0.95 + 10) * sqrtf(Float(i)) * open
-        let sway = SIMD2(cosf(Float(time) * 0.9 + Float(f.phase)), sinf(Float(time) * 1.2 + Float(f.phase))) * 6
+        let a = Float(i) * 2.39996 + Float(time) * 0.28
+        let r = (lead.size * 0.95 + 10) * sqrtf(Float(i)) * open * (1 + 0.25 * sinf(Float(time) * 0.6 + Float(i)))
+        let sway = SIMD2(cosf(Float(time) * 0.9 + Float(f.phase)), sinf(Float(time) * 1.2 + Float(f.phase))) * 14
         var place = lead.pos + SIMD2(cosf(a), sinf(a) * 0.7) * r + sway
-        place.y = max(size.y * 0.12, min(size.y * 0.9, place.y))
+        place.y = max(size.y * 0.25, min(size.y * 0.9, place.y))
         place.x = max(size.x * 0.06, min(size.x * 0.94, place.x))
         let away = simd_distance(f.pos, place)
         return Heading(target: place, speed: min(170, 25 + away * 1.3), scale: min(scale, 0.9))
