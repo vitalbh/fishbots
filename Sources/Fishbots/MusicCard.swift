@@ -99,7 +99,9 @@ extension FishCard {
             v.append(bar)
         }
         let open = link(player == "Spotify" ? tr("abrir no Spotify ↗") : tr("abrir no Música ↗"), 10.5, color: .white.withAlphaComponent(0.55)) { [weak self] in self?.go?() }
-        v.append(row([NSView(), open]))
+        // dragged off its fish, it stays until closed here
+        let shut: [NSView] = unpin.map { u in [link(tr("fechar o cartão"), 10.5, color: .white.withAlphaComponent(0.55)) { u() }] } ?? []
+        v.append(row(shut + [NSView(), open]))
         if let r = v.last as? NSStackView { r.widthAnchor.constraint(equalToConstant: w).isActive = true }
 
         let stack = NSStackView(views: v)

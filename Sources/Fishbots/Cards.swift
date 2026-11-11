@@ -29,6 +29,16 @@ final class Cards: NSObject, NSPopoverDelegate {
         self.tank = tank
         self.permissions = permissions
         super.init()
+        // Esc closes a card that was dragged off its fish: the one under the mouse, or the one the keys are going to
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
+            guard let self, e.keyCode == 53, !self.pinned.isEmpty else { return e }
+            let mouse = NSEvent.mouseLocation
+            let windows = self.pinned.values.compactMap { $0.pop.contentViewController?.view.window }
+            guard let w = windows.first(where: { $0.frame.contains(mouse) }) ?? windows.first(where: { $0.isKeyWindow }),
+                  let out = self.pinned.values.first(where: { $0.pop.contentViewController?.view.window === w }) else { return e }
+            out.pop.close()
+            return nil
+        }
     }
 
     // MARK: - cards dragged off their fish
