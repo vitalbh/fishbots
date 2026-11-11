@@ -47,6 +47,8 @@ final class SessionControl: EventSink {
         let before: Set<String>
         /// What the session that launched it called it: its fish's name in the tank.
         var name: String? = nil
+        /// The git worktree and branch made for it (`fishbots spawn --worktree`), told back to whoever launched it.
+        var worktree: [String: String] = [:]
         let reply: (Int, Data) -> Void
     }
 
@@ -271,7 +273,8 @@ final class SessionControl: EventSink {
             case .success(let place):
                 self.tank.scenery.expect(self.tank, source: provider.id, for: patience + 30)
                 let b = Birth(id: self.next, source: provider.id, place: place, parent: parent?.id, cwd: folder, before: before,
-                              name: parent == nil ? nil : (m["label"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(40)) }, reply: reply)
+                              name: parent == nil ? nil : (m["label"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(40)) },
+                              worktree: ["worktree": m["worktree"] as? String, "branch": m["branch"] as? String].compactMapValues { $0 }, reply: reply)
                 self.next += 1
                 self.births.append(b)
                 // the person's own, and its fish is taking long to hatch: it's probably asking something first (to
@@ -365,6 +368,7 @@ final class SessionControl: EventSink {
                 var d = Self.snapshot(f)
                 d["where"] = b.place
                 if let p = b.parent { d["parent"] = p }
+                for (k, v) in b.worktree { d[k] = v }
                 self.deliver(b.id, 200, d)
             }
             let alive = Set(self.tank.fish.filter { !$0.leaving }.map(\.id))

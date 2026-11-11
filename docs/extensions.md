@@ -370,7 +370,7 @@ checks as the card apply, so nothing is typed where the card wouldn't type):
 | `/control/stop` | `fish` | ok |
 | `/control/close` | `fish` | closes the pane of a session the asker launched (the launcher's `close`); its fish leaves |
 | `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them stops working (done, waiting, error, idle; or the `states` asked for): which, its state, its last reply |
-| `/control/spawn` | `agent`, `model`, `cwd`, `prompt`, `label`, `launcher`, `tab`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
+| `/control/spawn` | `agent`, `model`, `cwd` (`worktree`, `branch`: echoed back; the CLI's `--worktree` makes them), `prompt`, `label`, `launcher`, `tab`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
 
 `fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish
 takes right now (`can`) and who launched it (`parent`). From the command line: `fishbots spawn | reply | stop |

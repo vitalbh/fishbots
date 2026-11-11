@@ -11,7 +11,8 @@
 #   fishbots summon <creature|all>                     a passing creature comes by now (whale, turtle, sunfish…)
 #   fishbots show                                      current state as JSON
 #
-#   fishbots spawn [--agent id] [--model m] [--cwd dir] [--label text] [--tab] [--env NAME]… [prompt]   start a session in
+#   fishbots spawn [--agent id] [--model m] [--cwd dir] [--label text] [--worktree] [--tab] [--env NAME]… [prompt]
+#                                            (--worktree: in a git worktree and branch of its own)   start a session in
 #                                            a pane next to this one, in the terminal this runs in (Rex, Herdr, tmux;
 #                                            --tab: a tab of its own; --launcher picks another), as a child of this
 #                                            session; prints its fish once it's born. It gets this shell's
@@ -216,6 +217,27 @@ control() {
   case "$out" in *'"error"'*) exit 1 ;; esac
 }
 
+# await <fish, as JSON strings> <states, as JSON or nothing> <seconds>: /control/wait that goes on waiting when the
+# app goes away and comes back (a restart), until its own time is up
+await() {
+  until=$(( $(date +%s) + $3 )); back=""
+  while :; do
+    left=$(( until - $(date +%s) )); [ $left -lt 1 ] && left=1
+    if out=$(curl -s -m $((left + 10)) -H 'Expect:' -H 'Content-Type: application/json' \
+      -H "X-Where-Rex-Block: ${REX_BLOCK:-}" -H "X-Where-Herdr: ${HC_TERMINAL_ID:-}" -H "X-Where-Tmux: ${TMUX_PANE:-}" \
+      --data-binary "{\"fish\":[$1]$2,\"timeout\":$left}" "$URL/control/wait") && [ -n "$out" ]; then
+      # just back: the app may not have its fish again yet
+      case "$out" in *'"error"'*'no fish'*) [ -n "$back" ] && [ $(date +%s) -lt "$back" ] && { sleep 2; continue; } ;; esac
+      break
+    fi
+    [ $(date +%s) -ge $until ] && { out='{"timeout":true}'; break; }
+    sleep 2
+    back=$(( $(date +%s) + 30 ))
+  done
+  printf '%s\n' "$out"
+  case "$out" in *'"error"'*) return 1 ;; esac
+}
+
 cmd="$1"; [ $# -gt 0 ] && shift
 # the original Portuguese commands still work
 case "$cmd" in
@@ -244,7 +266,7 @@ case "$cmd" in
            post "{\"source\":\"$(esc "$1")\",\"presence\":\"$(esc "$2")\",\"kind\":\"$(esc "$3")\",\"state\":\"$(esc "$4")\"$l$d}"
          fi ;;
   show)  curl -s -m 2 "$URL/state" || { echo "fishbots: is the app running?" >&2; exit 1; } ;;
-  spawn) agent=""; model=""; dir="$PWD"; label=""; launcher=""; timeout=30; tab=""; vars="CLAUDE_CONFIG_DIR CODEX_HOME"; set_vars=""
+  spawn) agent=""; model=""; worktree=""; dir="$PWD"; label=""; launcher=""; timeout=30; tab=""; vars="CLAUDE_CONFIG_DIR CODEX_HOME"; set_vars=""
          while [ $# -gt 0 ]; do
            case "$1" in
              --agent) agent="$2"; shift 2 ;;
@@ -254,18 +276,36 @@ case "$cmd" in
              --launcher) launcher="$2"; shift 2 ;;
              --timeout) timeout="$2"; shift 2 ;;
              --tab) tab=1; shift ;;
+             --worktree) worktree=1; shift ;;
              --env) case "$2" in
                       *=*) set_vars="$set_vars,\"$(esc "${2%%=*}")\":\"$(esc "${2#*=}")\"" ;;
                       *) vars="$vars $2" ;;
                     esac; shift 2 ;;
              --) shift; break ;;
-             --*) echo "usage: fishbots spawn [--agent id] [--model m] [--cwd dir] [--label text] [--tab] [--env NAME[=value]]… [--launcher id] [--timeout secs] [prompt]" >&2; exit 2 ;;
+             --*) echo "usage: fishbots spawn [--agent id] [--model m] [--cwd dir] [--label text] [--worktree] [--tab] [--env NAME[=value]]… [--launcher id] [--timeout secs] [prompt]" >&2; exit 2 ;;
              *) break ;;
            esac
          done
          case "$timeout" in ''|*[!0-9]*) echo "fishbots: --timeout takes seconds" >&2; exit 2 ;; esac
          dir=$(cd "$dir" 2>/dev/null && pwd) || { echo "fishbots: --cwd isn't a folder" >&2; exit 2; }
+         made=""; branch=""
+         if [ -n "$worktree" ]; then
+           # a git worktree of its own for the child, on a branch of its own from where the repository is now: inside
+           # the repository (a folder the agents already trust), kept out of its status by the local exclude file
+           root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || { echo "fishbots: --worktree needs --cwd to be in a git repository" >&2; exit 2; }
+           sub="${dir#"$root"}"
+           name=$(printf '%s' "${label:-child}" | { iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null || cat; } | tr -d "~'^\`\"" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-//; s/-$//' | cut -c1-32)
+           [ -n "$name" ] || name=child
+           n=1; base="$name"
+           while [ -e "$root/.fishbots/worktrees/$name" ] || git -C "$root" show-ref --verify --quiet "refs/heads/fishbots/$name"; do n=$((n + 1)); name="$base-$n"; done
+           common=$(cd "$root" && cd "$(git rev-parse --git-common-dir)" && pwd)
+           grep -qxF '.fishbots/' "$common/info/exclude" 2>/dev/null || { mkdir -p "$common/info" && echo '.fishbots/' >> "$common/info/exclude"; }
+           made="$root/.fishbots/worktrees/$name"; branch="fishbots/$name"
+           git -C "$root" worktree add -q -b "$branch" "$made" >&2 || { echo "fishbots: couldn't make the worktree" >&2; exit 1; }
+           dir="$made$sub"; [ -d "$dir" ] || dir="$made"
+         fi
          j="{\"cwd\":\"$(esc "$dir")\",\"timeout\":$timeout"
+         [ -n "$made" ] && j="$j,\"worktree\":\"$(esc "$made")\",\"branch\":\"$(esc "$branch")\""
          [ -n "$agent" ] && j="$j,\"agent\":\"$(esc "$agent")\""
          [ -n "$model" ] && j="$j,\"model\":\"$(esc "$model")\""
          [ -n "$label" ] && j="$j,\"label\":\"$(esc "$label")\""
@@ -278,7 +318,12 @@ case "$cmd" in
            val=$(printenv "$v") && [ -n "$val" ] && e="$e,\"$v\":\"$(esc "$val")\""
          done
          [ -n "$e" ] && j="$j,\"env\":{${e#,}}"
-         control spawn $((timeout + 15)) "$j}" ;;
+         if [ -n "$made" ]; then
+           # the session didn't start: the worktree made for it goes away with its branch (nothing was done in it)
+           ( control spawn $((timeout + 15)) "$j}" ) || { git -C "$root" worktree remove --force "$made" >/dev/null 2>&1; git -C "$root" branch -D "$branch" >/dev/null 2>&1; exit 1; }
+         else
+           control spawn $((timeout + 15)) "$j}"
+         fi ;;
   reply) [ $# -ge 2 ] || { echo "usage: fishbots reply <fish> <text>" >&2; exit 2; }
          f="$1"; shift
          control reply 20 "{\"fish\":\"$(esc "$f")\",\"text\":\"$(esc "$(printf '%s' "$*" | tr '\n\r\t' '   ')")\"}" ;;
@@ -304,11 +349,11 @@ case "$cmd" in
            until=$(( $(date +%s) + timeout )); bad=0
            for f in "$@"; do
              left=$(( until - $(date +%s) )); [ $left -lt 1 ] && left=1
-             ( control wait $((left + 10)) "{\"fish\":[\"$(esc "$f")\"]$s,\"timeout\":$left}" ) || bad=1
+             await "\"$(esc "$f")\"" "$s" "$left" || bad=1
            done
            exit $bad
          fi
-         control wait $((timeout + 10)) "{\"fish\":[$list]$s,\"timeout\":$timeout}" ;;
+         await "$list" "$s" "$timeout" || exit 1 ;;
   pack)  pack "$@" ;;
   agent) agent "$@" ;;
   plugin) plugin "$@" ;;

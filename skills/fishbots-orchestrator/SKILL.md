@@ -54,7 +54,11 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
   give each one a short name for what it does ("api: pagination"). The `label` in the answers is its project's
   folder; your name for it comes back as `name`.
 - **`--agent`** picks another agent (`codex`…); the default is yours. `--cwd` is the folder it works in (default:
-  the current one). Children that edit the same files step on each other: give each its own folder or git worktree.
+  the current one). Children that edit the same repository step on each other: start each with **`--worktree`**, which makes it a git
+  worktree and a branch of its own from where the repository is now (the answer has `worktree` and `branch`). Its
+  work stays there when it's done: read the branch's diff, merge what's good, then `git worktree remove <worktree>`
+  and delete the branch. Children that only read don't need one.
+- `wait` goes on waiting if the aquarium restarts meanwhile; you don't need to call it again.
 - **`wait` after `reply` is safe**: it waits for what the session says next, not for the reply it already gave.
   `state: "waiting"` comes with `asked`: answer it with `reply`, or pass it on to the person. When `asked` lists
   numbered answers (the child asked with a menu), `reply` with the number or the label picks one, and any other
