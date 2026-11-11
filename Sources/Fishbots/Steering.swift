@@ -250,9 +250,10 @@ extension Tank {
         var scaleTarget: Float = 1
         switch f.state {
         case .waiting:
-            // queue at the glass, in the order they came; whoever waits longer gets bigger. A queue wider than the
-            // tank breaks into rows (the first ones on top) and the fish come a little less close, so all of them
-            // and their questions fit
+            // up at the glass, bigger, in the order they came (left to right, the first rows on top); whoever waits
+            // longer gets bigger. Their places spread over the whole width and the middle of the water, and a queue
+            // too long for one row breaks into rows (the fish come a little less close), so all of them and their
+            // questions fit
             let i = waiting.firstIndex { $0 === f } ?? 0
             let n = max(1, waiting.count)
             let fits = max(1, Int(w * 0.88 / 130))
@@ -260,15 +261,17 @@ extension Tank {
             let perRow = (n + rows - 1) / rows
             let row = i / perRow, col = i % perRow
             let inRow = min(perRow, n - row * perRow)
-            let gap = min(130, w * 0.88 / Float(perRow))
-            let rowGap = min(110, h * 0.2)
+            let gap = min(320, w * 0.9 / Float(perRow))
+            let rowGap = rows > 1 ? h * 0.36 / Float(rows - 1) : 0
             let x = w * 0.5 + (Float(col) - Float(inRow - 1) / 2) * gap
-            let y = h * 0.42 + (Float(rows - 1) / 2 - Float(row)) * rowGap
+            let y = h * 0.5 + (Float(rows - 1) / 2 - Float(row)) * rowGap
             // it doesn't park: each one swims a slow, lopsided figure eight around its place, out of step with its
-            // neighbours, so the queue reads as fish waiting and not as a shelf (never so wide that two swap places)
-            let t = Float(time) * 0.32 + Float(f.phase) * 2.1
-            let roam: SIMD2<Float> = [sinf(t) * gap * 0.26 + sinf(t * 2.3 + 0.7) * gap * 0.06,
-                                      sinf(t * 1.6 + 1.3) * min(rowGap * 0.2, 22) + Float(f.phase % 7 - 3) * 4]
+            // neighbours, so the queue reads as fish waiting and not as a shelf. Almost half a place each way:
+            // neighbours pass in front of each other now and then, but each keeps coming back to its own spot
+            let t = Float(time) * 0.3 + Float(f.phase) * 2.1
+            let reach = rows > 1 ? rowGap * 0.42 : h * 0.16
+            let roam: SIMD2<Float> = [sinf(t) * gap * 0.4 + sinf(t * 2.3 + 0.7) * gap * 0.07,
+                                      sinf(t * 1.6 + 1.3) * reach + sinf(t * 0.7 + Float(f.phase)) * reach * 0.3]
             target = [x, y] + roam
             speed = 120
             let crowded = rows > 1
