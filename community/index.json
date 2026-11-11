@@ -137,6 +137,37 @@
       }
     },
     {
+      "id": "amazon",
+      "name": "Rio Amazonas",
+      "version": "1.0",
+      "author": "Fishbots",
+      "license": "MIT",
+      "description": "A água preta do Rio Negro, cor de chá: a floresta alagada ao fundo, vitórias-régias na superfície, um galho afundado e uma urna marajoara na serrapilheira, acarás-disco, piranhas e tucunarés, cardumes de cardinais, o pirarucu, o boto-cor-de-rosa, a arraia, o cascudo no vidro e o poraquê.",
+      "descriptions": {
+        "en": "The tea-colored blackwater of the Rio Negro: the flooded forest in the distance, giant water lilies at the surface, a sunken branch and a Marajoara urn on the leaf litter, discus, piranhas and peacock bass, schools of cardinal tetras, the arapaima, the pink river dolphin, the stingray, the pleco on the glass and the electric eel."
+      },
+      "names": {
+        "en": "Amazon river"
+      },
+      "path": "packs/examples/amazon",
+      "files": [
+        "amazon.metal",
+        "cover.png",
+        "creatures.metal",
+        "fish.metal",
+        "pack.json"
+      ],
+      "cover": "cover.png",
+      "contents": {
+        "themes": 1,
+        "styles": 1,
+        "fish": 4,
+        "scenery": 6,
+        "fauna": 5,
+        "presences": 1
+      }
+    },
+    {
       "id": "arctic",
       "name": "Ártico",
       "version": "1.7",

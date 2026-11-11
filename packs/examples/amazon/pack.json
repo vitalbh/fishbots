@@ -1,0 +1,521 @@
+{
+  "id": "amazon",
+  "name": "Rio Amazonas",
+  "names": {
+    "en": "Amazon river"
+  },
+  "version": "1.0",
+  "author": "Fishbots",
+  "license": "MIT",
+  "description": "A água preta do Rio Negro, cor de chá: a floresta alagada ao fundo, vitórias-régias na superfície, um galho afundado e uma urna marajoara na serrapilheira, acarás-disco, piranhas e tucunarés, cardumes de cardinais, o pirarucu, o boto-cor-de-rosa, a arraia, o cascudo no vidro e o poraquê.",
+  "descriptions": {
+    "en": "The tea-colored blackwater of the Rio Negro: the flooded forest in the distance, giant water lilies at the surface, a sunken branch and a Marajoara urn on the leaf litter, discus, piranhas and peacock bass, schools of cardinal tetras, the arapaima, the pink river dolphin, the stingray, the pleco on the glass and the electric eel."
+  },
+  "themes": [
+    {
+      "id": "amazon",
+      "name": "Rio Amazonas",
+      "names": {
+        "en": "Amazon river"
+      },
+      "description": "Água preta cor de chá, luz dourada, a floresta alagada ao fundo, vitórias-régias, acarás-disco, piranhas, o pirarucu e o boto.",
+      "descriptions": {
+        "en": "Tea-colored blackwater, golden light, the flooded forest behind, giant water lilies, discus, piranhas, the arapaima and the pink dolphin."
+      },
+      "visualizer": "plankton",
+      "music": "igarape",
+      "fauna": [
+        "pirarucu",
+        "boto",
+        "river-stingray",
+        "pleco",
+        "poraque"
+      ],
+      "scenery": [
+        "rock",
+        "chest",
+        "driftwood",
+        "victoria-regia"
+      ],
+      "looks": {
+        "oval": "discus",
+        "puffer": "piranha",
+        "slender": "tucunare",
+        "chest": "urn",
+        "pebble": "dead-leaf",
+        "seashell": "nut",
+        "mote": "leaf-bit",
+        "shark": "jacare"
+      },
+      "background": {
+        "metal": "amazon.metal",
+        "function": "draw_amazon_background",
+        "replaceReef": true
+      },
+      "sky": {
+        "night": [
+          0.7,
+          0.72,
+          0.95
+        ],
+        "dawn": [
+          1.15,
+          0.92,
+          0.72
+        ],
+        "day": [
+          1.06,
+          1.0,
+          0.9
+        ],
+        "golden": [
+          1.28,
+          0.98,
+          0.66
+        ],
+        "dusk": [
+          1.0,
+          0.78,
+          0.82
+        ],
+        "light": [
+          0.5,
+          1.0
+        ],
+        "sun": 1.25,
+        "moon": 0.9
+      },
+      "water": {
+        "deep": "#170b04",
+        "shallow": "#9a5a1c",
+        "rays": "#ffd88a",
+        "raysStrength": 0.42,
+        "caustics": "#ffe2a0",
+        "causticsStrength": 0.1,
+        "surface": "#d9a04e",
+        "murk": "#3a220c"
+      },
+      "weeds": {
+        "count": 5,
+        "farCount": 6,
+        "far": "#3a2c10",
+        "low": "#2c3410",
+        "high": "#8a8a2c",
+        "shapes": [
+          "ribbon",
+          "leafy",
+          "ribbon",
+          "blade"
+        ]
+      },
+      "sand": {
+        "dark": "#2a190c",
+        "light": "#6e4a26"
+      },
+      "foreground": "#2a1c08",
+      "jellyfish": false,
+      "schools": [
+        {
+          "color": "#2fc4ff",
+          "kind": "cardinal",
+          "count": 14,
+          "size": [
+            6,
+            7.5
+          ],
+          "pattern": 0,
+          "depth": [
+            0.25,
+            0.6
+          ]
+        },
+        {
+          "color": "#e6d6a0",
+          "kind": "slender",
+          "count": 7,
+          "size": [
+            7,
+            9
+          ],
+          "pattern": 0,
+          "depth": [
+            0.6,
+            0.85
+          ]
+        },
+        {
+          "color": "#58e0c0",
+          "kind": "cardinal",
+          "count": 6,
+          "size": [
+            5,
+            6
+          ],
+          "pattern": 0,
+          "depth": [
+            0.15,
+            0.4
+          ]
+        }
+      ],
+      "effects": {
+        "fireworks": "#ffc04a",
+        "sparkle": "#ffe9a8",
+        "ring": "#f2d28a",
+        "lightning": "#fff2b0"
+      },
+      "swim": {
+        "*": {
+          "speed": 0.9
+        }
+      }
+    }
+  ],
+  "styles": [
+    {
+      "id": "igarape",
+      "name": "igarapé",
+      "names": {
+        "en": "igarapé"
+      },
+      "bpm": [
+        58,
+        68
+      ],
+      "progressions": [
+        "Bossa",
+        "Dreamy",
+        "Nostalgic"
+      ],
+      "scale": "penta",
+      "lead": [
+        "flute",
+        "kalimba",
+        "flute",
+        "soft"
+      ],
+      "accomp": "arpeggio",
+      "accompTimbre": [
+        "kalimba",
+        "soft"
+      ],
+      "notesPerBar": [
+        1,
+        3
+      ],
+      "swing": [
+        0.04,
+        0.12
+      ],
+      "energy": 0.25,
+      "rest": 0.45,
+      "visualizer": "plankton"
+    }
+  ],
+  "fish": [
+    {
+      "id": "discus",
+      "name": "acará-disco",
+      "names": {
+        "en": "discus"
+      },
+      "metal": "fish.metal",
+      "function": "draw_amazon_discus",
+      "swim": {
+        "extent": [
+          1.1,
+          1.0
+        ],
+        "speed": 0.7,
+        "beat": 0.75
+      }
+    },
+    {
+      "id": "piranha",
+      "name": "piranha",
+      "names": {
+        "en": "piranha"
+      },
+      "metal": "fish.metal",
+      "function": "draw_amazon_piranha",
+      "swim": {
+        "beat": 1.15
+      }
+    },
+    {
+      "id": "tucunare",
+      "name": "tucunaré",
+      "names": {
+        "en": "peacock bass"
+      },
+      "metal": "fish.metal",
+      "function": "draw_amazon_tucunare",
+      "swim": {
+        "extent": [
+          1.5,
+          0.7
+        ],
+        "speed": 0.9,
+        "beat": 0.9
+      }
+    },
+    {
+      "id": "cardinal",
+      "name": "cardinal",
+      "names": {
+        "en": "cardinal tetra"
+      },
+      "metal": "fish.metal",
+      "function": "draw_amazon_cardinal",
+      "swim": {
+        "beat": 1.3
+      }
+    }
+  ],
+  "scenery": [
+    {
+      "id": "driftwood",
+      "name": "galho afundado",
+      "names": {
+        "en": "sunken branch"
+      },
+      "metal": "amazon.metal",
+      "function": "draw_amazon_driftwood",
+      "anchor": "sand",
+      "size": 0.13,
+      "extent": [
+        2.2,
+        0.8
+      ],
+      "at": [
+        0.66
+      ],
+      "color": "#6a4a30",
+      "bury": 0.3
+    },
+    {
+      "id": "victoria-regia",
+      "name": "vitória-régia",
+      "names": {
+        "en": "giant water lily"
+      },
+      "metal": "amazon.metal",
+      "function": "draw_amazon_victoria",
+      "anchor": "surface",
+      "size": 0.1,
+      "extent": [
+        1.9,
+        0.8
+      ],
+      "at": [
+        0.14,
+        0.43,
+        0.8
+      ],
+      "color": "#5a9a3c"
+    },
+    {
+      "id": "urn",
+      "name": "urna marajoara",
+      "names": {
+        "en": "Marajoara urn"
+      },
+      "metal": "amazon.metal",
+      "function": "draw_amazon_urn",
+      "anchor": "sand",
+      "size": 0.075,
+      "extent": [
+        0.85,
+        1.0
+      ],
+      "color": "#d8b890"
+    },
+    {
+      "id": "dead-leaf",
+      "name": "folha seca",
+      "names": {
+        "en": "dead leaf"
+      },
+      "metal": "amazon.metal",
+      "function": "draw_amazon_leaf",
+      "anchor": "sand",
+      "size": 0.012,
+      "extent": [
+        1.0,
+        0.6
+      ],
+      "color": "#a0622a"
+    },
+    {
+      "id": "nut",
+      "name": "ouriço de castanha",
+      "names": {
+        "en": "Brazil nut pod"
+      },
+      "metal": "amazon.metal",
+      "function": "draw_amazon_nut",
+      "anchor": "sand",
+      "size": 0.011,
+      "extent": [
+        1.0,
+        0.85
+      ],
+      "color": "#6a4628"
+    },
+    {
+      "id": "leaf-bit",
+      "name": "folhinha à deriva",
+      "names": {
+        "en": "drifting leaf"
+      },
+      "metal": "amazon.metal",
+      "function": "draw_amazon_leafbit",
+      "anchor": "float",
+      "size": 0.006,
+      "extent": [
+        1.0,
+        1.0
+      ],
+      "color": "#c08a3a"
+    }
+  ],
+  "fauna": [
+    {
+      "id": "pirarucu",
+      "name": "pirarucu",
+      "names": {
+        "en": "arapaima"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_amazon_pirarucu",
+      "behavior": "cross",
+      "size": 50,
+      "extent": [
+        2.3,
+        0.6
+      ],
+      "count": 1,
+      "speed": 16,
+      "height": [
+        0.3,
+        0.6
+      ],
+      "every": [
+        70,
+        200
+      ],
+      "color": "#7a8460"
+    },
+    {
+      "id": "boto",
+      "name": "boto-cor-de-rosa",
+      "names": {
+        "en": "pink river dolphin"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_amazon_boto",
+      "behavior": "pass",
+      "size": 90,
+      "extent": [
+        2.0,
+        0.8
+      ],
+      "count": 1,
+      "speed": 22,
+      "height": [
+        0.45,
+        0.75
+      ],
+      "every": [
+        240,
+        900
+      ],
+      "color": "#f0a8b0"
+    },
+    {
+      "id": "river-stingray",
+      "name": "arraia-de-fogo",
+      "names": {
+        "en": "ocellate river stingray"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_amazon_stingray",
+      "behavior": "crawl",
+      "size": 34,
+      "extent": [
+        1.7,
+        0.45
+      ],
+      "count": 1,
+      "speed": 7,
+      "color": "#8a6a44"
+    },
+    {
+      "id": "pleco",
+      "name": "cascudo",
+      "names": {
+        "en": "pleco"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_amazon_pleco",
+      "behavior": "glass",
+      "size": 22,
+      "extent": [
+        1.5,
+        0.8
+      ],
+      "count": 1,
+      "speed": 5,
+      "color": "#5a4630"
+    },
+    {
+      "id": "poraque",
+      "name": "poraquê",
+      "names": {
+        "en": "electric eel"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_amazon_poraque",
+      "behavior": "cross",
+      "size": 36,
+      "extent": [
+        2.2,
+        0.55
+      ],
+      "count": 1,
+      "speed": 12,
+      "height": [
+        0.1,
+        0.24
+      ],
+      "every": [
+        90,
+        260
+      ],
+      "color": "#5a5a3a"
+    }
+  ],
+  "presences": [
+    {
+      "id": "jacare",
+      "name": "jacaré-açu",
+      "names": {
+        "en": "black caiman"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_amazon_jacare",
+      "motion": "swim",
+      "size": 58,
+      "extent": [
+        2.0,
+        0.6
+      ],
+      "color": "#56603c",
+      "band": [
+        0.45,
+        0.78
+      ],
+      "sound": "bass"
+    }
+  ]
+}
