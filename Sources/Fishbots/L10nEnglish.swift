@@ -478,7 +478,7 @@ let english: [String: String] = [
     "Ela abre no terminal e nasce aqui, dos ovos.": "It opens in the terminal and hatches here, from the eggs.",
     "O que ela deve fazer…": "What it should do…",
     "A pasta em que ela trabalha (clique para escolher outra)": "The folder it works in (click to choose another)",
-    "↩ abre  ·  ⌥↩ quebra a linha  ·  Esc fecha": "↩ opens  ·  ⌥↩ breaks the line  ·  Esc closes",
+    "↩ abre  ·  ⌥↩ quebra a linha  ·  ⌘D falar  ·  Esc fecha": "↩ opens  ·  ⌥↩ breaks the line  ·  ⌘D speak  ·  Esc closes",
     "Escolher": "Choose",
     "Encerrar %@?": "End %@?",
     "O painel dela no terminal fecha, e o que ela estiver fazendo é interrompido.": "Its pane in the terminal closes, and whatever it's doing is interrupted.",

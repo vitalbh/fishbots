@@ -107,6 +107,9 @@ final class NewSessionCard: NSViewController, NSTextFieldDelegate {
     private var agent: NSPopUpButton!
     private var model: NSTextField!
     private var leads: NSButton!
+    private var microphone: NSButton!
+    /// ↩ while the microphone is on: open once the transcription has its last words.
+    private var sendWhenDone = false
 
     init(agents: [SessionProvider], folder: String) {
         self.agents = agents
@@ -199,6 +202,14 @@ final class NewSessionCard: NSViewController, NSTextFieldDelegate {
         if !SessionControl.enabled { l.toolTip = tr("Ligue \"Sessões podem comandar outras\" em Preferências → Geral") }
         leads = l
 
+        // speaking the task, as in a fish's card
+        let mic = NSButton(title: FishCard.micTitle(Dictation.shared.listening), target: self, action: #selector(speak))
+        mic.bezelStyle = .rounded
+        mic.toolTip = tr("Falar (clique de novo para parar)")
+        mic.keyEquivalent = "d"
+        mic.keyEquivalentModifierMask = .command
+        microphone = mic
+
         let no = NSButton(title: tr("Cancelar"), target: self, action: #selector(cancelClicked))
         no.bezelStyle = .rounded
         no.keyEquivalent = "\u{1b}"
@@ -206,9 +217,9 @@ final class NewSessionCard: NSViewController, NSTextFieldDelegate {
         go.bezelStyle = .rounded
         go.contentTintColor = .controlAccentColor
 
-        let hint = label(tr("↩ abre  ·  ⌥↩ quebra a linha  ·  Esc fecha"), 10, color: .tertiaryLabelColor)
+        let hint = label(tr("↩ abre  ·  ⌥↩ quebra a linha  ·  ⌘D falar  ·  Esc fecha"), 10, color: .tertiaryLabelColor)
         let stack = NSStackView(views: [title, sub, WaveLine(width: width, tint: tint), c, row([patch(w), NSView()]), row([a, m]),
-                                        l, row([NSView(), no, go]), hint])
+                                        l, row([mic, NSView(), no, go]), hint])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 9
@@ -242,8 +253,48 @@ final class NewSessionCard: NSViewController, NSTextFieldDelegate {
         view.window?.makeFirstResponder(task)
     }
 
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        if Dictation.shared.listening { sendWhenDone = false; Dictation.shared.stop() }
+    }
+
+    private func cursorAtEnd() {
+        view.window?.makeFirstResponder(task)
+        task.currentEditor()?.selectedRange = NSRange(location: task.stringValue.count, length: 0)
+    }
+
+    /// The microphone on, or off if it's listening: what's said goes after what's already written.
+    @objc private func speak() {
+        if Dictation.shared.listening { Dictation.shared.stop(); return }
+        if Speaker.shared.speaking { Speaker.shared.stop() }     // the Mac's voice would end up transcribed
+        microphone.title = FishCard.micTitle(true)
+        let placeholder = task.placeholderString
+        task.placeholderString = tr("ouvindo…")
+        let before = task.stringValue.trimmingCharacters(in: .whitespaces)
+        Dictation.shared.begin(partial: { [weak self] text in
+                                   guard let self else { return }
+                                   self.task.stringValue = before.isEmpty ? text : before + " " + text
+                                   self.fit()
+                                   self.cursorAtEnd()
+                               },
+                               onError: { [weak self] e in
+                                   self?.microphone.title = FishCard.micTitle(false)
+                                   self?.task.placeholderString = e
+                               },
+                               end: { [weak self] in
+                                   guard let self else { return }
+                                   self.microphone.title = FishCard.micTitle(false)
+                                   self.task.placeholderString = placeholder
+                                   self.fit()
+                                   self.cursorAtEnd()
+                                   if self.sendWhenDone { self.sendWhenDone = false; self.sendClicked() }
+                               })
+    }
+
     /// The field grows with what's written in it, up to a point.
-    func controlTextDidChange(_ obj: Notification) {
+    func controlTextDidChange(_ obj: Notification) { fit() }
+
+    private func fit() {
         let fits = task.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: 1000)).height ?? 64
         taskHeight.constant = max(64, min(220, fits + 6))
     }
@@ -275,6 +326,8 @@ final class NewSessionCard: NSViewController, NSTextFieldDelegate {
     @objc private func cancelClicked() { cancel?() }
 
     @objc private func sendClicked() {
+        // still listening: the last words are on their way
+        if Dictation.shared.listening { sendWhenDone = true; Dictation.shared.stop(); return }
         let named = model.stringValue.trimmingCharacters(in: .whitespaces)
         send?(agents[max(0, agent.indexOfSelectedItem)], folder, task.stringValue, named.isEmpty ? nil : named,
               leads.state == .on && SessionControl.enabled)

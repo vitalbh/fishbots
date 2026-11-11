@@ -194,6 +194,8 @@ skill() {
       for s in fishbots-packs fishbots-agents fishbots-orchestrator; do
         mkdir -p "$root/$s" && cp -R "$HERE/skills/$s/"* "$root/$s/" && echo "✓ $root/$s"
       done
+      # the orchestrator's commands are this CLI's: say where it is, for an agent whose PATH doesn't have it
+      printf '\nOn this machine the CLI is `%s` (use that path when `fishbots` is not in the PATH).\n' "$HERE/bin/fishbots" >> "$root/fishbots-orchestrator/SKILL.md"
       echo "  your agent now knows how to make Fishbots packs, connect other agents and run other sessions" ;;
     *) echo "usage: fishbots skill install [skills folder]   (default: ~/.claude/skills)" >&2; exit 2 ;;
   esac

@@ -45,6 +45,8 @@ final class SessionControl: EventSink {
         let cwd: String
         /// The fish of that agent that were already there: not the one being born.
         let before: Set<String>
+        /// What the session that launched it called it: its fish's name in the tank.
+        var name: String? = nil
         let reply: (Int, Data) -> Void
     }
 
@@ -268,7 +270,8 @@ final class SessionControl: EventSink {
                 reply(409, Self.error(e.message))
             case .success(let place):
                 self.tank.scenery.expect(self.tank, source: provider.id, for: patience + 30)
-                let b = Birth(id: self.next, source: provider.id, place: place, parent: parent?.id, cwd: folder, before: before, reply: reply)
+                let b = Birth(id: self.next, source: provider.id, place: place, parent: parent?.id, cwd: folder, before: before,
+                              name: parent == nil ? nil : (m["label"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(40)) }, reply: reply)
                 self.next += 1
                 self.births.append(b)
                 // the person's own, and its fish is taking long to hatch: it's probably asking something first (to
@@ -357,6 +360,8 @@ final class SessionControl: EventSink {
             for b in self.births {
                 guard let f = self.born(b) else { continue }
                 if let p = b.parent, f.whereabouts["parent"] == nil { f.whereabouts["parent"] = p }
+                // named by its leader (--label): that's what it's called in the tank, so the school reads at a glance
+                if let n = b.name, f.nickname == nil { f.nickname = n }
                 var d = Self.snapshot(f)
                 d["where"] = b.place
                 if let p = b.parent { d["parent"] = p }
@@ -391,6 +396,7 @@ final class SessionControl: EventSink {
 
     private static func snapshot(_ f: Fish) -> [String: Any] {
         var d: [String: Any] = ["fish": f.id, "state": f.state.rawValue, "label": f.label]
+        if let n = f.nickname { d["name"] = n }
         if let t = f.displayTitle { d["title"] = t }
         if let r = f.lastReplyMarkdown ?? f.lastReply { d["reply"] = r }
         if f.state == .waiting, let q = f.asked { d["asked"] = q }

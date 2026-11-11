@@ -50,6 +50,9 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
   full id); without it the child runs on the account's default. Choose it yourself by the task: a small fast model
   for reading, searching and mechanical edits, the default for design, hard debugging and anything subtle. What the
   person asked for wins.
+- **`--label`** names the child: it's what its fish is called in the aquarium (and its pane in the terminal), so
+  give each one a short name for what it does ("api: pagination"). The `label` in the answers is its project's
+  folder; your name for it comes back as `name`.
 - **`--agent`** picks another agent (`codex`…); the default is yours. `--cwd` is the folder it works in (default:
   the current one). Children that edit the same files step on each other: give each its own folder or git worktree.
 - **`wait` after `reply` is safe**: it waits for what the session says next, not for the reply it already gave.
