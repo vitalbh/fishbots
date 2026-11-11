@@ -160,7 +160,7 @@ enum FishKinds {
     }
 
     /// The kind a session takes while it leads a school: the theme's "leader", the octopus where it names none (its
-    /// arms for its many hands). It's for as long as it leads, so even a kind picked by hand gives way, and comes back.
+    /// arms for its many hands). It's the session's shape from then on, so even a kind picked by hand gives way.
     static var leaderKind: String {
         guard let id = Themes.current.leader, all.contains(where: { $0.id == id }) else { return "octopus" }
         return id

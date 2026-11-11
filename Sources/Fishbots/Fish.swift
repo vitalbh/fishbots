@@ -126,8 +126,13 @@ final class Fish {
     var whereabouts: [String: String] = [:]
     /// The session that launched this one (`fishbots spawn`), by its fish id: its leader in the tank.
     var leaderID: String? { whereabouts["parent"] }
-    /// It has a school of its own right now (sessions it launched): it's drawn as the theme's leader.
-    var leading = false
+    /// It has led a school (sessions it launched): from then on, for as long as its session lasts, it's drawn as the
+    /// theme's leader, with or without anyone behind it (it may launch more at any moment). Kept with its whereabouts,
+    /// so it's remembered as they are.
+    var leading: Bool {
+        get { whereabouts["led"] != nil }
+        set { whereabouts["led"] = newValue ? "1" : nil }
+    }
     /// Link to open on click (e.g. the build page).
     var link: String?
     /// Second line of the label: session, tab or terminal name.

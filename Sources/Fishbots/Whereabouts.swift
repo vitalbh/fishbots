@@ -23,6 +23,7 @@ enum Whereabouts {
         if Launchers.placeKeys.allSatisfy({ new[$0] == nil }), let p = placed[f.id] { for (k, v) in p { new[k] = v } }
         // who launched it (fishbots spawn) isn't something the session moves away from
         if new["parent"] == nil, let p = f.whereabouts["parent"] { new["parent"] = p }
+        if let led = f.whereabouts["led"] { new["led"] = led }      // it has led a school: so it stays (Schools.swift)
         let changed = new != f.whereabouts
         f.whereabouts = new
         Providers.refresh(f)   // the shape can depend on the terminal

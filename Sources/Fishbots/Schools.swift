@@ -2,7 +2,7 @@ import Foundation
 import simd
 
 /// Sessions launched by another one (`fishbots spawn`) and the one that launched them: a school. The leader is
-/// drawn as the theme's leader kind and a little bigger; the others are smaller, dressed with its markings, keep a
+/// drawn as the theme's leader kind and a little bigger, from its first child until its own session ends; the others are smaller, dressed with its markings, keep a
 /// V behind it and are tied to it by a thread of light.
 extension Tank {
     /// The fish of the session that launched this one, while it's in the tank.
@@ -21,11 +21,13 @@ extension Tank {
     /// something (nibbling at a rock, foraging) goes and does it, then comes back to its place.
     func schooled(_ f: Fish, target: SIMD2<Float>, speed: Float, scale: Float) -> Heading? {
         let mine = school(of: f)
-        if mine.isEmpty != !f.leading {
-            f.leading = !mine.isEmpty
-            f.species = FishKinds.index(of: FishKinds.worn(by: f))
-        }
+        if !mine.isEmpty, !f.leading { f.leading = true }
         if f.leading {
+            // its shape is the leader's from the first one it launches until its session ends
+            let kind = FishKinds.index(of: FishKinds.worn(by: f))
+            if f.species != kind { f.species = kind }
+            // with no one behind it right now, it goes about its own business (a little bigger than the rest)
+            guard !mine.isEmpty else { return Heading(target: target, speed: speed, scale: max(scale, 1.2)) }
             // at the glass when it waits for you, sinking when it's sick, as anyone; otherwise it leads: out in the
             // open water, on a wide winding round of the tank (never down on the sand, where its school would have no
             // room behind it), brisk while any of them works and easy when they all rest, and lit up
