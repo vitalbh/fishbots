@@ -14,7 +14,7 @@ import AppKit
 ///    "timbre": "pluck",                      // pluck, bell, pad, bass, glass, bubble, soft, rhodes, flute, kalimba
 ///    "events": {"BeforeAgent": "UserPromptSubmit"},   // its event names → Claude Code's (unlisted ones pass as-is)
 ///    "tools": {"run_command": "Bash"},       // its tool names → Claude Code's, for the animations
-///    "launch": ["aider", "--message", "{prompt}"]}   // how to start it with a first prompt (fishbots spawn); optional
+///    "launch": ["aider", "--model={model}", "--message", "{prompt}"]}   // how to start it (fishbots spawn); optional
 ///
 /// The events it understands are Claude Code's: SessionStart, UserPromptSubmit, PreToolUse (`tool_name`,
 /// `tool_input`), PostToolUse, Notification (`message`: "permission…" → waiting), Stop (`last_assistant_message`),
@@ -59,11 +59,12 @@ final class ManifestAgent: TerminalAgentProvider, SessionProvider {
 
     func capabilities(_ f: Fish) -> Set<Capability> { terminalCapabilities(f) }
 
-    /// The manifest's "launch", with {prompt} filled in; without a prompt, the arguments that take it are left out.
-    func launchCommand(prompt: String?) -> [String]? {
+    /// The manifest's "launch", with {prompt} and {model} filled in; the arguments that take one that wasn't given
+    /// are left out ("--model={model}" goes away as a whole).
+    func launchCommand(prompt: String?, model: String?) -> [String]? {
         guard !launch.isEmpty else { return nil }
-        guard let prompt else { return launch.filter { !$0.contains("{prompt}") } }
-        return launch.map { $0.replacingOccurrences(of: "{prompt}", with: prompt) }
+        return launch.filter { (prompt != nil || !$0.contains("{prompt}")) && (model != nil || !$0.contains("{model}")) }
+            .map { $0.replacingOccurrences(of: "{prompt}", with: prompt ?? "").replacingOccurrences(of: "{model}", with: model ?? "") }
     }
 }
 

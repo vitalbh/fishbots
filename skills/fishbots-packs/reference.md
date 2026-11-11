@@ -519,6 +519,8 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   (y up), t seconds, light the daylight (0…1), gaze the parallax (-1…1: move far things a little with it), water the
   water's color there (mix toward it for haze), extra.x the aspect, extra.y moonlight, extra.z the sand line's height at
   this x. `replaceReef` (default true) leaves out the distant reef the aquarium draws.
+- `leader`: the fish kind (built-in or the pack's own) a session is drawn as while it leads a school of sessions it
+  launched (`"leader": "lanternfish"`). Without it, the octopus. It goes back to its own kind when the school is gone.
 - `looks`: how the theme dresses built-in things, by id. The meaning stays, only the drawing changes:
   - a **piece of scenery** (`rock`, `shell`, `chest`, `coral`) drawn by one of the pack's scenery pieces, in the same
     place and with the same behavior (the chest still opens the summary). A chest's drawing gets how open it is in

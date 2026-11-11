@@ -28,6 +28,10 @@ extension AppDelegate {
             let tab = path.components(separatedBy: "tab=").dropFirst().first.flatMap { Int($0.prefix(1)) }
             self.preferences.show(tab: tab)
             return (200, Data(#"{"ok":true}"#.utf8))
+        case "/test/new-session":
+            // the "Nova sessão…" dialog, without the menu (it's modal: the answer goes out before it opens)
+            DispatchQueue.main.async { self.newSession() }
+            return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/music-paused":
             // as if your music had played and paused: the music fish offers the aquarium's
             self.music.yielded = true

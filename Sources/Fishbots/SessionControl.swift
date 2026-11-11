@@ -4,7 +4,7 @@ import Foundation
 /// An orchestrator is just a session that calls them (`fishbots spawn | reply | stop | wait`); what a session takes
 /// is still its provider's to say, so nothing here types where the card wouldn't. Off until turned on in Preferences.
 ///
-///   POST /control/spawn  {"agent": "claude-code", "cwd": "/…", "prompt": "…", "label": "…", "launcher": "rex",
+///   POST /control/spawn  {"agent": "claude-code", "cwd": "/…", "prompt": "…", "label": "…", "model": "…", "launcher": "rex",
 ///                         "tab": true, "env": {"CLAUDE_CONFIG_DIR": "…"}}
 ///   POST /control/reply  {"fish": "claude-code:abc", "text": "…"}
 ///   POST /control/stop   {"fish": "claude-code:abc"}
@@ -150,6 +150,22 @@ final class SessionControl: EventSink {
 
     // MARK: - a new session
 
+    /// The account's variables the last session that launched another passed along, by agent: a session opened from
+    /// the aquarium's own menu has no shell to take them from, and should run on the same account.
+    private static let accountVariables = ["CLAUDE_CONFIG_DIR", "CODEX_HOME"]
+
+    /// From the aquarium itself (the "Nova sessão…" menu): a session of the person's own, nobody's child. `done`
+    /// gets what went wrong, or nil once its fish is born.
+    func open(agent: String, cwd: String, prompt: String?, model: String?, done: @escaping (String?) -> Void) {
+        var m: [String: Any] = ["agent": agent, "cwd": cwd, "tab": true]
+        if let prompt { m["prompt"] = prompt }
+        if let model { m["model"] = model }
+        m["env"] = (UserDefaults.standard.dictionary(forKey: "launchAccount") as? [String: [String: String]])?[agent] ?? [:]
+        spawn(m, [:]) { code, data in
+            done(code == 200 ? nil : (Whereabouts.json(data)?["error"] as? String ?? "error \(code)"))
+        }
+    }
+
     private func spawn(_ m: [String: Any], _ headers: [String: String], _ reply: @escaping (Int, Data) -> Void) {
         let parent = caller(headers)
         if let parent {
@@ -162,8 +178,9 @@ final class SessionControl: EventSink {
         }
         let agent = m["agent"] as? String ?? parent?.source ?? "claude-code"
         let prompt = (m["prompt"] as? String).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
-        guard let provider = Providers.of(agent), let command = provider.launchCommand(prompt: prompt) else {
-            let known = Providers.all.values.filter { $0.launchCommand(prompt: nil) != nil }.map(\.id).sorted().joined(separator: ", ")
+        let model = (m["model"] as? String).flatMap { $0.range(of: #"^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]*$"#, options: .regularExpression) == nil ? nil : $0 }
+        guard let provider = Providers.of(agent), let command = provider.launchCommand(prompt: prompt, model: model) else {
+            let known = Providers.all.values.filter { $0.launchCommand(prompt: nil, model: nil) != nil }.map(\.id).sorted().joined(separator: ", ")
             reply(400, Self.error("don't know how to start \"\(agent)\" (can start: \(known))")); return
         }
         guard let folder = (m["cwd"] as? String ?? parent?.whereabouts["cwd"]).map({ NSString(string: $0).expandingTildeInPath }) else {
@@ -181,6 +198,14 @@ final class SessionControl: EventSink {
         var env: [String: String] = [:]
         for (k, v) in m["env"] as? [String: String] ?? [:] where k.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil {
             env[k] = v
+        }
+        if parent != nil {
+            let account = env.filter { Self.accountVariables.contains($0.key) }
+            var known = UserDefaults.standard.dictionary(forKey: "launchAccount") as? [String: [String: String]] ?? [:]
+            if !account.isEmpty, known[agent] != account {
+                known[agent] = account
+                UserDefaults.standard.set(known, forKey: "launchAccount")
+            }
         }
         if let parent { env["FISHBOTS_PARENT"] = parent.id }
         // an aquarium on another port (a test instance): the new session's hook reports to this one
@@ -302,7 +327,8 @@ final class SessionControl: EventSink {
     private func fish(_ name: String) -> Fish? {
         let all = tank.fish.filter { !$0.decor && !$0.leaving }
         if let f = all.first(where: { $0.id == name }) { return f }
-        let like = all.filter { $0.id.dropFirst($0.source.count + 1).hasPrefix(name) }
+        // the start of the entity, with or without its source in front ("2d265f0e", "claude-code:2d265f0e")
+        let like = all.filter { $0.id.dropFirst($0.source.count + 1).hasPrefix(name) || (name.count > $0.source.count + 1 && $0.id.hasPrefix(name)) }
         return like.count == 1 ? like[0] : nil
     }
 

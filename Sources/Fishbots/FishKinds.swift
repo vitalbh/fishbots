@@ -159,6 +159,18 @@ enum FishKinds {
         return look
     }
 
+    /// The kind a session takes while it leads a school: the theme's "leader", the octopus where it names none (its
+    /// arms for its many hands). It's for as long as it leads, so even a kind picked by hand gives way, and comes back.
+    static var leaderKind: String {
+        guard let id = Themes.current.leader, all.contains(where: { $0.id == id }) else { return "octopus" }
+        return id
+    }
+
+    /// What a fish is drawn as right now.
+    static func worn(by f: Fish) -> String {
+        f.leading ? leaderKind : dressed(f.baseKind, picked: f.pickedKind)
+    }
+
     static func id(at i: Int) -> String { all.indices.contains(i) ? all[i].id : all[0].id }
 
     /// The kind chosen for an agent in Preferences (all its fish, unless their project has one picked in the fish menu).

@@ -13,6 +13,7 @@ extension Tank {
         // what plugins put in the tank (the ones waiting for you come after the fish)
         out += scene.sprites(self, front: false)
         out += behindTheFish()
+        out += threads()
         out += theFish()
         out += scene.sprites(self, front: true)
         // marine snow up close, in front of the fish

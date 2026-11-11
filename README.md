@@ -195,6 +195,10 @@ fishbots presence k8s prod end
 fishbots show
 ```
 
+**Nova sessão…** (⌘N) starts a session from the aquarium: its task, folder, agent and model. A session that launches
+others becomes the leader of a school: another fish for as long as it leads (the octopus; each theme can name its
+own), its sessions smaller behind it in a V, each tied to it by a thread of light.
+
 A session can also command the others (off until you turn on "Sessions can command other sessions" in Settings →
 General), which is what an orchestrating agent needs ([docs/extensions.md](docs/extensions.md), point 11;
 `fishbots skill install` teaches your agent the cycle):
@@ -204,6 +208,7 @@ fishbots spawn --cwd ../api "implement X; when done, sum it up"   # a new sessio
 fishbots wait claude-code:1f3a codex:9b2c     # until one stops working: which, how, and its last reply
 fishbots reply claude-code:1f3a "use the new table"
 fishbots stop claude-code:1f3a
+fishbots close claude-code:1f3a               # close the pane of a session this one launched
 ```
 
 ## Plugins

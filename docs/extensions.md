@@ -142,6 +142,8 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   (y up), t seconds, light the daylight (0…1), gaze the parallax (-1…1: move far things a little with it), water the
   water's color there (mix toward it for haze), extra.x the aspect, extra.y moonlight, extra.z the sand line's height at
   this x. `replaceReef` (default true) leaves out the distant reef the aquarium draws.
+- `leader`: the fish kind (built-in or the pack's own) a session is drawn as while it leads a school of sessions it
+  launched (`"leader": "lanternfish"`). Without it, the octopus. It goes back to its own kind when the school is gone.
 - `looks`: how the theme dresses built-in things, by id. The meaning stays, only the drawing changes:
   - a **piece of scenery** (`rock`, `shell`, `chest`, `coral`) drawn by one of the pack's scenery pieces, in the same
     place and with the same behavior (the chest still opens the summary). A chest's drawing gets how open it is in
@@ -366,7 +368,7 @@ checks as the card apply, so nothing is typed where the card wouldn't type):
 | `/control/stop` | `fish` | ok |
 | `/control/close` | `fish` | closes the pane of a session the asker launched (the launcher's `close`); its fish leaves |
 | `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them stops working (done, waiting, error, idle; or the `states` asked for): which, its state, its last reply |
-| `/control/spawn` | `agent`, `cwd`, `prompt`, `label`, `launcher`, `tab`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
+| `/control/spawn` | `agent`, `model`, `cwd`, `prompt`, `label`, `launcher`, `tab`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
 
 `fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish
 takes right now (`can`) and who launched it (`parent`). From the command line: `fishbots spawn | reply | stop |
@@ -415,8 +417,8 @@ protocol SessionLauncher: AnyObject {
 }
 ```
 
-A provider says how its agent starts (`launchCommand(prompt:) -> [String]?`, nil: it can't be launched; Claude Code
-and Codex can); a manifest's `launch` array with `{prompt}` does it for agents without Swift. A session's children
+A provider says how its agent starts (`launchCommand(prompt:model:) -> [String]?`, nil: it can't be launched; Claude Code
+and Codex can); a manifest's `launch` array with `{prompt}` and `{model}` does it for agents without Swift. A session's children
 open in the host it runs in (`hosts`); `launcher` in the request picks another, and without an asker in any of
 them it's the first one installed. None takes the focus:
 
@@ -434,10 +436,18 @@ born, for hooks that don't. It lives in the fish's whereabouts (`parent`), so it
 of a control route is found by the `X-Where-*` headers the CLI sends, the same ones the hook sends, so an
 orchestrator doesn't need to know its own id. A fish with children is the leader: no "orchestrator" provider.
 
-**In the tank:** the children are a loose school around their leader (`Steering`: each still goes about its own
-state, within reach of the leader; whoever waits for you still comes to the glass, a sick one still sinks), dressed
-with the leader's markings and fin in their own project's color, with "↳" before their name. The leader's card
-lists its school with each one's state (a click opens that fish's card); a child's card has a tag for its leader.
+**In the tank** (`Schools.swift`): while it has a school, the leader is drawn as the theme's `leader` kind (the
+octopus; the deep sea's lanternfish, the lagoon's stingray) and bigger. Its children are smaller, dressed with its
+markings and fin in their own project's color, with "↳" before their name, and keep a V behind it; one that's doing
+something goes and does it and comes back, whoever waits for you still comes to the glass, a sick one still sinks.
+A thread of light ties each one to the leader wherever it is: a spark runs down it to whoever is working and back
+up from whoever just finished, and it turns amber for the one that waits. The leader's card lists its school with
+each one's state (a click opens that fish's card); a child's card has a tag for its leader.
+
+**From the aquarium:** "Nova sessão…" (the Sessions menu, ⌘N, and the menu bar) asks for the task, the folder, the
+agent and the model, and opens the session through the launchers as nobody's child (`SessionControl.open`); with
+its checkbox on, the session starts with the orchestrator skill in hand. It runs on the account the last
+`fishbots spawn` passed along (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`).
 
 **Guards:** the Preferences switch; 6 children at work per parent (the ones that finished and sit at their prompt do not count) and depth 1 (a child doesn't launch children);
 permission requests of the children stay with the person; `spawn` takes no extra arguments for the agent, so it

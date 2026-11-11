@@ -46,6 +46,10 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
   so keep follow-ups short.
 - The child opens in the terminal host you run in (Rex, Herdr or tmux), in a pane next to yours that doesn't take
   the focus (the next ones stack in that column); `--tab` gives it a tab of its own (Rex, tmux).
+- **`--model`** picks the child's model, in its agent's own names (Claude Code: `haiku`, `sonnet`, `opus` or a
+  full id); without it the child runs on the account's default. Choose it yourself by the task: a small fast model
+  for reading, searching and mechanical edits, the default for design, hard debugging and anything subtle. What the
+  person asked for wins.
 - **`--agent`** picks another agent (`codex`…); the default is yours. `--cwd` is the folder it works in (default:
   the current one). Children that edit the same files step on each other: give each its own folder or git worktree.
 - **`wait` after `reply` is safe**: it waits for what the session says next, not for the reply it already gave.

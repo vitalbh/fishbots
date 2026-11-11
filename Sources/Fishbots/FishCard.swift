@@ -281,7 +281,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     /// Where it runs, as little tags you can click: the branch (copies it), the place (goes there), the folder.
     private func places() -> [NSView] {
         let species = ["oval": "Rex", "slender": "terminal", "puffer": "Claude", "angelfish": "editor", "octopus": "GitHub",
-                       "stingray": "Codex"][f.kindID].map(tr) ?? tr(FishKinds.all[min(f.species, FishKinds.all.count - 1)].name)
+                       "stingray": "Codex"][f.leading ? f.baseKind : f.kindID].map(tr) ?? tr(FishKinds.all[min(f.species, FishKinds.all.count - 1)].name)
         var tags: [NSView] = []
         if let b = f.branch, !["main", "master", "HEAD"].contains(b) {
             tags.append(tag(link("⎇ " + b, tip: tr("copiar o nome da branch")) { [weak self] in self?.copy(b) }))

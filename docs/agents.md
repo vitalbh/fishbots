@@ -80,7 +80,8 @@ Without one, `<id>` is also the agent's process name and the fish follows the te
 - `timbre`: `pluck`, `bell`, `pad`, `bass`, `glass`, `bubble`, `soft`, `rhodes`, `flute` or `kalimba`.
 - `events`, `tools`: the agent's names → Claude Code's. Names not listed pass as they are.
 - `launch` (optional): the command that starts a session, as an array, with `{prompt}` where the first prompt goes
-  (`["aider", "--message", "{prompt}"]`). With it, `fishbots spawn --agent <id>` can start the agent in a new pane
+  and `{model}` where the model asked for goes (`["aider", "--model={model}", "--message", "{prompt}"]`; an argument
+  whose value wasn't given is left out). With it, `fishbots spawn --agent <id>` can start the agent in a new pane
   ([extensions.md](extensions.md), point 11).
 
 Whoever uses the aquarium can still pick another fish for the whole agent (Preferences → General → Agents → Each

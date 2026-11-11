@@ -72,7 +72,7 @@ struct SourceProfile {
         let picked = FishKinds.override(for: f.projectKey) ?? (isAgent ? FishKinds.agentKind(f.source) : nil)
         f.baseKind = picked ?? fishKind(f)
         f.pickedKind = picked != nil
-        f.species = FishKinds.index(of: FishKinds.dressed(f.baseKind, picked: f.pickedKind))
+        f.species = FishKinds.index(of: FishKinds.worn(by: f))
     }
 }
 
@@ -126,6 +126,8 @@ final class Fish {
     var whereabouts: [String: String] = [:]
     /// The session that launched this one (`fishbots spawn`), by its fish id: its leader in the tank.
     var leaderID: String? { whereabouts["parent"] }
+    /// It has a school of its own right now (sessions it launched): it's drawn as the theme's leader.
+    var leading = false
     /// Link to open on click (e.g. the build page).
     var link: String?
     /// Second line of the label: session, tab or terminal name.

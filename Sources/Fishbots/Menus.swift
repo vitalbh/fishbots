@@ -63,6 +63,7 @@ extension AppDelegate {
         m.addItem(.separator())
         if journal.pending != nil { item("🌙 Enquanto você estava fora…", #selector(openAwaySummary)) }
         item("Mostrar aquário", #selector(show))
+        item("Nova sessão…", #selector(newSession))
         item("Alimentar", #selector(feed))
         item("Música ambiente", #selector(toggleAmbientMusic), on: UserDefaults.standard.bool(forKey: "ambientMusic"))
         item("Modo foco", #selector(toggleFocus), on: Attention.focus)
@@ -345,6 +346,8 @@ extension AppDelegate {
 
         // Sessions: who needs you, and how the aquarium calls you
         let sessions = NSMenu()
+        add(sessions, "Nova sessão…", #selector(newSession), "n")
+        sessions.addItem(.separator())
         add(sessions, "Ir para quem espera há mais tempo", #selector(goToLongestWaiting))
         add(sessions, "Ouvir a pergunta de quem espera", #selector(readLongestWaiting))
         add(sessions, "Responder falando (abre o microfone)", #selector(replyByVoice))

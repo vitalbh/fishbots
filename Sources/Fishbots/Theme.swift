@@ -43,6 +43,8 @@ struct Theme {
     var scenery: [String]?
     /// A pack's drawing for a built-in piece ("chest": "shrine"): same place and behavior, another look.
     var looks: [String: String] = [:]
+    /// The fish kind a session becomes while it leads a school of launched sessions (nil: the octopus).
+    var leader: String?
     /// The theme's light through the day (nil: the usual one). See `Sky`.
     var sky: Sky?
     /// The decorative schools (nil: the usual neons, tetras and silversides). At most 3: the first swims in the middle,
@@ -110,6 +112,7 @@ struct Theme {
         fauna = json["fauna"] as? [String] ?? base?.fauna
         scenery = json["scenery"] as? [String] ?? base?.scenery
         looks = json["looks"] as? [String: String] ?? [:]
+        leader = json["leader"] as? String ?? base?.leader
         description = json["description"] as? String ?? ""
         descriptions = json["descriptions"] as? [String: String] ?? [:]
         if let s = json["sky"] as? [String: Any] { sky = Sky(json: s) }
@@ -165,6 +168,7 @@ enum Themes {
             ["id": "classic", "name": "Aquário", "description": "O aquário de sempre: água azul, algas verdes, pedras, a ostra e o baú."],
             ["id": "abyss", "name": "Fundo do mar", "description": "Quase escuro, poucas plantas, um peixe-abissal com sua isca acesa perto do fundo, tubarões-martelo, timões enferrujados, garrafas cobertas de cracas, um cofre de navio, um escafandro antigo, um navio naufragado ao longe, peixes-lanterna à noite, e o peixe-lua e a baleia passando ao longe.", "visualizer": "storm", "fauna": ["starfish", "snail", "lanternfish", "whale", "anglerfish", "sunfish"], "scenery": ["rock", "chest", "helmet", "wreck"],
              "looks": ["shark": "hammerhead", "helm": "rusty-helm", "bottle": "deep-bottle", "chest": "safe"],
+             "leader": "lanternfish",
              "swim": ["*": ["speed": 0.75, "beat": 0.8]],
              "effects": ["fireworks": "#7fffe0", "lightning": "#5fd8ff", "sparkle": "#9ff0ff", "ring": "#7fd0ff"],
              "water": ["deep": "#010309", "shallow": "#0a2440", "rays": "#2a4d6e", "raysStrength": 0.08,
@@ -173,6 +177,7 @@ enum Themes {
              "sand": ["dark": "#1c1d24", "light": "#3a3a44"]],
             ["id": "lagoon", "name": "Lagoa", "description": "Água verde e clara de lagoa costeira, raízes de mangue nas margens, capim-marinho, cavalos-marinhos agarrados nas algas, um covo de pesca na areia, caranguejos, a tartaruga e, de vez em quando, um peixe-boi que sobe para respirar.", "visualizer": "surface", "fauna": ["crab", "turtle", "snail", "starfish", "seahorses", "manatee"], "scenery": ["rock", "shell", "mangrove", "chest"],
              "looks": ["chest": "fish-trap"],
+             "leader": "stingray",
              "effects": ["fireworks": "#ffe38a", "sparkle": "#e8ffb0", "ring": "#c8f5dc"],
              "water": ["deep": "#06231f", "shallow": "#2f8c7a", "rays": "#7fd1b0", "raysStrength": 0.3,
                        "caustics": "#bff2d8", "causticsStrength": 0.09, "surface": "#6cc2a8", "murk": "#3a3a1c"],
