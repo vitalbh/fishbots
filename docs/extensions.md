@@ -439,7 +439,8 @@ of a control route is found by the `X-Where-*` headers the CLI sends, the same o
 orchestrator doesn't need to know its own id. A fish with children is the leader: no "orchestrator" provider.
 
 **In the tank** (`Schools.swift`): while it has a school, the leader is drawn as the theme's `leader` kind (the
-octopus; the deep sea's lanternfish, the lagoon's stingray) and bigger. Its children are smaller, dressed with its
+octopus; the deep sea's lanternfish, the lagoon's stingray), bigger and lit up, and goes on a wide round of the open
+water, brisk while any of its school works (it never settles on the sand, where they'd have no room behind it). Its children are smaller, dressed with its
 markings and fin in their own project's color, with "↳" before their name, and keep a V behind it; one that's doing
 something goes and does it and comes back, whoever waits for you still comes to the glass, a sick one still sinks.
 Every session the aquarium starts, a leader's children included, hatches from the clutch of eggs instead of dropping

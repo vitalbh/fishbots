@@ -26,7 +26,19 @@ extension Tank {
             f.species = FishKinds.index(of: FishKinds.worn(by: f))
         }
         if f.leading {
-            return Heading(target: target, speed: speed, scale: f.state == .waiting ? scale : max(scale, 1.4))
+            // at the glass when it waits for you, sinking when it's sick, as anyone; otherwise it leads: out in the
+            // open water, on a wide winding round of the tank (never down on the sand, where its school would have no
+            // room behind it), brisk while any of them works and easy when they all rest, and lit up
+            let working = mine.contains { $0.state == .busy || $0.state == .born || $0.state == .waiting }
+            // (asleep with a school that rests too, it stays asleep)
+            guard f.state != .waiting, f.state != .error, working || !sleeping(f) else {
+                return Heading(target: target, speed: speed, scale: scale)
+            }
+            let t = Float(time) * (working ? 0.16 : 0.08) + Float(f.phase) * 1.9
+            let round: SIMD2<Float> = [size.x * (0.5 + 0.34 * sinf(t) + 0.06 * sinf(t * 2.7 + 1)),
+                                       size.y * (0.56 + 0.2 * sinf(t * 1.37 + 0.8) + 0.05 * cosf(t * 3.1))]
+            f.glow = max(f.glow, 0.42 + 0.1 * sinf(Float(time) * 1.3))
+            return Heading(target: round, speed: working ? 105 : 55, scale: max(scale, 1.4))
         }
         guard let leader = leader(of: f) else { return nil }
         // dressed as the leader's: the same markings and fin, in its own project's color

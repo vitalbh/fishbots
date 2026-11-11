@@ -259,7 +259,7 @@ extension Tank {
             if f.decor { alpha = 0.85 }
             if asleep { c *= 0.8 }
             // camouflage: an octopus resting on the sand takes the sand's color, little by little (back in color when its state changes)
-            if octopus && (f.state == .idle || f.state == .ok) && !f.leaving {
+            if octopus && (f.state == .idle || f.state == .ok) && !f.leaving && !f.leading {
                 let camo = smoothstep(45, 80, Float((time - f.since) / Self.scale))
                 c = mix(c, SIMD3<Float>(0.5, 0.44, 0.33) * (0.45 + 0.55 * light), t: camo * 0.85)
             }
