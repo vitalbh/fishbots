@@ -250,12 +250,24 @@ extension Tank {
         var scaleTarget: Float = 1
         switch f.state {
         case .waiting:
-            // queue at the glass: whoever arrived first stays in the middle; whoever waits longer gets bigger
-            let i = Float(waiting.firstIndex { $0 === f } ?? 0)
-            let n = Float(waiting.count)
-            target = [w * 0.5 + (i - (n - 1) / 2) * 130, h * 0.42 + sinf(Float(time) * 2 + i) * 6]
+            // queue at the glass, in the order they came; whoever waits longer gets bigger. A queue wider than the
+            // tank breaks into rows (the first ones on top) and the fish come a little less close, so all of them
+            // and their questions fit
+            let i = waiting.firstIndex { $0 === f } ?? 0
+            let n = max(1, waiting.count)
+            let fits = max(1, Int(w * 0.88 / 130))
+            let rows = min(3, (n + fits - 1) / fits)
+            let perRow = (n + rows - 1) / rows
+            let row = i / perRow, col = i % perRow
+            let inRow = min(perRow, n - row * perRow)
+            let gap = min(130, w * 0.88 / Float(perRow))
+            let rowGap = min(110, h * 0.2)
+            let x = w * 0.5 + (Float(col) - Float(inRow - 1) / 2) * gap
+            let y = h * 0.42 + (Float(rows - 1) / 2 - Float(row)) * rowGap
+            target = [x, y + sinf(Float(time) * 2 + Float(i)) * 6]
             speed = 120
-            scaleTarget = 1.55 + min(0.35, Float(time - f.since) / 60 * 0.06)
+            let crowded = rows > 1
+            scaleTarget = (crowded ? 1.3 : 1.55) + min(crowded ? 0.2 : 0.35, Float(time - f.since) / 60 * 0.06)
         case .busy where f.action != nil:
             switch f.action! {
             case .nibble(let goal):

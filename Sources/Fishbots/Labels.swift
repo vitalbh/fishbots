@@ -38,6 +38,9 @@ final class Labels {
     private let batteryText = CATextLayer()
     private let calmText = CATextLayer()
     private let pearlText = CATextLayer()
+    /// Where each text went last frame and how visible it is now (see `makeRoom`).
+    private var places: [String: LabelRoom.Place] = [:]
+    private var fades: [String: Float] = [:]
 
     /// Puts the fixed texts (footer, banner and the little notes) on the view; the fish get theirs as they show up.
     func attach(to view: LabelsView, scale: CGFloat) {
@@ -136,6 +139,7 @@ final class Labels {
             textLayers[id] = nil
         }
         presenceLabels(tank, scale)
+        makeRoom(tank)
 
         footer.string = now.footer
         footer.frame = CGRect(x: 14, y: 6, width: view.bounds.width - 28, height: 16)
@@ -227,6 +231,62 @@ final class Labels {
         l.zPosition = near ? 10 : 0
     }
 
+
+    /// How much a fish's text matters next to the others: whoever is under the mouse, then whoever waits for you
+    /// (the longer, the more), then the sick and the alarmed, then whoever has something to say right now, then
+    /// the sessions at work, then the resting ones; plugin fish give way to sessions.
+    private func priority(_ f: Fish, _ tank: Tank) -> Float {
+        if now.hoverFish == f.id { return 1000 }
+        if f.leaving { return 0 }
+        var p: Float
+        if now.requestedTool(f.id) != nil || f.state == .waiting { p = 900 + Float(min(60, tank.time - f.since)) }
+        else if f.state == .error { p = 800 }
+        else if f.state == .alert { p = 700 }
+        else if f.offer != nil || f.compactingSince != nil || (f.moment.map { tank.time < $0.until } ?? false) { p = 500 }
+        else if f.state == .busy || f.state == .born { p = 300 }
+        else { p = 200 }
+        if !f.isAgent { p -= 100 }
+        return p + (1 - f.depth) * 10      // the nearer one, between equals
+    }
+
+    /// A presence's text: under the mouse, needing you, or just there (they stay put, so they're easy to find).
+    private func priority(_ p: Presence) -> Float {
+        now.hoverPresence == p.id ? 1000 : p.needsYou ? 850 : 400
+    }
+
+    /// Texts that would cover each other: the one that matters more keeps its place, the other moves above its fish
+    /// or fades out until there's room (see `LabelRoom`). Fading is gentle both ways, so crossing fish don't blink.
+    private func makeRoom(_ tank: Tank) {
+        var claims: [LabelRoom.Claim] = []
+        var base: [String: (CATextLayer, Float)] = [:]
+        var lift: [String: CGFloat] = [:]
+        for f in tank.fish where !f.decor {
+            guard let l = textLayers[f.id], l.opacity > 0 else { continue }
+            let home = l.frame
+            let up = CGFloat(f.size * 1.5) + home.height          // from below the fish to above it
+            lift[f.id] = up
+            claims.append(.init(id: f.id, home: home, alt: home.offsetBy(dx: 0, dy: up), priority: priority(f, tank)))
+            base[f.id] = (l, l.opacity)
+        }
+        for p in tank.scene.presences {
+            guard let l = presenceLayers[p.id], l.opacity > 0 else { continue }
+            let id = "presence:" + p.id
+            claims.append(.init(id: id, home: l.frame, alt: nil, priority: priority(p)))
+            base[id] = (l, l.opacity)
+        }
+        places = LabelRoom.place(claims, before: places)
+        let dt = max(0.001, tank.frameDt)
+        for (id, (l, opacity)) in base {
+            let place = places[id] ?? .home
+            if place == .alt, let up = lift[id] { l.position.y += up }
+            let want: Float = place == .hidden ? 0 : 1
+            let was = fades[id] ?? want
+            let fade = was + (want - was) * min(1, dt * (want > was ? 6 : 4))
+            fades[id] = fade
+            l.opacity = opacity * fade
+        }
+        for id in fades.keys where base[id] == nil { fades[id] = nil; places[id] = nil }
+    }
 
     /// The text of each presence: its label always (except with labels off), and a second line with the detail while
     /// it needs you, for a few seconds after it changes, and on hover. See docs/scene.md.
