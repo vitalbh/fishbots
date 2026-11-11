@@ -446,7 +446,9 @@ something goes and does it and comes back, whoever waits for you still comes to 
 Every session the aquarium starts, a leader's children included, hatches from the clutch of eggs instead of dropping
 in from the surface (`Scenery.expect`, `hatching`). A thread of light ties each one to the leader wherever it is: a spark runs down it to whoever is working and back
 up from whoever just finished, and it turns amber for the one that waits. The leader's card lists its school with
-each one's state (a click opens that fish's card); a child's card has a tag for its leader.
+each one's state and last line (a click opens that fish's card), and what one of them asks is answered right there
+(a permission, a question with a menu); a child's card has a tag for its leader. A card's history has what was said
+to the session too (`Tank.told`), among what it did about it.
 
 **From the aquarium:** "Nova sessão…" (the Sessions menu, ⌘N, the menu bar, and a click on the clutch of eggs on
 the sand, `Scenery.eggs`) asks for the task, the folder, the

@@ -63,6 +63,8 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
   `state: "waiting"` comes with `asked`: answer it with `reply`, or pass it on to the person. When `asked` lists
   numbered answers (the child asked with a menu), `reply` with the number or the label picks one, and any other
   text is an answer in your own words.
+- A `wait` answer with **`permission`** ("Bash: rm -rf build") means the child stopped to ask the person's leave
+  for that. You can't give it and `reply` won't: tell the person which child waits and for what, then wait again.
 - **Permission requests stay with the person.** A child that needs approval shows up as waiting in the aquarium;
   you can't approve it. Say so instead of retrying.
 - **Limits:** at most 6 children at work at a time (the ones that finished do not count), and a child can't start children of its own.

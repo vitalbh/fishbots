@@ -146,6 +146,9 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     var school: [Fish] = []
     var leader: Fish?
     var visit: ((Fish) -> Void)?
+    /// What one of its school is asking (a permission, or a question with a menu), and answering it from here.
+    var asks: ((Fish) -> Permissions.Request?)?
+    var answerFor: ((Permissions.Request, String) -> Void)?
 
     /// A small clickable piece of text (a link-like borderless button).
     func link(_ s: String, _ size: CGFloat = 11, color: NSColor = .secondaryLabelColor, tip: String? = nil,
@@ -253,6 +256,32 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             let r = row([state, title, NSView()])
             r.spacing = 8
             v.append(r)
+            // under its name: what it asks (answered right here), or its last line
+            func small(_ t: String, _ id: String, _ p: Permissions.Request, tip: String? = nil) -> NSButton {
+                let b = ClosureButton { [weak self] in self?.answerFor?(p, id) }
+                b.title = t; b.bezelStyle = .rounded; b.controlSize = .small; b.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+                b.toolTip = tip
+                return b
+            }
+            func under(_ s: String, _ color: NSColor) {
+                let t = text("     " + (s.count > 96 ? String(s.prefix(95)) + "…" : s), 10.5, color: color)
+                t.maximumNumberOfLines = 2
+                t.preferredMaxLayoutWidth = width
+                v.append(t)
+            }
+            if let p = asks?(c), let q = p.question {
+                under("✋ " + q.text, .systemOrange)
+                v.append(row([NSView()] + q.options.prefix(4).enumerated().map { small($0.element.label, "answer:\($0.offset + 1)", p, tip: $0.element.about) }))
+            } else if let p = asks?(c) {
+                under("✋ " + tr("quer usar %@", p.tool) + ": " + p.summary, .systemOrange)
+                v.append(row([NSView(), small(tr("Negar"), "deny", p), small(tr("Permitir"), "allow", p)]))
+            } else if c.state == .waiting, let a = c.asked, !a.isEmpty {
+                under("✋ " + (a.split(whereSeparator: \.isNewline).first.map(String.init) ?? a), .systemOrange)
+            } else if c.state == .busy, let d = c.doing ?? c.tool {
+                under("▸ " + d, .secondaryLabelColor)
+            } else if let said = c.lastReply?.split(whereSeparator: \.isNewline).first.map(String.init), !said.isEmpty {
+                under(said, .secondaryLabelColor)
+            }
         }
         return v
     }
@@ -368,9 +397,16 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                 .font: NSFont.systemFont(ofSize: 10.5), .foregroundColor: tintText.withAlphaComponent(i == 0 ? 0.95 : 0.6)])
             line.append(NSAttributedString(string: fmt.string(from: l.when) + "  ", attributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .regular), .foregroundColor: NSColor.tertiaryLabelColor]))
-            line.append(NSAttributedString(string: l.name + (l.count > 1 ? " ×\(l.count)" : ""), attributes: [
-                .font: rounded(10.5, .medium), .foregroundColor: i == 0 ? NSColor.labelColor : NSColor.secondaryLabelColor]))
-            if let s = l.said {
+            if l.name == Fish.toldMark {
+                // what was said to it: in the fish's color, with more room than a tool's line
+                let s = l.said ?? ""
+                line.append(NSAttributedString(string: "› " + (s.count > 78 ? String(s.prefix(77)) + "…" : s), attributes: [
+                    .font: rounded(10.5, .medium), .foregroundColor: tintText]))
+            } else {
+                line.append(NSAttributedString(string: l.name + (l.count > 1 ? " ×\(l.count)" : ""), attributes: [
+                    .font: rounded(10.5, .medium), .foregroundColor: i == 0 ? NSColor.labelColor : NSColor.secondaryLabelColor]))
+            }
+            if l.name != Fish.toldMark, let s = l.said {
                 line.append(NSAttributedString(string: "  " + (s.count > 64 ? String(s.prefix(63)) + "…" : s), attributes: [
                     .font: NSFont.systemFont(ofSize: 10.5), .foregroundColor: NSColor.secondaryLabelColor]))
             }
@@ -378,6 +414,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             row.attributedStringValue = line
             row.maximumNumberOfLines = 1
             row.lineBreakMode = .byTruncatingTail
+            if l.name == Fish.toldMark { row.toolTip = l.said }
             v.append(row)
         }
         var links: [NSView] = []

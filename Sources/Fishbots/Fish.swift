@@ -183,6 +183,9 @@ final class Fish {
     let createdAt = Date()
     /// The latest tools, and what the session said it was doing with each one (when it says: `doing`).
     var history: [(when: Date, name: String, said: String?)] = []
+    /// The name of a history line that isn't a tool but what was said to the session (the person's message, or its
+    /// leader's): `said` has the words.
+    static let toldMark = "·told"
     var finished: [(when: Date, title: String)] = []   // finished tasks
     var lastError: Date?
     /// Depth (0 near … 1 far): far away is smaller, bluer and behind.

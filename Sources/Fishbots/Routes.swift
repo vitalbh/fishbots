@@ -12,6 +12,9 @@ extension AppDelegate {
             Outputs.register(sessionControl)
             server?.deferred.append(sessionControl.handle)
             sessionControl.answer = { [unowned self] f, text in self.cards.answer(f, text) }
+            sessionControl.permission = { [unowned self] f in
+                self.permissions.request(ofFish: f.id).flatMap { $0.question == nil ? $0.tool + ": " + $0.summary : nil }
+            }
             server?.deferred.append { [unowned self] method, path, headers, body, reply in
                 let route = path.split(separator: "?").first.map(String.init) ?? path
                 guard method == "POST", let (provider, isPermission) = Providers.route(route), isPermission else { return false }

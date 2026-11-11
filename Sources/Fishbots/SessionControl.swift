@@ -65,6 +65,9 @@ final class SessionControl: EventSink {
     private let settle: TimeInterval = 1.5
     /// A line for a session that's asking something with a menu of answers: it's the answer (true if it was).
     var answer: ((Fish, String) -> Bool)?
+    /// What a session is asking permission for right now ("Bash: rm -rf build"), if it is: only the person can
+    /// give it, so whoever waits on that session is told, to tell them.
+    var permission: ((Fish) -> String?)?
 
     init(tank: Tank, port: @escaping () -> UInt16, can: @escaping (Capability, Fish) -> Bool) {
         self.tank = tank
@@ -143,7 +146,7 @@ final class SessionControl: EventSink {
             let states = Set(asked)
             // already there (and not just sent a line)?
             if let f = found.first(where: { !sent.contains($0.id) && states.contains($0.state.rawValue) }) {
-                reply(200, Self.json(Self.snapshot(f))); return true
+                reply(200, Self.json(told(f))); return true
             }
             let w = Waiter(id: next, fish: found.map(\.id), states: states, reply: reply)
             next += 1
@@ -340,7 +343,7 @@ final class SessionControl: EventSink {
             // the waiter stays in the list meanwhile, so nothing else answers it twice: `finish` takes it out
             DispatchQueue.main.asyncAfter(deadline: .now() + settle) { [weak self] in
                 self?.finish(id) { me in
-                    Self.json(me.tank.fish.first { $0.id == fishId && !$0.leaving }.map(Self.snapshot) ?? ["fish": fishId, "gone": true])
+                    Self.json(me.tank.fish.first { $0.id == fishId && !$0.leaving }.map { me.told($0) } ?? ["fish": fishId, "gone": true])
                 }
             }
         }
@@ -396,6 +399,13 @@ final class SessionControl: EventSink {
 
     private static func seconds(_ v: Any?, or usual: Double, upTo most: Double) -> Double {
         min(max((v as? NSNumber)?.doubleValue ?? usual, 1), most)
+    }
+
+    /// What a session waiting on this one is told: how it is, and if it stopped to ask permission, for what.
+    private func told(_ f: Fish) -> [String: Any] {
+        var d = Self.snapshot(f)
+        if f.state == .waiting, let p = permission?(f) { d["permission"] = p }
+        return d
     }
 
     private static func snapshot(_ f: Fish) -> [String: Any] {

@@ -325,10 +325,18 @@ final class Tank {
             f.doingAt = time
             if let text, f.state == .busy { f.moment = (text.count > 44 ? String(text.prefix(43)) + "…" : text, time + 6) }
             // …or just after it: they go with the tool it has just started
-            if let text, let last = f.history.last, last.said == nil, Date().timeIntervalSince(last.when) < 3 {
+            if let text, let last = f.history.last, last.said == nil, last.name != Fish.toldMark, Date().timeIntervalSince(last.when) < 3 {
                 f.history[f.history.count - 1].said = text
             }
         }
+    }
+
+    /// What was said to the session (a prompt): a line of its history, among what it did about it.
+    func told(source: String, entity: String, _ words: String) {
+        let line = words.split(whereSeparator: \.isNewline).first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
+        guard !line.isEmpty, let f = fish.first(where: { $0.id == id(source, entity) }) else { return }
+        f.history.append((Date(), Fish.toldMark, String(line.prefix(200))))
+        if f.history.count > 16 { f.history.removeFirst() }
     }
 
     func tool(source: String, entity: String, name: String) {
@@ -337,12 +345,12 @@ final class Tank {
         f.seen = time
         f.toolTimes.append(time)
         // its own words about this call, if they came just before it (and weren't about the call before)
-        let said = f.doing != nil && time - f.doingAt <= 1.5 && f.history.last?.said != f.doing ? f.doing : nil
+        let said = f.doing != nil && time - f.doingAt <= 1.5 && f.history.last(where: { $0.name != Fish.toldMark })?.said != f.doing ? f.doing : nil
         f.history.append((Date(), name, said))
         // its own words about this tool, if they've just arrived, say more than the tool's name
         if f.doing == nil || time - f.doingAt > 1.5 { f.moment = (ToolBehaviors.of(name).label(name), time + 4) }
         f.toolSinceStart += 1
-        if f.history.count > 12 { f.history.removeFirst() }
+        if f.history.count > 16 { f.history.removeFirst() }
         startAction(f, name)
         if f.ticks.count < 6 { f.ticks.append(ToolBehaviors.of(name).timbre) }
     }

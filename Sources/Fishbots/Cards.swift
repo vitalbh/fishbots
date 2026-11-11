@@ -126,7 +126,10 @@ final class Cards {
     /// What, if it changes, makes the open card refresh.
     private func signature(_ f: Fish) -> String {
         // its school, and how each one is
-        let school: [String] = tank.school(of: f).map { c in c.id + c.state.rawValue + (c.displayTitle ?? "") }
+        let school: [String] = tank.school(of: f).map { c in
+            let asks = permissions.request(ofFish: c.id).map { "\($0.id)" } ?? ""
+            return c.id + c.state.rawValue + (c.displayTitle ?? "") + asks + (c.doing ?? c.tool ?? "") + String((c.lastReply ?? "").prefix(40))
+        }
         let family: String = school.joined(separator: ",") + "<" + (tank.leader(of: f)?.id ?? "")
         return [f.state.rawValue, f.tool ?? "", f.history.last?.name ?? "", f.history.last?.said ?? "", "\(f.history.count)",
          f.context.map { "\(Int($0 * 100))" } ?? "", f.model ?? "", f.doing ?? "", "\(f.lastReply?.hashValue ?? 0)", f.asked ?? "",
@@ -176,6 +179,8 @@ final class Cards {
         card.school = tank.school(of: f)
         card.leader = tank.leader(of: f)
         card.visit = { [weak self] other in self?.show(other) }
+        card.asks = { [weak self] child in self?.permissions.request(ofFish: child.id) }
+        card.answerFor = { [weak self] p, action in self?.decide(p.id, action) }
         card.rebuild = { [weak self, weak f] in
             guard let self, let f, let pop = self.hoverCard, self.hoverCardId == f.id else { return }
             pop.contentViewController = self.cardContent(f)

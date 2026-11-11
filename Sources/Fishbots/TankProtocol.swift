@@ -236,6 +236,7 @@ enum ClaudeCodeHook {
             state(.born)
         case "UserPromptSubmit":
             state(.busy)
+            if let said = m["prompt"] as? String { tank.told(source: source, entity: session, said) }
         case "PreToolUse" where question:
             state(.waiting)
         case "PreToolUse":
