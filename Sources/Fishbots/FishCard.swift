@@ -140,6 +140,8 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     private static var expanded: [String: Set<String>] = [:]
     /// Go to the session (the card's "where" line).
     var go: (() -> Void)?
+    /// Set on a card dragged off its fish: closes it.
+    var unpin: (() -> Void)?
     /// Ends the session (closes its pane), where the aquarium can; it asks first.
     var end: (() -> Void)?
     /// The sessions it launched, the one that launched it, and opening another fish's card from this one.
@@ -591,10 +593,15 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
 
     /// Ending the session, out of the way at the bottom right.
     private func ending() -> [NSView] {
-        guard let end, request == nil else { return [] }
-        let b = link(tr("✕ encerrar sessão"), 10.5, color: NSColor.systemRed.blended(withFraction: 0.35, of: .white) ?? .systemRed,
-                     tip: tr("Fecha o painel dela no terminal (pergunta antes)")) { end() }
-        return [row([NSView(), b])]
+        var links: [NSView] = []
+        // a card dragged off its fish stays until closed here
+        if let unpin { links.append(link(tr("fechar o cartão"), 10.5, color: .secondaryLabelColor) { unpin() }) }
+        links.append(NSView())
+        if let end, request == nil {
+            links.append(link(tr("✕ encerrar sessão"), 10.5, color: NSColor.systemRed.blended(withFraction: 0.35, of: .white) ?? .systemRed,
+                              tip: tr("Fecha o painel dela no terminal (pergunta antes)")) { end() })
+        }
+        return links.count > 1 ? [row(links)] : []
     }
 
     /// The keys (opened with Tab) or the clicks.

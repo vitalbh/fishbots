@@ -21,7 +21,7 @@ extension AppDelegate {
         // the folder picked last time; the first time, where the most recent session works
         let recent = tank.fish.filter { $0.isAgent && !$0.decor && $0.whereabouts["cwd"] != nil }.max { $0.bornAt < $1.bornAt }?.whereabouts["cwd"]
         let pop = NSPopover()
-        pop.behavior = .applicationDefined
+        pop.behavior = .semitransient     // a click elsewhere in the aquarium closes it (the folder panel doesn't)
         pop.animates = false
         pop.appearance = NSAppearance(named: .darkAqua)
         let card = NewSessionCard(agents: agents, folder: UserDefaults.standard.string(forKey: "newSessionFolder") ?? recent ?? NSHomeDirectory())
@@ -31,6 +31,7 @@ extension AppDelegate {
             self?.open(chosen, in: dir, task: task, model: model, leading: leading)
         }
         pop.contentViewController = card
+        pop.delegate = card
         // over the clutch of eggs, where there is one; else low in the middle of the tank
         var at = NSRect(x: view.bounds.midX - 20, y: view.bounds.height * 0.2, width: 40, height: 40)
         if let eggs = tank.scenery.eggs {
@@ -92,7 +93,11 @@ extension AppDelegate {
 }
 
 /// The card: what the session should do, where, with which agent and model, and whether it may lead others.
-final class NewSessionCard: NSViewController, NSTextFieldDelegate {
+final class NewSessionCard: NSViewController, NSTextFieldDelegate, NSPopoverDelegate {
+    /// Dragged by its glass, it comes off the eggs and stays where it's put.
+    func popoverShouldDetach(_ popover: NSPopover) -> Bool { true }
+    private var escape: Any?
+
     private let agents: [SessionProvider]
     private var folder: String
     var cancel: (() -> Void)?
@@ -251,10 +256,20 @@ final class NewSessionCard: NSViewController, NSTextFieldDelegate {
     override func viewDidAppear() {
         super.viewDidAppear()
         view.window?.makeFirstResponder(task)
+        // Esc closes it, wherever the keys are going (the card or the aquarium behind it)
+        if escape == nil {
+            escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
+                guard let self, e.keyCode == 53, self.view.window != nil, !(NSApp.keyWindow is NSOpenPanel) else { return e }
+                self.cancel?()
+                return nil
+            }
+        }
     }
 
     override func viewWillDisappear() {
         super.viewWillDisappear()
+        if let escape { NSEvent.removeMonitor(escape) }
+        escape = nil
         if Dictation.shared.listening { sendWhenDone = false; Dictation.shared.stop() }
     }
 

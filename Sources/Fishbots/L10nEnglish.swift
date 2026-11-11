@@ -486,6 +486,7 @@ let english: [String: String] = [
     "Encerrar": "End",
     "Encerrar com o cardume (%d)": "End it with its school (%d)",
     "✕ encerrar sessão": "✕ end session",
+    "fechar o cartão": "close the card",
     "quer usar %@": "wants to use %@",
     "outra resposta… (↩ envia)": "another answer… (↩ sends)",
     "(pode marcar mais de uma)": "(more than one may be picked)",

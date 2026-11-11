@@ -4,7 +4,7 @@ import simd
 /// The cards over the water: the one that opens when the mouse rests on a fish (or Tab picks it), the bubble of a
 /// permission request, and what you do from them: reply, stop, allow or deny, go there. It owns what's open and
 /// what the mouse and the keyboard are on; the app tells it where the mouse is and calls `control` every frame.
-final class Cards {
+final class Cards: NSObject, NSPopoverDelegate {
     private let tank: Tank
     private let permissions: Permissions
     /// The water's view, where the bubbles point. Made with the window, a little after this.
@@ -19,6 +19,7 @@ final class Cards {
     private var hoverCardId: String?
     private var cardSignature = ""
     private var cardCheckedAt = Date.distantPast
+    private var pinnedCheckedAt = Date.distantPast
     /// The fish chosen with Tab (its card stays open until Esc or the mouse goes to another fish).
     private(set) var keyboardPick: String?
     private var requestBubble: NSPopover?
@@ -27,6 +28,44 @@ final class Cards {
     init(tank: Tank, permissions: Permissions) {
         self.tank = tank
         self.permissions = permissions
+        super.init()
+    }
+
+    // MARK: - cards dragged off their fish
+
+    /// Cards the person dragged away from their fish: they stay where they were put, each still following its
+    /// session, until closed (their ✕, or the session ending).
+    private var pinned: [String: (pop: NSPopover, signature: String)] = [:]
+
+    func popoverShouldDetach(_ popover: NSPopover) -> Bool { popover === hoverCard }
+
+    func popoverDidDetach(_ popover: NSPopover) {
+        guard popover === hoverCard, let id = hoverCardId, let f = tank.fish.first(where: { $0.id == id }) else { return }
+        pinned[id]?.pop.close()
+        pinned[id] = (popover, cardSignature)
+        hoverCard = nil
+        hoverCardId = nil
+        if keyboardPick == id { keyboardPick = nil }
+        popover.contentViewController = cardContent(f, pinned: true)
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        guard let pop = notification.object as? NSPopover else { return }
+        pinned = pinned.filter { $0.value.pop !== pop }
+    }
+
+    /// Once a second: a pinned card whose session changed is rebuilt (not while a reply is being written in it), and
+    /// one whose fish left closes.
+    private func refreshPinned() {
+        for (id, card) in pinned {
+            guard let f = tank.fish.first(where: { $0.id == id && !$0.leaving }) else { card.pop.close(); continue }
+            if (card.pop.contentViewController as? FishCard)?.typing == true { continue }
+            let now = signature(f)
+            if now != card.signature {
+                pinned[id] = (card.pop, now)
+                card.pop.contentViewController = cardContent(f, pinned: true)
+            }
+        }
     }
 
     var isOpen: Bool { hoverCard != nil }
@@ -85,6 +124,7 @@ final class Cards {
         // the fish under the mouse (or with the card open) swims in circles in place
         tank.focused = hoverCardId ?? hoverId
         let now = Date()
+        if !pinned.isEmpty, now.timeIntervalSince(pinnedCheckedAt) > 1 { pinnedCheckedAt = now; refreshPinned() }
         let mouseInCard: Bool = {
             guard let w = hoverCard?.contentViewController?.view.window else { return false }
             return w.frame.insetBy(dx: -6, dy: -6).contains(NSEvent.mouseLocation)
@@ -139,7 +179,10 @@ final class Cards {
 
     func show(_ f: Fish, keyboard: Bool = false) {
         close()
+        // its card is already out, pinned somewhere: that one comes to the front instead
+        if let out = pinned[f.id] { out.pop.contentViewController?.view.window?.orderFront(nil); return }
         let pop = NSPopover()
+        pop.delegate = self
         pop.behavior = .applicationDefined
         pop.animates = false
         pop.appearance = NSAppearance(named: .darkAqua)   // dark glass (see FishCard.glass)
@@ -154,22 +197,23 @@ final class Cards {
         hoverCardId = f.id
     }
 
-    private func cardContent(_ f: Fish) -> FishCard {
+    /// `pinned`: for a card dragged off its fish (acting from it doesn't close it, and it has its own ✕).
+    private func cardContent(_ f: Fish, pinned isPinned: Bool = false) -> FishCard {
         let request = permissions.request(ofFish: f.id)
         let resp: ((String) -> Void)? = canReply(f) ? { [weak self, weak f] text in
             guard let self, let f else { return }
-            self.close()
+            if !isPinned { self.close() }
             self.sendReply(f, text)
         } : nil
         let stopFn: (() -> Void)? = canStop(f) ? { [weak self, weak f] in
             guard let self, let f else { return }
-            self.close()
+            if !isPinned { self.close() }
             Providers.of(f.source)?.stop(f)
             self.tank.notice = (tr("Esc em %@", f.nickname ?? f.label), self.tank.time)
         } : nil
         let card = FishCard(fish: f, request: request, reply: resp, stop: stopFn) { [weak self] action in
             guard let self, let p = request else { return }
-            self.close()
+            if !isPinned { self.close() }
             self.decide(p.id, action)
         }
         card.go = { [weak f] in if let f { Whereabouts.go(f) } }
@@ -182,10 +226,16 @@ final class Cards {
         card.asks = { [weak self] child in self?.permissions.request(ofFish: child.id) }
         card.answerFor = { [weak self] p, action in self?.decide(p.id, action) }
         card.rebuild = { [weak self, weak f] in
-            guard let self, let f, let pop = self.hoverCard, self.hoverCardId == f.id else { return }
-            pop.contentViewController = self.cardContent(f)
-            self.cardSignature = self.signature(f)
+            guard let self, let f else { return }
+            if isPinned, let out = self.pinned[f.id] {
+                self.pinned[f.id] = (out.pop, self.signature(f))
+                out.pop.contentViewController = self.cardContent(f, pinned: true)
+            } else if let pop = self.hoverCard, self.hoverCardId == f.id {
+                pop.contentViewController = self.cardContent(f)
+                self.cardSignature = self.signature(f)
+            }
         }
+        if isPinned { card.unpin = { [weak self, weak f] in if let f { self?.pinned[f.id]?.pop.close() } } }
         return card
     }
 
