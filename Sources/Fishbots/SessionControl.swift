@@ -62,6 +62,10 @@ final class SessionControl: EventSink {
     private var next = 1
     /// Fish that were sent a line and haven't changed state since.
     private var sent: Set<String> = []
+    /// What a waiting fish was last told to be asking (its question, or the permission it wants), and whether it has
+    /// moved on since. The same question isn't told twice, so a `wait` after it waits for what comes next; and a
+    /// line meant as its answer isn't typed into a session someone else answered meanwhile.
+    private var lastTold: [String: (what: String, question: Bool, moved: Bool)] = [:]
     private var ticker: Timer?
     /// The last reply is read from the transcript a moment after the turn ends.
     private let settle: TimeInterval = 1.5
@@ -100,8 +104,16 @@ final class SessionControl: EventSink {
             guard let text = m["text"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 reply(400, Self.error(#"send {"fish": "…", "text": "…"}"#)); return true
             }
+            // it was told to be asking something, and it isn't any more: the person answered it meanwhile (on its
+            // card or in its terminal), so this line would land as a new message. Said once; sent again, it's typed
+            if let t = lastTold[f.id], t.question, t.moved || asking(f) != t.what {
+                lastTold[f.id] = nil
+                reply(409, Self.error("\(f.id) no longer asks that: it was answered meanwhile (on its card or in its terminal) and is \(f.state.rawValue) now. Nothing was typed: wait for it, or send this again if it's a new message for it"))
+                return true
+            }
             if answer?(f, text) == true {
                 sent.insert(f.id)
+                lastTold[f.id] = nil
                 reply(200, Data(#"{"ok":true,"answered":true}"#.utf8)); return true
             }
             guard can(.reply, f), let provider = Providers.of(f.source) else {
@@ -116,6 +128,7 @@ final class SessionControl: EventSink {
                     return
                 }
                 if let f {
+                    self.lastTold[f.id] = nil
                     f.glow = 1
                     f.moment = (tr("↩︎ respondido"), self.tank.time + 4)
                 }
@@ -146,8 +159,8 @@ final class SessionControl: EventSink {
             let asked = (m["states"] as? [String] ?? ["done", "waiting", "error", "idle"]).compactMap { State(wire: $0)?.rawValue }
             guard !asked.isEmpty else { reply(400, Self.error("no known state in \"states\"")); return true }
             let states = Set(asked)
-            // already there (and not just sent a line)?
-            if let f = found.first(where: { !sent.contains($0.id) && states.contains($0.state.rawValue) }) {
+            // already there (and not just sent a line, nor still asking what it was already told to be asking)?
+            if let f = found.first(where: { !sent.contains($0.id) && states.contains($0.state.rawValue) && !stillAsking($0) }) {
                 reply(200, Self.json(told(f))); return true
             }
             let w = Waiter(id: next, fish: found.map(\.id), asker: caller(headers)?.id, states: states, reply: reply)
@@ -341,6 +354,9 @@ final class SessionControl: EventSink {
         guard e.type == "state" else { return }
         let fishId = e.source + ":" + e.entity
         sent.remove(fishId)
+        if e.state != State.waiting.rawValue { lastTold[fishId]?.moved = true }
+        // the same question again (a notification about it): whoever waits has heard it
+        if let f = tank.fish.first(where: { $0.id == fishId }), stillAsking(f) { return }
         for w in waiters where w.fish.contains(fishId) && w.states.contains(e.state) {
             let id = w.id
             // the waiter stays in the list meanwhile, so nothing else answers it twice: `finish` takes it out
@@ -390,6 +406,7 @@ final class SessionControl: EventSink {
                 if let lost = w.fish.first(where: { !alive.contains($0) }) { self.finish(w.id) { _ in Self.json(["fish": lost, "gone": true]) } }
             }
             self.sent.formIntersection(alive)
+            self.lastTold = self.lastTold.filter { alive.contains($0.key) }
         }
     }
 
@@ -416,7 +433,19 @@ final class SessionControl: EventSink {
     private func told(_ f: Fish) -> [String: Any] {
         var d = Self.snapshot(f)
         if f.state == .waiting, let p = permission?(f) { d["permission"] = p }
+        lastTold[f.id] = asking(f).map { ($0, d["asked"] != nil, false) }
         return d
+    }
+
+    /// What a waiting fish waits for: the permission it wants, or its question.
+    private func asking(_ f: Fish) -> String? {
+        f.state == .waiting ? permission?(f) ?? f.asked ?? "" : nil
+    }
+
+    /// It still waits for the very thing whoever waits on it was already told about.
+    private func stillAsking(_ f: Fish) -> Bool {
+        guard let t = lastTold[f.id] else { return false }
+        return !t.moved && asking(f) == t.what
     }
 
     private static func snapshot(_ f: Fish) -> [String: Any] {

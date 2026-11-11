@@ -60,9 +60,14 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
   and delete the branch. Children that only read don't need one.
 - `wait` goes on waiting if the aquarium restarts meanwhile; you don't need to call it again.
 - **`wait` after `reply` is safe**: it waits for what the session says next, not for the reply it already gave.
-  `state: "waiting"` comes with `asked`: answer it with `reply`, or pass it on to the person. When `asked` lists
-  numbered answers (the child asked with a menu), `reply` with the number or the label picks one, and any other
-  text is an answer in your own words.
+  `state: "waiting"` comes with `asked`: what the child asks. When `asked` lists numbered answers (the child asked
+  with a menu), `reply` with the number or the label picks one, and any other text is an answer in your own words.
+- **A child's question is already in front of the person**: on its fish's card (and on yours, as its leader), with
+  its answers to click. If you know the answer, `reply` with it. If it's the person's to give, don't ask it again
+  with a question of your own: say in a line which child asks what, and `wait` again. The same question isn't
+  told twice, so that `wait` returns when the child stops next, after the person answered it.
+- **`reply` to a question someone already answered is refused** ("no longer asks that"): nothing was typed. `wait`
+  for the child; send the line again only if it's a new message for it.
 - A `wait` answer with **`permission`** ("Bash: rm -rf build") means the child stopped to ask the person's leave
   for that. You can't give it and `reply` won't: tell the person which child waits and for what, then wait again.
 - **Permission requests stay with the person.** A child that needs approval shows up as waiting in the aquarium;

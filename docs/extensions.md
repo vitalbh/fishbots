@@ -367,10 +367,10 @@ checks as the card apply, so nothing is typed where the card wouldn't type):
 
 | Route | Body | Answer |
 |---|---|---|
-| `/control/reply` | `fish`, `text` | ok, or why not (not at its prompt, another program in front…) |
+| `/control/reply` | `fish`, `text` | ok, or why not (not at its prompt, another program in front…; or it was told to be asking something and someone answered that meanwhile: refused once, so an answer doesn't land as a new message) |
 | `/control/stop` | `fish` | ok |
 | `/control/close` | `fish` | closes the pane of a session the asker launched (the launcher's `close`); its fish leaves |
-| `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them stops working (done, waiting, error, idle; or the `states` asked for): which, its state, its last reply |
+| `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them stops working (done, waiting, error, idle; or the `states` asked for): which, its state, its last reply, what it asks (`asked`, `permission`). A question already told isn't told again: the next `wait` is for what comes after it |
 | `/control/spawn` | `agent`, `model`, `cwd` (`worktree`, `branch`: echoed back; the CLI's `--worktree` makes them), `prompt`, `label`, `launcher`, `tab`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
 
 `fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish

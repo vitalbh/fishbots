@@ -306,7 +306,7 @@ Since the hook can approve tools on your behalf, it isn't enabled by default. In
 scripts/install-permission.sh ~/.claude/settings.json      # or: scripts/install-hooks.sh claude-code --permission
 ```
 
-AskUserQuestion and ExitPlanMode become "waiting" (with "Ir até lá"), but aren't answered by the aquarium: answering would require holding PreToolUse, and then the question would only show up in the terminal afterwards.
+AskUserQuestion is answered on the card: its answers are buttons, with a field for an answer in your own words (several questions make a form; "Responder no terminal" shows the terminal's menu instead). ExitPlanMode becomes "waiting" and is answered in the terminal. Every session's card has "↗ ir para o painel" (or "a sessão") at the bottom, which takes you there.
 
 ### Codex
 

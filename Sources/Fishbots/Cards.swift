@@ -85,6 +85,7 @@ final class Cards: NSObject, NSPopoverDelegate {
     /// The mouse is over this fish now (nil: over none).
     func hover(_ id: String?) {
         if id != hoverId { hoverSince = Date() }
+        if id != visitedFrom { visitedFrom = nil }
         hoverId = id
     }
 
@@ -92,6 +93,18 @@ final class Cards: NSObject, NSPopoverDelegate {
     func open(_ f: Fish) {
         hoverId = f.id
         hoverSince = Date(timeIntervalSinceNow: -1)
+        show(f)
+    }
+
+    /// The fish the mouse was on when another's card was opened from its card: while it stays there, it doesn't
+    /// take the card back.
+    private var visitedFrom: String?
+
+    /// Another fish's card, opened from a card (a leader's from its child's, a child's from its leader's): it stays
+    /// like one picked with Tab, until Esc or until the mouse rests on some other fish.
+    func visit(_ f: Fish) {
+        visitedFrom = hoverId
+        keyboardPick = f.id
         show(f)
     }
 
@@ -143,7 +156,7 @@ final class Cards: NSObject, NSPopoverDelegate {
         if (hoverCard?.contentViewController as? FishCard)?.typing == true { return }
         // chosen with Tab: stays open until Esc, or until the mouse rests on another fish
         if let pick = keyboardPick {
-            if let id = hoverId, id != pick, now.timeIntervalSince(hoverSince) > 0.5 { keyboardPick = nil }
+            if let id = hoverId, id != pick, id != visitedFrom, now.timeIntervalSince(hoverSince) > 0.5 { keyboardPick = nil }
             else if hoverCardId == pick {
                 if let pop = hoverCard, now.timeIntervalSince(cardCheckedAt) > 1, let f = tank.fish.first(where: { $0.id == pick }) {
                     cardCheckedAt = now
@@ -227,12 +240,13 @@ final class Cards: NSObject, NSPopoverDelegate {
             self.decide(p.id, action)
         }
         card.go = { [weak f] in if let f { Whereabouts.go(f) } }
+        if f.isAgent { card.reach = Whereabouts.reach(f) }
         if SessionControl.canEnd(f) {
             card.end = { [weak f] in if let f { (NSApp.delegate as? AppDelegate)?.endSession(f) } }
         }
         card.school = tank.school(of: f)
         card.leader = tank.leader(of: f)
-        card.visit = { [weak self] other in self?.show(other) }
+        card.visit = { [weak self] other in self?.visit(other) }
         card.asks = { [weak self] child in self?.permissions.request(ofFish: child.id) }
         card.answerFor = { [weak self] p, action in self?.decide(p.id, action) }
         card.rebuild = { [weak self, weak f] in

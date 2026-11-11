@@ -108,7 +108,9 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         preferredContentSize = view.fittingSize
     }
 
-    func controlTextDidChange(_ obj: Notification) { fitField() }
+    func controlTextDidChange(_ obj: Notification) {
+        if let t = obj.object as? NSTextField, form.contains(where: { $0.other === t }) { typedOther(t) } else { fitField() }
+    }
 
     init(fish: Fish, request: Permissions.Request?, reply: ((String) -> Void)? = nil, stop: (() -> Void)? = nil,
          decide: @escaping (String) -> Void) {
@@ -140,6 +142,8 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     private static var expanded: [String: Set<String>] = [:]
     /// Go to the session (the card's "where" line).
     var go: (() -> Void)?
+    /// What going there reaches, when there's somewhere to go: the link by the card's closing ones says so.
+    var reach: Whereabouts.Reach?
     /// Set on a card dragged off its fish: closes it.
     var unpin: (() -> Void)?
     /// Ends the session (closes its pane), where the aquarium can; it asks first.
@@ -274,6 +278,15 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             if let p = asks?(c), let q = p.question {
                 under("✋ " + q.text, .systemOrange)
                 v.append(row([NSView()] + q.options.prefix(4).enumerated().map { small($0.element.label, "answer:\($0.offset + 1)", p, tip: $0.element.about) }))
+            } else if let p = asks?(c), let first = p.questions.first {
+                // several questions: a form, filled in on its own card (allowing it here would only show the
+                // terminal's menu)
+                under("✋ " + first.text + (p.questions.count > 1 ? "  " + tr("(+%d)", p.questions.count - 1) : ""), .systemOrange)
+                let open = ClosureButton { [weak self] in self?.visit?(c) }
+                open.title = tr("Ver perguntas"); open.bezelStyle = .rounded; open.controlSize = .small
+                open.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+                open.toolTip = tr("Abre o cartão dela, com as perguntas")
+                v.append(row([NSView(), open]))
             } else if let p = asks?(c) {
                 under("✋ " + tr("quer usar %@", p.tool) + ": " + p.summary, .systemOrange)
                 v.append(row([NSView(), small(tr("Negar"), "deny", p), small(tr("Permitir"), "allow", p)]))
@@ -475,9 +488,6 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             other.cell?.sendsActionOnEndEditing = false
             other.widthAnchor.constraint(equalToConstant: width).isActive = true
             v.append(other)
-            let there = NSButton(title: tr("Ir até lá"), target: self, action: #selector(clicked(_:)))
-            there.identifier = NSUserInterfaceItemIdentifier("go"); there.bezelStyle = .rounded
-            v.append(row([there, NSView()]))
         } else if let p = request, !p.questions.isEmpty {
             // several questions, or several answers to one: a form. Each answer is a button that stays pressed; the
             // answers go together once every question has one.
@@ -497,7 +507,20 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                     b.tag = index
                     buttons.append(b)
                 }
-                form.append((q, buttons))
+                // an answer in your own words, as the terminal's menu takes: typed, it's the answer (with what's pressed,
+                // where several may be picked)
+                let other = NSTextField(string: "")
+                other.placeholderString = tr("outra resposta…")
+                other.bezelStyle = .roundedBezel
+                other.controlSize = .small
+                other.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+                other.tag = index
+                other.delegate = self
+                other.target = self
+                other.action = #selector(sendForm)
+                other.cell?.sendsActionOnEndEditing = false
+                other.setContentHuggingPriority(.defaultLow, for: .horizontal)
+                form.append((q, buttons, other))
                 // a few to a row, so long labels don't run off the card
                 var line: [NSView] = [], used = 0
                 for b in buttons {
@@ -505,11 +528,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                     if used + w > Int(width), !line.isEmpty { v.append(row(line + [NSView()])); line = []; used = 0 }
                     line.append(b); used += w
                 }
-                if !line.isEmpty { v.append(row(line + [NSView()])) }
+                if used + 150 > Int(width), !line.isEmpty { v.append(row(line + [NSView()])); line = [] }
+                v.append(row(line + [other]))
             }
-            let there = NSButton(title: tr("Ir até lá"), target: self, action: #selector(clicked(_:)))
+            let there = NSButton(title: tr("Responder no terminal"), target: self, action: #selector(clicked(_:)))
             there.identifier = NSUserInterfaceItemIdentifier("allow-go"); there.bezelStyle = .rounded
-            there.toolTip = tr("Responder no menu do terminal")
+            there.toolTip = tr("Mostra o menu das perguntas no terminal e vai até lá")
             let send = NSButton(title: tr("Responder"), target: self, action: #selector(sendForm))
             send.bezelStyle = .rounded; send.contentTintColor = .controlAccentColor; send.isEnabled = false
             formSend = send
@@ -523,7 +547,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
                 x.identifier = NSUserInterfaceItemIdentifier(id); x.keyEquivalent = k; x.bezelStyle = .rounded
                 return x
             }
-            v.append(row([b(tr("Ir até lá"), "go"), NSView(), b(tr("Negar"), "deny"), b(tr("Permitir"), "allow", "\r")]))
+            v.append(row([NSView(), b(tr("Negar"), "deny"), b(tr("Permitir"), "allow", "\r")]))
         }
 
         return v
@@ -591,11 +615,16 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         return v
     }
 
-    /// Ending the session, out of the way at the bottom right.
+    /// Going to the session and ending it, out of the way at the bottom.
     private func ending() -> [NSView] {
         var links: [NSView] = []
         // a card dragged off its fish stays until closed here
         if let unpin { links.append(link(tr("fechar o cartão"), 10.5, color: .secondaryLabelColor) { unpin() }) }
+        // always there while the session can be reached, whatever else the card is showing
+        if let reach {
+            links.append(link(tr(reach == .pane ? "↗ ir para o painel" : "↗ ir para a sessão"), 10.5, color: .secondaryLabelColor,
+                              tip: tr("Mostra a sessão no terminal")) { [weak self] in self?.go?() })
+        }
         links.append(NSView())
         if let end, request == nil {
             links.append(link(tr("✕ encerrar sessão"), 10.5, color: NSColor.systemRed.blended(withFraction: 0.35, of: .white) ?? .systemRed,
@@ -714,19 +743,39 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
 
     @objc private func clicked(_ b: NSButton) { decide(b.identifier?.rawValue ?? "") }
     /// The form of a request with several questions: each with its answer buttons.
-    private var form: [(question: Permissions.Question, buttons: [NSButton])] = []
+    private var form: [(question: Permissions.Question, buttons: [NSButton], other: NSTextField)] = []
     private var formSend: NSButton?
 
     /// One answer of the form was pressed: a question that takes one answer lets go of its others.
     @objc private func picked(_ b: NSButton) {
         guard form.indices.contains(b.tag) else { return }
-        if !form[b.tag].question.multi { for other in form[b.tag].buttons where other !== b { other.state = .off } }
-        formSend?.isEnabled = form.allSatisfy { $0.buttons.contains { $0.state == .on } }
+        if !form[b.tag].question.multi {
+            for other in form[b.tag].buttons where other !== b { other.state = .off }
+            if b.state == .on { form[b.tag].other.stringValue = "" }
+        }
+        formSend?.isEnabled = formReady
+    }
+
+    /// Something typed as a question's answer: where only one is taken, it's instead of the pressed one.
+    private func typedOther(_ t: NSTextField) {
+        guard form.indices.contains(t.tag) else { return }
+        if !form[t.tag].question.multi, !Self.typed(t).isEmpty { for b in form[t.tag].buttons { b.state = .off } }
+        formSend?.isEnabled = formReady
+    }
+
+    private static func typed(_ t: NSTextField) -> String { t.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) }
+    /// Every question has an answer, pressed or typed.
+    private var formReady: Bool {
+        form.allSatisfy { $0.buttons.contains { $0.state == .on } || !Self.typed($0.other).isEmpty }
     }
 
     @objc private func sendForm() {
+        guard formReady else { return }
         var answers: [String: String] = [:]
-        for (q, buttons) in form { answers[q.text] = buttons.filter { $0.state == .on }.map(\.title).joined(separator: ", ") }
+        for (q, buttons, other) in form {
+            let typed = Self.typed(other)
+            answers[q.text] = (buttons.filter { $0.state == .on }.map(\.title) + (typed.isEmpty ? [] : [typed])).joined(separator: ", ")
+        }
         guard let d = try? JSONSerialization.data(withJSONObject: answers) else { return }
         decide("answers:" + String(decoding: d, as: UTF8.self))
     }

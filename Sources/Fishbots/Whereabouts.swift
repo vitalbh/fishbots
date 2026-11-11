@@ -227,6 +227,19 @@ enum Whereabouts {
         return true
     }
 
+    /// What `go` reaches for a session: its own pane (Rex, Herdr, tmux), or just the terminal or app it runs in.
+    /// Nil: nowhere, or the fish is a link (that opens instead).
+    enum Reach { case pane, session }
+    static func reach(_ f: Fish) -> Reach? {
+        guard f.link == nil else { return nil }
+        let o = f.whereabouts
+        if o["rex_session"] != nil, o["rex_block"] != nil, rexBin(o) != nil { return .pane }
+        if o["herdr"] != nil, herdrApp != nil { return .pane }
+        if o["tmux"]?.isEmpty == false { return .pane }
+        if o["entrypoint"] == "claude-desktop" || o["term"] != nil || o["app"] != nil || o["cwd"] != nil { return .session }
+        return nil
+    }
+
     /// To a pane by its whereabouts alone (one just opened: it has no fish yet).
     static func go(to o: [String: String]) {
         guard let s = o["rex_session"], let b = o["rex_block"], let bin = rexBin(o) else { return }
