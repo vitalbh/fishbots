@@ -143,7 +143,7 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   water's color there (mix toward it for haze), extra.x the aspect, extra.y moonlight, extra.z the sand line's height at
   this x. `replaceReef` (default true) leaves out the distant reef the aquarium draws.
 - `leader`: the fish kind (built-in or the pack's own) a session is drawn as while it leads a school of sessions it
-  launched (`"leader": "lanternfish"`). Without it, the octopus. It keeps that shape until its session ends.
+  launched (`"leader": "lanternfish"`). Without it, the nautilus. It keeps that shape until its session ends.
 - `looks`: how the theme dresses built-in things, by id. The meaning stays, only the drawing changes:
   - a **piece of scenery** (`rock`, `shell`, `chest`, `coral`) drawn by one of the pack's scenery pieces, in the same
     place and with the same behavior (the chest still opens the summary). A chest's drawing gets how open it is in
@@ -440,7 +440,7 @@ of a control route is found by the `X-Where-*` headers the CLI sends, the same o
 orchestrator doesn't need to know its own id. A fish with children is the leader: no "orchestrator" provider.
 
 **In the tank** (`Schools.swift`): from its first child until its session ends, the leader is drawn as the theme's `leader` kind (the
-octopus; the deep sea's lanternfish, the lagoon's stingray), bigger and lit up, and goes on a wide round of the open
+nautilus, with a chamber of its shell lit for each session of its school at work), bigger and lit up, and goes on a wide round of the open
 water, brisk while any of its school works (it never settles on the sand, where they'd have no room behind it). Its children are smaller, dressed with its
 markings and fin in their own project's color, with "↳" before their name, and keep a V behind it; one that's doing
 something goes and does it and comes back, whoever waits for you still comes to the glass, a sick one still sinks.

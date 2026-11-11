@@ -294,7 +294,10 @@ extension Tank {
             out.append(Sprite(pos: f.pos, dir: [cosf(theta), sinf(theta)], size: len, kind: 0,
                               glow: glow, phase: f.tail, color: SIMD4(c, alpha),
                               extra: [(f.facingX >= 0 ? max(abs(f.facingX), 0.12) : -max(abs(f.facingX), 0.12)) * squeeze,
-                                      Float(f.pattern + f.cut * 8), Float(f.species), min(0.99, f.fat) + (asleep ? 2 : 0)],
+                                      // (the nautilus, a leader: how many of its school are at work, lit on its shell)
+                                      f.kindID == "nautilus" ? Float(min(6, school(of: f).filter { [.busy, .born, .waiting].contains($0.state) }.count))
+                                                             : Float(f.pattern + f.cut * 8),
+                                      Float(f.species), min(0.99, f.fat) + (asleep ? 2 : 0)],
                               aux: [lookLocal.x, lookLocal.y, blur, aging(f)]))
         }
         return out

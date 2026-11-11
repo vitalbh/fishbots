@@ -332,6 +332,79 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra, fl
 }
 
 // little octopus (GitHub): a round mantle with a face, and six arms that curl at the tips, webbed at the base
+// The leader of a school of sessions: a nautilus. Its striped shell, in the session's color, has a row of chambers
+// along the back, one lit for each session of its school at work (lit: how many, 0…6).
+float4 draw_nautilus(float2 c, float phase, float glow, float4 col, float lit) {
+    float2 p = c * float2(1.25, 0.8);
+    p.y -= 0.03 * sin(phase * 0.45);                                   // it bobs as it goes
+    float2 sp = p - float2(-0.22, 0.1);
+    float shell = length(sp) - 0.56;
+    // the hood over the shell's opening, with the body under it
+    float2 hp = p - float2(0.36, -0.06);
+    float hood = (length(hp / float2(0.3, 0.24)) - 1.0) * 0.24;
+    // the tentacles: a bunch of short ones reaching forward and down, waving
+    float tent = 1e3, tentT = 0.0;
+    for (int i = 0; i < 8; i++) {
+        float fi = float(i);
+        float2 q = float2(0.5, -0.12 - 0.012 * fi);
+        float a0 = mix(0.35, -1.25, fi / 7.0);
+        for (int j = 0; j < 5; j++) {
+            float t1 = float(j + 1) / 5.0;
+            float a = a0 + sin(phase * 0.8 + fi * 1.1 - t1 * 3.0) * 0.35 * t1;
+            float2 q1 = q + float2(cos(a), sin(a)) * (0.34 + 0.03 * sin(fi * 2.0)) / 5.0;
+            float2 pa = p - q, ba = q1 - q;
+            float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+            float dd = length(pa - ba * h) - (0.04 * (1.0 - 0.75 * (float(j) + h) / 5.0) + 0.006);
+            if (dd < tent) { tent = dd; tentT = (float(j) + h) / 5.0; }
+            q = q1;
+        }
+    }
+    float body = smin_k(hood, tent, 0.05);
+    float d = min(shell, body);
+    float aa = fwidth(d) + 1e-4;
+    float inside = 1.0 - smoothstep(-aa, aa, d);
+    float onShell = 1.0 - smoothstep(-aa, aa, shell);
+
+    // the body: the session's color, darker on the hood, with pale spots; the tentacles ringed
+    float3 flesh = col.rgb * (0.55 + 0.4 * smoothstep(-0.5, 0.3, p.y));
+    flesh = mix(flesh, col.rgb * 0.4 + 0.5, (1.0 - smoothstep(0.03, 0.05, length(fract(p * float2(9.0, 8.0)) - 0.5))) * 0.35 * step(hood, 0.0));
+    if (tent < hood) flesh = mix(flesh, col.rgb * 0.5 + 0.42, step(0.5, fract(tentT * 6.0)) * 0.5);
+    // the eye: a pale ring with a small dark pupil
+    float re = length(p - float2(0.4, -0.1));
+    flesh = mix(flesh, float3(0.95, 0.92, 0.85), 1.0 - smoothstep(0.065, 0.08, re));
+    flesh = mix(flesh, float3(0.03), 1.0 - smoothstep(0.028, 0.04, re));
+
+    // the shell: cream, round, with tiger stripes in the session's color fanning over the back from the whorl's center
+    float3 cream = float3(0.96, 0.92, 0.84);
+    float2 uc = sp - float2(0.1, -0.08);                                // the whorl's center, toward the opening
+    float ur = length(uc), ua = atan2(uc.y, uc.x);
+    float stripes = smoothstep(0.35, 0.6, sin(ua * 9.0 + ur * 7.0 + sin(ur * 20.0) * 0.4));
+    float back = smoothstep(-0.9, 0.4, sin(ua - 2.2));                   // they fade toward the opening (in front, below)
+    float3 sh = mix(cream, mix(col.rgb, float3(0.55, 0.22, 0.1), 0.35), stripes * back * smoothstep(0.1, 0.25, ur));
+    float whorl = 0.07 * exp(0.22 * (ua + 3.1416));                      // the inner turn of the spiral
+    sh *= 1.0 - 0.35 * (1.0 - smoothstep(0.008, 0.02, abs(ur - whorl))) * step(ur, 0.3);
+    float3 nrm = normalize(float3(sp / 0.56, sqrt(max(0.0, 1.0 - dot(sp, sp) / 0.3136))));
+    float lam = clamp(dot(nrm, normalize(float3(-0.3, 0.7, 0.6))), 0.0, 1.0);
+    sh *= 0.5 + 0.62 * lam;
+    sh += pow(lam, 14.0) * 0.3;
+    // the chambers along the back: one lit for each session at work
+    for (int i = 0; i < 6; i++) {
+        float ca = 0.55 + float(i) * 0.5;                                // from the top in front, around the back
+        float dotd = length(sp - float2(cos(ca), sin(ca)) * 0.43);
+        float on = step(float(i) + 0.5, lit);
+        float lamp = 1.0 - smoothstep(0.035, 0.06, dotd);
+        // unlit: a small dark dimple; lit: a golden lamp with a pale heart and a warm halo on the shell around it
+        float3 gold = mix(float3(1.0, 0.62, 0.12), float3(1.0, 0.95, 0.75), 1.0 - smoothstep(0.0, 0.014, dotd));
+        sh = mix(sh, mix(sh * 0.6, gold, on), lamp);
+        float halo = on * exp(-dotd * dotd / 0.016) * (0.45 + 0.15 * sin(phase * 1.5 + float(i)));
+        sh = mix(sh, float3(1.0, 0.66, 0.2), halo * (1.0 - lamp) * 0.7);
+    }
+    float3 c3 = mix(flesh, sh, onShell);
+    c3 += col.rgb * glow * 0.35;
+    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.03, -d)) * 0.25;                // a darker rim
+    return float4(c3 * inside, inside);
+}
+
 float4 draw_octo(float2 c, float phase, float glow, float4 col) {
     float2 p = c * float2(1.25, 0.8);
     float pulse = 1.0 + 0.05 * sin(phase * 0.8);

@@ -92,6 +92,8 @@ enum FishKinds {
         FishKind(id: "betta", name: "peixe-beta", source: nil, call: "draw_betta(c, phase, glow, col, extra)"),
         // the fauna's lanternfish (dark, with a light on its forehead)
         FishKind(id: "lanternfish", name: "peixe-lanterna", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 6.0, extra.w), aux)"),
+        // the leader of a school of sessions (extra.y: how many of them are at work, the chambers lit on its shell)
+        FishKind(id: "nautilus", name: "náutilo", source: nil, call: "draw_nautilus(c, phase, glow, col, extra.y)"),
     ]
 
     /// Kinds added after the shader was compiled only show up on the next launch.
@@ -159,10 +161,11 @@ enum FishKinds {
         return look
     }
 
-    /// The kind a session takes while it leads a school: the theme's "leader", the octopus where it names none (its
-    /// arms for its many hands). It's the session's shape from then on, so even a kind picked by hand gives way.
+    /// The kind a session takes once it leads a school: the theme's "leader", the nautilus where it names none (the
+    /// navigator, with a chamber of its shell lit for each session at work). It's the session's shape from then on, so
+    /// even a kind picked by hand gives way.
     static var leaderKind: String {
-        guard let id = Themes.current.leader, all.contains(where: { $0.id == id }) else { return "octopus" }
+        guard let id = Themes.current.leader, all.contains(where: { $0.id == id }) else { return "nautilus" }
         return id
     }
 

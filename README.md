@@ -197,8 +197,8 @@ fishbots show
 
 **Nova sessão…** (⌘N, or a click on the clutch of eggs on the sand) starts a session from the aquarium: its task,
 folder, agent and model. Its fish hatches from the eggs. A session that launches
-others becomes the leader of a school: another fish for as long as it leads (the octopus; each theme can name its
-own), its sessions smaller behind it in a V, each tied to it by a thread of light.
+others becomes the leader of a school: another fish for as long as it leads (a nautilus, with a chamber of its shell lit for each session at work; a theme can name
+another), its sessions smaller behind it in a V, each tied to it by a thread of light.
 
 A session can also command the others (off until you turn on "Sessions can command other sessions" in Settings →
 General), which is what an orchestrating agent needs ([docs/extensions.md](docs/extensions.md), point 11;

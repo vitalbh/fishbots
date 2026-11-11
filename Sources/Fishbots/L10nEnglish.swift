@@ -466,6 +466,7 @@ let english: [String: String] = [
     "Mostra a faixa e o artista, brilha quando a música muda e pausa a música ambiente enquanto toca.": "Shows the track and artist, glows when the song changes and pauses the ambient music while it plays.",
     "⏸ pausado": "⏸ paused",
     "peixe-beta": "betta",
+    "náutilo": "nautilus",
     "cardume · %d": "school · %d",
     "Nova sessão…": "New session…",
     "Nova sessão": "New session",
