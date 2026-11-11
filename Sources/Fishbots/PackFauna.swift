@@ -102,7 +102,7 @@ final class PackCreature: Creature {
         switch k.behavior {
         case .cross, .pass:
             if ones.isEmpty {
-                if nextVisit == nil { nextVisit = t.time + Double.random(in: k.every) }
+                if nextVisit == nil { nextVisit = t.time + Double.random(in: k.every) * t.visitGap }
                 if let at = nextVisit, t.time > at, shown > 0.5 {
                     nextVisit = nil
                     for i in 0..<(k.behavior == .pass ? 1 : n()) {

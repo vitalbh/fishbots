@@ -626,6 +626,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             visual.stream = { [unowned self] v in self.tank.musicStream(v) }
         }
         visual.light = tank.light / (1 - 0.22 * min(1, Float(errors) / 3))   // daylight, without the darkening from errors
+        visual.hush = tank.crowd
         visual.update(dt: min(dt, 0.05))
         // dressing by the theme turned on or off in the Preferences
         if themeKeeper.dressedWith.on != FishKinds.dressByTheme { themeKeeper.apply() }

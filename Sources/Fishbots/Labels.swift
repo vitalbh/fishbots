@@ -196,6 +196,22 @@ final class Labels {
         if Self.mode == "none" { l.opacity = 0; return }
         func short(_ t: String, _ n: Int) -> String { t.count > n ? String(t.prefix(n - 1)) + "…" : t }
         let near = now.hoverFish == f.id
+        // a crowded tank: a project's shoal speaks with one text, on the fish that leads it, and the others keep quiet
+        // (Crowding.swift); the mouse near the shoal fans it out and everyone speaks again
+        if !near, let role = tank.crowding.role(f) {
+            guard case .lead(let count, let working) = role else { l.opacity = 0; return }
+            let s = NSMutableAttributedString(string: "\(short(f.label, 22)) ×\(count)", attributes: [
+                .font: rounded(10.5, .medium), .foregroundColor: NSColor(white: 1, alpha: 0.7)])
+            let what = working > 0 ? tr("%d trabalhando", working) : tr("todos descansando")
+            s.append(NSAttributedString(string: "\n" + what, attributes: [.font: rounded(10), .foregroundColor: NSColor(white: 1, alpha: 0.5)]))
+            l.string = s
+            let sz = s.size()
+            l.bounds = CGRect(x: 0, y: 0, width: ceil(sz.width) + 6, height: ceil(sz.height) + 2)
+            l.position = CGPoint(x: CGFloat(f.pos.x), y: CGFloat(f.pos.y - f.size * 0.75) - l.bounds.height / 2)
+            l.opacity = 1
+            l.zPosition = 0
+            return
+        }
         // "↳": launched by another session (its leader swims nearby)
         let name = (f.leaderID == nil ? "" : "↳ ") + (f.nickname.map { short($0, 22) } ?? (f.isAgent ? short(f.displayTitle ?? f.label, 22) : f.label))
         let s = NSMutableAttributedString(string: name, attributes: [
@@ -263,10 +279,24 @@ final class Labels {
         var lift: [String: CGFloat] = [:]
         for f in tank.fish where !f.decor {
             guard let l = textLayers[f.id], l.opacity > 0 else { continue }
-            let home = l.frame
-            let up = CGFloat(f.size * 1.5) + home.height          // from below the fish to above it
-            lift[f.id] = up
-            claims.append(.init(id: f.id, home: home, alt: home.offsetBy(dx: 0, dy: up), priority: priority(f, tank)))
+            // a fish at the side glass or up at the surface: its text stays inside the tank
+            let room = view?.bounds ?? .zero
+            if l.frame.minX < 4 { l.position.x += 4 - l.frame.minX }
+            if l.frame.maxX > room.width - 4 { l.position.x -= l.frame.maxX - (room.width - 4) }
+            if l.frame.maxY > room.height - 4 { l.position.y -= l.frame.maxY - (room.height - 4) }
+            let below = l.frame
+            let up = CGFloat(f.size * 1.5) + below.height          // from below the fish to above it
+            // a fish down near the sand: its text would fall off the bottom of the tank, so it starts above
+            if below.minY < 4 {
+                l.position.y += up
+                claims.append(.init(id: f.id, home: l.frame, alt: nil, priority: priority(f, tank)))
+            } else if below.maxY + up > room.height - 4 {
+                // up at the surface there's no room above: below or nothing
+                claims.append(.init(id: f.id, home: below, alt: nil, priority: priority(f, tank)))
+            } else {
+                lift[f.id] = up
+                claims.append(.init(id: f.id, home: below, alt: below.offsetBy(dx: 0, dy: up), priority: priority(f, tank)))
+            }
             base[f.id] = (l, l.opacity)
         }
         for p in tank.scene.presences {

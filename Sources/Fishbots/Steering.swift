@@ -331,7 +331,8 @@ extension Tank {
                 target = wanderPoint(f, yRange: band(f, 0.14, 0.36), every: 5...10)
                 speed = 24 * burst(f)
                 // a sibling from the same project also idle: they swim side by side (the newer one alongside the older)
-                if let mate = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && $0.projectKey == f.projectKey
+                // (in a crowded tank the project's shoal takes its place: its leader must not chase the others)
+                if crowding.shoals[f.projectKey] == nil, let mate = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && $0.projectKey == f.projectKey
                                                   && ($0.state == .idle || $0.state == .ok) && $0.variant < f.variant }) {
                     let side: Float = f.variant % 2 == 0 ? 1 : -1
                     target = mate.pos + [-(mate.vel.x >= 0 ? 1 : -1) * mate.size * 1.4, side * mate.size * 1.1]
@@ -349,6 +350,9 @@ extension Tank {
         // a session that launched others leads them, and one that was launched keeps its place behind its leader
         // (Schools.swift)
         if let go = schooled(f, target: target, speed: speed, scale: scaleTarget) {
+            target = go.target; speed = go.speed; scaleTarget = go.scale
+        } else if let go = shoaled(f, target: target, speed: speed, scale: scaleTarget) {
+            // a crowded tank: the quiet ones of a project swim as one ball (Crowding.swift)
             target = go.target; speed = go.speed; scaleTarget = go.scale
         }
         // food attracts
@@ -388,7 +392,7 @@ extension Tank {
     private func wanderPoint(_ f: Fish, yRange: (Float, Float), every: ClosedRange<Double>) -> SIMD2<Float> {
         let away = f.wander.y < yRange.0 - 10 || f.wander.y > yRange.1 + 10
         if time > f.wanderAt || simd_distance(f.pos, f.wander) < 25 || away {
-            f.wander = [Float.random(in: size.x * 0.08...size.x * 0.92), Float.random(in: yRange.0...yRange.1)]
+            f.wander = [f.decor ? Float.random(in: size.x * 0.08...size.x * 0.92) : wanderX(f), Float.random(in: yRange.0...yRange.1)]
             f.wanderAt = time + Double.random(in: every)
         }
         return f.wander

@@ -399,6 +399,9 @@ final class Tank {
     /// The seaweed: where it stands and how it bends.
     let weeds = Weeds()
 
+    /// Shoals per project and their homes along the tank, while it's crowded (Crowding.swift).
+    let crowding = Crowding()
+
     private var oxygenAt: Double = 0
     private var pearlGlintAt: Double = 0
     private var shapedAt: Double = 0
@@ -698,6 +701,7 @@ final class Tank {
         weeds.update(self, dt: dt)
         let agents = Float(fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.count)
         crowd += (max(0, min(1, (agents - 4) / 6)) - crowd) * min(1, dt * 0.5)
+        crowding.update(self)
         if Int(time * 10) % 50 == 0 { gauges.expire() }
         breathe(dt: dt)
         scenery.update(self, dt: dt)

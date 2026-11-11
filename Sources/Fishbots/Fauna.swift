@@ -238,7 +238,7 @@ final class TurtleSwimmer: Creature {
             tt.pos.y = (tt.y0 + sinf(tt.phase * 0.5) * 18) * (1 - up) + (h * 0.94) * up
             if up > 0.97 && !tt.breathed { tt.breathed = true; t.splash(at: [tt.pos.x + tt.dir * 20, h * 0.965]) }
             turtle = tt
-            if tt.pos.x < -90 || tt.pos.x > w + 90 { turtle = nil; next = t.time + Double.random(in: 240...480) }
+            if tt.pos.x < -90 || tt.pos.x > w + 90 { turtle = nil; next = t.time + Double.random(in: 240...480) * t.visitGap }
         }
     }
 
@@ -367,7 +367,7 @@ final class WhaleSwimmer: Creature {
         let w = t.size.x
         if next == nil { next = t.time + Double.random(in: 1800...5400) }
         if whale == nil, let n = next, t.time > n {
-            next = t.time + Double.random(in: 3600...9000)
+            next = t.time + Double.random(in: 3600...9000) * t.visitGap
             call(t)
         }
         if var b = whale {
@@ -505,7 +505,7 @@ final class Sunfish: Creature {
         let w = t.size.x, h = t.size.y
         if next == nil { next = t.time + Double.random(in: 40...150) * Tank.scale }
         if pos == nil, let n = next, t.time > n {
-            next = t.time + Double.random(in: 600...1500) * Tank.scale
+            next = t.time + Double.random(in: 600...1500) * Tank.scale * t.visitGap
             dir = Bool.random() ? 1 : -1
             y0 = h * Float.random(in: 0.42...0.68)
             pos = [dir > 0 ? -h * 0.2 : w + h * 0.2, y0]
@@ -549,7 +549,7 @@ final class Manatee: Creature {
         let w = t.size.x, h = t.size.y
         if next == nil { next = t.time + Double.random(in: 40...150) * Tank.scale }
         if pos == nil, let n = next, t.time > n {
-            next = t.time + Double.random(in: 480...1200) * Tank.scale
+            next = t.time + Double.random(in: 480...1200) * Tank.scale * t.visitGap
             dir = Bool.random() ? 1 : -1
             y0 = h * Float.random(in: 0.3...0.55)
             breathes = Float.random(in: 0...1) < 0.7

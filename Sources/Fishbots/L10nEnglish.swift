@@ -498,4 +498,6 @@ let english: [String: String] = [
     "quem lançou esta sessão": "the session that launched this one",
     "Sessões podem comandar outras (responder, parar, esperar)": "Sessions can command other sessions (reply, stop, wait)",
     "Deixa um agente conduzir os outros pelo aquário (fishbots reply, stop, wait). Pedidos de permissão continuam com você.": "Lets an agent run the others through the aquarium (fishbots reply, stop, wait). Permission requests stay with you.",
+    "%d trabalhando": "%d working",
+    "todos descansando": "all resting",
 ]

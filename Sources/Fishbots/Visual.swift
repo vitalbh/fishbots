@@ -47,6 +47,9 @@ final class Visual {
     private var starAt: Float = 0
     /// Daylight (0.62 at night … 1 by day): by day the aurora becomes golden sunbeams.
     var light: Float = 1
+    /// How crowded the tank is (0…1, `Tank.crowd`): the visualizer and the aurora step back a little, so the
+    /// sessions stand out. Set by the app each frame; the screen saver leaves it at 0.
+    var hush: Float = 0
     /// The tank's seaweed, for visualizers that make it move: sway it (x: a kick there; nil: a wave across the
     /// tank), and where its tips are.
     var sway: ((_ x: Float?, _ strength: Float) -> Void)?
@@ -270,13 +273,13 @@ final class Visual {
                 // two wavy ribbons up high
                 for (i, c) in curtains.prefix(2).enumerated() {
                     out.append(Sprite(pos: [size.x * (0.4 + Float(i) * 0.22), size.y * (0.8 - Float(i) * 0.1)], dir: [1, 0],
-                                      size: size.x * 0.5, kind: 9, glow: auroraStrength * (0.6 + 0.6 * c.pulse) * rest * night,
+                                      size: size.x * 0.5, kind: 9, glow: auroraStrength * (0.6 + 0.6 * c.pulse) * rest * night * (1 - 0.4 * hush),
                                       phase: c.phase + Float(i) * 2, color: SIMD4(topColor, 1), extra: [1, shape, pack, two]))
                 }
             } else {
                 for c in curtains {
                     out.append(Sprite(pos: [c.x * size.x, size.y * 0.66], dir: [1, 0], size: size.y * 0.42, kind: 9,
-                                      glow: auroraStrength * (0.6 + 0.6 * c.pulse) * rest * night, phase: c.phase,
+                                      glow: auroraStrength * (0.6 + 0.6 * c.pulse) * rest * night * (1 - 0.4 * hush), phase: c.phase,
                                       color: SIMD4(topColor, 1), extra: [1, shape, pack, two]))
                 }
             }
@@ -292,7 +295,7 @@ final class Visual {
             case 1: g = min(1, k * 3)
             default: g = k
             }
-            out.append(Sprite(pos: p.pos, dir: p.dir, size: p.size, kind: p.kind, glow: g, phase: p.phase,
+            out.append(Sprite(pos: p.pos, dir: p.dir, size: p.size, kind: p.kind, glow: g * (1 - 0.4 * hush), phase: p.phase,
                               color: p.color, extra: [1, 0, 0, p.width]))
         }
         return out

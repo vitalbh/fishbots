@@ -73,7 +73,7 @@ extension AppDelegate {
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/do":
             // acting out a demo (scripts/demo): ?audio=start:<file>|stop &window=w,h &key=⇥|a|w|… &theme=<id> &hour=<h>|off &visual=<id>
-            // &feed=x,y &knock=x,y &drag=x1,y1,x2,y2 (x, y: 0…1 of the water, y from the bottom)
+            // &feed=x,y &knock=x,y &point=x,y &drag=x1,y1,x2,y2 (x, y: 0…1 of the water, y from the bottom)
             var q: [String: String] = [:]
             for kv in (path.split(separator: "?").dropFirst().first ?? "").split(separator: "&") {
                 let p = kv.split(separator: "=", maxSplits: 1).map { String($0).removingPercentEncoding ?? String($0) }
@@ -102,6 +102,8 @@ extension AppDelegate {
             if let v = q["visual"] { self.visual.choice = v }
             if let k = q["key"] { self.key(k) }
             if let p = q["feed"].map(at)?.first { self.tank.feed(at: p) }
+            // the mouse resting over a spot (a shoal fans out under it), until the real mouse moves
+            if let p = q["point"].map(at)?.first { self.tank.cursor = p; self.tank.cursorAt = self.tank.time }
             if let p = q["knock"].map(at)?.first {
                 self.tank.knock(at: p)
                 self.music.sceneSound("glass", cue: .effect, x: p.x / max(1, self.tank.size.x))
