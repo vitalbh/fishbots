@@ -94,9 +94,13 @@ extension Tank {
             }
             if s.id == "eggs" {
                 // lit from inside: they dim less than the rest when the light goes
-                let own = mix(s.color * (0.72 + 0.28 * light), water, t: 0.08)
-                out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: scenery.eggsGlow, phase: Float(time),
-                                  color: SIMD4(own, 1), extra: [1, 0, 0, 0], aux: [s.extent.x, s.extent.y, 0, 0]))
+                // the theme's own clutch, a built-in variant (the deep sea's egg case, the lagoon's eggs on a root)
+                let its = Themes.current.looks["eggs"].flatMap { Scene.variants[$0] }
+                let variant: Float = FishKinds.dressByTheme && its?.of == "eggs" ? its!.n : 0
+                let shade: SIMD3<Float> = variant == 1 ? [0.85, 0.6, 0.3] : variant == 2 ? [0.78, 0.9, 0.55] : s.color
+                let own = mix(shade * (0.72 + 0.28 * light), water, t: 0.08)
+                out.append(Sprite(pos: c, dir: [1, 0], size: sz * (variant == 1 ? 1.25 : 1), kind: s.kind, glow: scenery.eggsGlow, phase: Float(time),
+                                  color: SIMD4(own, 1), extra: [1, 0, variant, 0], aux: [s.extent.x, s.extent.y, 0, 0]))
                 continue
             }
             // the deep sea dresses the chest as a ship's safe (extra.z)

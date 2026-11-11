@@ -528,7 +528,8 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   - a **presence kind** plugins send (`"bottle": "floating-lantern"`): drawn as one of the pack's presences that moves
     the same way (checked on load), keeping its label, state, link and sound. A plugin that wants its own drawing
     sends `"override_theme": true`;
-    The app's own variants work too: `"shark": "hammerhead"`, `"helm": "rusty-helm"`, `"bottle": "deep-bottle"`
+    The app's own variants work too: `"shark": "hammerhead"`, `"helm": "rusty-helm"`, `"eggs": "egg-case"` (the deep sea's clutch: a shark's egg case) or `"root-eggs"` (the
+    lagoon's: eggs along a mangrove root), `"bottle": "deep-bottle"`
     (the deep sea's barnacle-crusted bottle, plankton glowing in the state's color), `"chest": "safe"` (a ship's
     safe) and `"chest": "fish-trap"` (a woven fishermen's trap), for the chest piece and the chest presence. Built-in
     scenery only for themes that list it: `helmet` (an old diving helmet on the sand), `wreck` (a sunken ship far away)

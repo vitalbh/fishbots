@@ -476,13 +476,42 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             let there = NSButton(title: tr("Ir até lá"), target: self, action: #selector(clicked(_:)))
             there.identifier = NSUserInterfaceItemIdentifier("go"); there.bezelStyle = .rounded
             v.append(row([there, NSView()]))
-        } else if let p = request, p.tool == "AskUserQuestion" {
-            // several questions, or several answers to one: that's the terminal's menu to fill in
+        } else if let p = request, !p.questions.isEmpty {
+            // several questions, or several answers to one: a form. Each answer is a button that stays pressed; the
+            // answers go together once every question has one.
             v.append(divider())
-            v.append(tinted(text("✋ " + tr("Ela tem perguntas para você, com opções: responda no terminal."), 12, color: .labelColor), .systemOrange))
+            form = []
+            for q in p.questions {
+                v.append(tinted(text("✋ " + q.text + (q.multi ? "  " + tr("(pode marcar mais de uma)") : ""), 12, .semibold, color: .labelColor), .systemOrange))
+                var buttons: [NSButton] = []
+                let index = form.count
+                for o in q.options {
+                    let b = NSButton(title: o.label, target: self, action: #selector(picked(_:)))
+                    b.setButtonType(.pushOnPushOff)
+                    b.bezelStyle = .rounded
+                    b.controlSize = .small
+                    b.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+                    b.toolTip = o.about.isEmpty ? nil : o.about
+                    b.tag = index
+                    buttons.append(b)
+                }
+                form.append((q, buttons))
+                // a few to a row, so long labels don't run off the card
+                var line: [NSView] = [], used = 0
+                for b in buttons {
+                    let w = b.title.count * 7 + 28
+                    if used + w > Int(width), !line.isEmpty { v.append(row(line + [NSView()])); line = []; used = 0 }
+                    line.append(b); used += w
+                }
+                if !line.isEmpty { v.append(row(line + [NSView()])) }
+            }
             let there = NSButton(title: tr("Ir até lá"), target: self, action: #selector(clicked(_:)))
-            there.identifier = NSUserInterfaceItemIdentifier("allow-go"); there.bezelStyle = .rounded; there.keyEquivalent = "\r"
-            v.append(row([NSView(), there]))
+            there.identifier = NSUserInterfaceItemIdentifier("allow-go"); there.bezelStyle = .rounded
+            there.toolTip = tr("Responder no menu do terminal")
+            let send = NSButton(title: tr("Responder"), target: self, action: #selector(sendForm))
+            send.bezelStyle = .rounded; send.contentTintColor = .controlAccentColor; send.isEnabled = false
+            formSend = send
+            v.append(row([there, NSView(), send]))
         } else if let p = request {
             v.append(divider())
             v.append(text(tr("✋ quer usar %@", p.tool), 13, .semibold, color: .systemOrange))
@@ -677,6 +706,24 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     }
 
     @objc private func clicked(_ b: NSButton) { decide(b.identifier?.rawValue ?? "") }
+    /// The form of a request with several questions: each with its answer buttons.
+    private var form: [(question: Permissions.Question, buttons: [NSButton])] = []
+    private var formSend: NSButton?
+
+    /// One answer of the form was pressed: a question that takes one answer lets go of its others.
+    @objc private func picked(_ b: NSButton) {
+        guard form.indices.contains(b.tag) else { return }
+        if !form[b.tag].question.multi { for other in form[b.tag].buttons where other !== b { other.state = .off } }
+        formSend?.isEnabled = form.allSatisfy { $0.buttons.contains { $0.state == .on } }
+    }
+
+    @objc private func sendForm() {
+        var answers: [String: String] = [:]
+        for (q, buttons) in form { answers[q.text] = buttons.filter { $0.state == .on }.map(\.title).joined(separator: ", ") }
+        guard let d = try? JSONSerialization.data(withJSONObject: answers) else { return }
+        decide("answers:" + String(decoding: d, as: UTF8.self))
+    }
+
     @objc private func answered(_ field: NSTextField) {
         let t = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         if !t.isEmpty { decide("answer:" + t) }

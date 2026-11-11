@@ -756,10 +756,56 @@ float4 draw_diving_helmet(float2 c, float phase, float4 col) {
 
 // A clutch of eggs laid on the sand: where the sessions started from the aquarium hatch. Translucent shells, each
 // with its embryo turning inside; glow: how stirred they are (one is about to hatch, or just did).
-float4 draw_eggs(float2 c, float phase, float glow, float4 col) {
+// look: 0 the heap of eggs, 1 the deep sea's egg case (a shark's "mermaid's purse", its embryo lit inside),
+// 2 the lagoon's eggs along a mangrove root.
+float4 draw_eggs(float2 c, float phase, float glow, float4 col, float look) {
     float2 p = c * float2(1.25, 0.85);
+    if (look > 0.5 && look < 1.5) {
+        float2 q = p - float2(0.0, 0.1);
+        q.x += 0.04 * sin(q.y * 3.0 + phase * 0.6) * (0.4 + q.y);          // it sways from where it's anchored
+        float body = length(q / float2(0.4, 0.5)) - 1.0;
+        // its four corners drawn out into curling tendrils
+        float horns = 1e3;
+        for (int i = 0; i < 4; i++) {
+            float sx = i < 2 ? -1.0 : 1.0, sy = (i == 0 || i == 2) ? -1.0 : 1.0;
+            float2 h = q - float2(sx * 0.24, sy * 0.4);
+            float t = clamp(h.y * sy / 0.3, 0.0, 1.0);
+            horns = min(horns, length(h - float2(sx * 0.13 * t * t, sy * 0.3 * t)) - 0.04 * (1.0 - t * 0.75));
+        }
+        float d = min(body * 0.4, horns);
+        float aa = fwidth(d) + 1e-4;
+        float inside = 1.0 - smoothstep(-aa, aa, d);
+        float deep = clamp(-body, 0.0, 1.0);                                // 0 at the wall, 1 in the middle
+        float within = step(body, 0.0);
+        // a thin leathery wall, ribbed, lit from inside
+        float3 e = mix(col.rgb * 0.3, col.rgb * 0.85, deep) * (0.86 + 0.14 * sin(q.x * 30.0));
+        // the yolk, and the embryo curled over it, turning slowly
+        float yolk = (1.0 - smoothstep(0.14, 0.22, length(q - float2(0.0, -0.16)))) * within;
+        e = mix(e, float3(1.0, 0.8, 0.45) * (0.8 + 0.15 * sin(phase * 1.4) + 0.4 * glow), yolk * 0.85);
+        float turn = phase * 0.6 + 0.4 * sin(phase * 2.3) * glow;
+        float2 m = q - float2(0.0, 0.02);
+        float arc = (1.0 - smoothstep(0.03, 0.055, abs(length(m) - 0.17))) * step(sin(atan2(m.y, m.x) - turn), 0.55) * within;
+        e = mix(e, col.rgb * 0.1, arc);
+        float2 head = m - float2(cos(turn + 2.2), sin(turn + 2.2)) * 0.17;
+        e = mix(e, col.rgb * 0.1, (1.0 - smoothstep(0.05, 0.075, length(head))) * within);
+        e += float3(1.0, 0.85, 0.6) * glow * 0.35 * deep;
+        e += (1.0 - smoothstep(0.05, 0.2, length(q - float2(-0.16, 0.24)))) * 0.25 * within;
+        return float4(e * inside, inside);
+    }
     float3 acc = float3(0.0);
     float alpha = 0.0;
+    bool root = look > 1.5;
+    if (root) {
+        // the mangrove root they're laid along, rising across the quad
+        float tt = clamp((p.x + 0.95) / 1.9, 0.0, 1.0);
+        float ry = -0.5 + 0.95 * tt + 0.1 * sin(tt * 6.0);
+        float dr = abs(p.y - ry) - (0.075 - 0.03 * tt);
+        float ar = fwidth(dr) + 1e-4;
+        float on = (1.0 - smoothstep(-ar, ar, dr)) * step(abs(p.x), 1.0);
+        float3 bark = float3(0.33, 0.24, 0.16) * (0.75 + 0.25 * sin(p.x * 23.0 + p.y * 9.0)) * (0.6 + 0.4 * dot(col.rgb, float3(0.33)));
+        acc = bark * on;
+        alpha = on;
+    }
     for (int i = 0; i < 11; i++) {
         float fi = float(i);
         float2 h = float2(fract(sin(fi * 12.9898) * 43758.5453), fract(sin(fi * 78.233) * 12543.123));
@@ -770,6 +816,13 @@ float4 draw_eggs(float2 c, float phase, float glow, float4 col) {
         float stir = sin(phase * (5.0 + h.x * 3.0) + fi * 2.1) * 0.012 * glow;
         float2 at = float2((j - (n - 1.0) * 0.5) * 0.36 + (h.x - 0.5) * 0.05 + stir, row * 0.29 + (h.y - 0.5) * 0.04);
         float r = 0.185 + h.y * 0.025;
+        if (root) {
+            // along the root, on one side and the other
+            float tt = 0.12 + 0.76 * fi / 10.0;
+            float side = (i % 2 == 0) ? 1.0 : -1.0;
+            at = float2(-0.95 + 1.9 * tt + stir, -0.5 + 0.95 * tt + 0.1 * sin(tt * 6.0) + side * (0.13 + h.y * 0.03));
+            r = 0.115 + h.x * 0.02;
+        }
         float2 q = (p - at) / r;
         float d = length(q);
         float aa = fwidth(d) + 1e-4;

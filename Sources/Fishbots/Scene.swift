@@ -448,7 +448,8 @@ final class Scene {
     var dressByTheme = true
     /// Built-in variants a theme can dress a built-in kind in ("looks": {"shark": "hammerhead"}): of which kind, and
     /// the number its drawing gets (extra.z).
-    static let variants: [String: (of: String, n: Float)] = ["hammerhead": ("shark", 1), "rusty-helm": ("helm", 1), "deep-bottle": ("bottle", 1), "safe": ("chest", 1), "fish-trap": ("chest", 2)]
+    static let variants: [String: (of: String, n: Float)] = ["hammerhead": ("shark", 1), "rusty-helm": ("helm", 1), "deep-bottle": ("bottle", 1), "safe": ("chest", 1), "fish-trap": ("chest", 2),
+                                                             "egg-case": ("eggs", 1), "root-eggs": ("eggs", 2)]
 }
 
 /// A value inside a range, by a fraction (0…1).

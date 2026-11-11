@@ -331,10 +331,14 @@ final class Tank {
         }
     }
 
+    /// Who is being waited for right now, by the leader that waits (`fishbots wait`; SessionControl keeps it).
+    var awaited: [String: Set<String>] = [:]
+
     /// What was said to the session (a prompt): a line of its history, among what it did about it.
     func told(source: String, entity: String, _ words: String) {
         let line = words.split(whereSeparator: \.isNewline).first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
         guard !line.isEmpty, let f = fish.first(where: { $0.id == id(source, entity) }) else { return }
+        f.toldAt = time
         f.history.append((Date(), Fish.toldMark, String(line.prefix(200))))
         if f.history.count > 16 { f.history.removeFirst() }
     }

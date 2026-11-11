@@ -183,6 +183,12 @@ final class Fish {
     let createdAt = Date()
     /// The latest tools, and what the session said it was doing with each one (when it says: `doing`).
     var history: [(when: Date, name: String, said: String?)] = []
+    /// When it was last told something (a prompt), in the tank's time: a bubble of light goes down its leader's thread.
+    var toldAt: Double = -100
+    /// A leader's: the pearls of the children that finished, in their colors, strung behind it until it finishes too.
+    var necklace: [SIMD3<Float>] = []
+    /// A child's: its pearl for this piece of work already went up the thread.
+    var pearlGiven = false
     /// The name of a history line that isn't a tool but what was said to the session (the person's message, or its
     /// leader's): `said` has the words.
     static let toldMark = "·told"
@@ -250,8 +256,10 @@ final class Fish {
     var variant = 0
 
     /// Nickname you gave the fish (stored in the app, per session).
+    /// The name the person gave it (kept in the preferences); without one, the name its leader gave it when it
+    /// launched it (`fishbots spawn --label`), which lives and ends with the session.
     var nickname: String? {
-        get { (UserDefaults.standard.dictionary(forKey: "nicknames") as? [String: String])?[id] }
+        get { (UserDefaults.standard.dictionary(forKey: "nicknames") as? [String: String])?[id] ?? whereabouts["name"] }
         set {
             var d = UserDefaults.standard.dictionary(forKey: "nicknames") as? [String: String] ?? [:]
             d[id] = newValue.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }

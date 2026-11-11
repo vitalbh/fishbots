@@ -237,6 +237,15 @@ final class Cards {
         guard let p = permissions.request(id: id) else { return }
         let f = tank.fish(source: p.source, entity: p.session)
         switch action {
+        case let a where a.hasPrefix("answers:"):
+            // a form of questions, filled in on the card
+            let picked = (try? JSONSerialization.jsonObject(with: Data(a.dropFirst("answers:".count).utf8))) as? [String: String] ?? [:]
+            guard permissions.answer(id, all: picked) else { return }
+            if let f {
+                f.glow = 1
+                tank.ring(at: f.pos, color: [0.5, 1, 0.6], size: f.size * 0.5, grow: 120, life: 0.7)
+                tank.upsert(source: p.source, entity: p.session, state: .busy, label: nil)
+            }
         case let a where a.hasPrefix("answer:"):
             // a question with a menu, answered here: the tool gets its answer and the terminal shows no menu
             guard permissions.answer(id, String(a.dropFirst("answer:".count))) else { return }

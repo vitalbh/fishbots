@@ -167,7 +167,7 @@ enum Themes {
         let specs: [[String: Any]] = [
             ["id": "classic", "name": "Aquário", "description": "O aquário de sempre: água azul, algas verdes, pedras, a ostra e o baú."],
             ["id": "abyss", "name": "Fundo do mar", "description": "Quase escuro, poucas plantas, um peixe-abissal com sua isca acesa perto do fundo, tubarões-martelo, timões enferrujados, garrafas cobertas de cracas, um cofre de navio, um escafandro antigo, um navio naufragado ao longe, peixes-lanterna à noite, e o peixe-lua e a baleia passando ao longe.", "visualizer": "storm", "fauna": ["starfish", "snail", "lanternfish", "whale", "anglerfish", "sunfish"], "scenery": ["rock", "chest", "helmet", "wreck"],
-             "looks": ["shark": "hammerhead", "helm": "rusty-helm", "bottle": "deep-bottle", "chest": "safe"],
+             "looks": ["shark": "hammerhead", "helm": "rusty-helm", "bottle": "deep-bottle", "chest": "safe", "eggs": "egg-case"],
              "leader": "lanternfish",
              "swim": ["*": ["speed": 0.75, "beat": 0.8]],
              "effects": ["fireworks": "#7fffe0", "lightning": "#5fd8ff", "sparkle": "#9ff0ff", "ring": "#7fd0ff"],
@@ -176,7 +176,7 @@ enum Themes {
              "weeds": ["count": 5, "farCount": 8, "far": "#0b1f33", "low": "#06202a", "high": "#1d5a6b"],
              "sand": ["dark": "#1c1d24", "light": "#3a3a44"]],
             ["id": "lagoon", "name": "Lagoa", "description": "Água verde e clara de lagoa costeira, raízes de mangue nas margens, capim-marinho, cavalos-marinhos agarrados nas algas, um covo de pesca na areia, caranguejos, a tartaruga e, de vez em quando, um peixe-boi que sobe para respirar.", "visualizer": "surface", "fauna": ["crab", "turtle", "snail", "starfish", "seahorses", "manatee"], "scenery": ["rock", "shell", "mangrove", "chest"],
-             "looks": ["chest": "fish-trap"],
+             "looks": ["chest": "fish-trap", "eggs": "root-eggs"],
              "leader": "stingray",
              "effects": ["fireworks": "#ffe38a", "sparkle": "#e8ffb0", "ring": "#c8f5dc"],
              "water": ["deep": "#06231f", "shallow": "#2f8c7a", "rays": "#7fd1b0", "raysStrength": 0.3,

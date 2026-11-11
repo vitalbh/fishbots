@@ -168,7 +168,7 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
     } else if (k > 45.5) {             // scenery: the clutch of eggs (glow: how stirred)
-        outc = draw_eggs(c, in.phase, in.glow, in.color);
+        outc = draw_eggs(c, in.phase, in.glow, in.color, in.extra.z);     // extra.z: the theme's own (1 egg case, 2 on a root)
     } else if (k > 44.5) {             // a pilot light on the side glass (glow: how bright; extra.yzw: the lamp's color)
         outc = draw_pilot(c, in.glow, in.color, in.extra.yzw);
     } else if (k > 43.5) {             // a manatee (the lagoon's)

@@ -32,6 +32,8 @@ final class SessionControl: EventSink {
     private struct Waiter {
         let id: Int
         let fish: [String]
+        /// The session that waits, when it's one of the tank's.
+        var asker: String? = nil
         let states: Set<String>
         let reply: (Int, Data) -> Void
     }
@@ -148,9 +150,10 @@ final class SessionControl: EventSink {
             if let f = found.first(where: { !sent.contains($0.id) && states.contains($0.state.rawValue) }) {
                 reply(200, Self.json(told(f))); return true
             }
-            let w = Waiter(id: next, fish: found.map(\.id), states: states, reply: reply)
+            let w = Waiter(id: next, fish: found.map(\.id), asker: caller(headers)?.id, states: states, reply: reply)
             next += 1
             waiters.append(w)
+            listening()
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.seconds(m["timeout"], or: 600, upTo: 3600)) { [weak self] in
                 self?.finish(w.id) { _ in Data(#"{"timeout":true}"#.utf8) }
             }
@@ -349,10 +352,18 @@ final class SessionControl: EventSink {
         }
     }
 
+    /// The tank is told who waits for whom: a leader that waits holds still, with the threads to those it waits for lit.
+    private func listening() {
+        var by: [String: Set<String>] = [:]
+        for w in waiters { if let a = w.asker { by[a, default: []].formUnion(w.fish) } }
+        tank.awaited = by
+    }
+
     /// Answers a waiter once; later calls for the same one do nothing.
     private func finish(_ id: Int, _ body: (SessionControl) -> Data) {
         guard let i = waiters.firstIndex(where: { $0.id == id }) else { return }
         let w = waiters.remove(at: i)
+        listening()
         w.reply(200, body(self))
         rest()
     }
@@ -367,7 +378,7 @@ final class SessionControl: EventSink {
                 guard let f = self.born(b) else { continue }
                 if let p = b.parent, f.whereabouts["parent"] == nil { f.whereabouts["parent"] = p }
                 // named by its leader (--label): that's what it's called in the tank, so the school reads at a glance
-                if let n = b.name, f.nickname == nil { f.nickname = n }
+                if let n = b.name { f.whereabouts["name"] = n }
                 var d = Self.snapshot(f)
                 d["where"] = b.place
                 if let p = b.parent { d["parent"] = p }

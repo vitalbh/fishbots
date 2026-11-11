@@ -10,14 +10,28 @@ final class Permissions {
     struct Question {
         let text: String
         let options: [(label: String, about: String)]
+        /// More than one answer may be picked.
+        var multi = false
 
+        /// The only question, when it takes one answer: the one a click (or a line from its leader) answers.
         init?(tool: String, input: [String: Any]) {
-            guard tool == "AskUserQuestion", let all = input["questions"] as? [[String: Any]], all.count == 1,
-                  let text = all[0]["question"] as? String, all[0]["multiSelect"] as? Bool != true else { return nil }
-            self.text = text
-            options = (all[0]["options"] as? [[String: Any]] ?? []).compactMap { o in
+            let all = Self.all(tool: tool, input: input)
+            guard all.count == 1, !all[0].multi else { return nil }
+            self = all[0]
+        }
+
+        private init(_ q: [String: Any]) {
+            text = q["question"] as? String ?? ""
+            multi = q["multiSelect"] as? Bool == true
+            options = (q["options"] as? [[String: Any]] ?? []).compactMap { o in
                 (o["label"] as? String).map { ($0, o["description"] as? String ?? "") }
             }
+        }
+
+        /// Every question the tool was called with (several, or with several answers each: a form on the card).
+        static func all(tool: String, input: [String: Any]) -> [Question] {
+            guard tool == "AskUserQuestion" else { return [] }
+            return (input["questions"] as? [[String: Any]] ?? []).map(Question.init).filter { !$0.text.isEmpty }
         }
 
         /// The option meant by what was typed (its number or its label); anything else is an answer in the
@@ -45,6 +59,8 @@ final class Permissions {
         /// What the tool was called with, and the question in it if it's one with a menu.
         var input: [String: Any] = [:]
         var question: Question? = nil
+        /// All its questions (a form, when `question` is nil and this isn't empty).
+        var questions: [Question] = []
         let reply: (Int, Data) -> Void
         var fishId: String { "\(source):\(session)" }
     }
@@ -63,7 +79,8 @@ final class Permissions {
         let input = m["tool_input"] as? [String: Any] ?? [:]
         let question = Question(tool: tool, input: input)
         let p = Request(id: next, source: source, session: session, tool: tool,
-                       summary: question?.text ?? Self.summary(tool, input), since: Date(), input: input, question: question, reply: reply)
+                       summary: question?.text ?? Self.summary(tool, input), since: Date(), input: input, question: question,
+                       questions: Question.all(tool: tool, input: input), reply: reply)
         next += 1
         pending.append(p)
         changed?()
@@ -96,6 +113,19 @@ final class Permissions {
         let p = pending.remove(at: i)
         var input = p.input
         input["answers"] = [q.text: q.resolve(typed)]
+        let body = (try? JSONSerialization.data(withJSONObject: ["behavior": "allow", "updatedInput": input])) ?? Data(#"{"behavior":"allow"}"#.utf8)
+        p.reply(200, body)
+        changed?()
+        return true
+    }
+
+    /// Answers a form of questions: each question's text with what was picked for it (several picks joined by ", ").
+    @discardableResult
+    func answer(_ id: Int, all answers: [String: String]) -> Bool {
+        guard let i = pending.firstIndex(where: { $0.id == id }), !pending[i].questions.isEmpty else { return false }
+        let p = pending.remove(at: i)
+        var input = p.input
+        input["answers"] = answers
         let body = (try? JSONSerialization.data(withJSONObject: ["behavior": "allow", "updatedInput": input])) ?? Data(#"{"behavior":"allow"}"#.utf8)
         p.reply(200, body)
         changed?()

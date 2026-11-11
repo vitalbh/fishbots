@@ -151,7 +151,8 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   - a **presence kind** plugins send (`"bottle": "floating-lantern"`): drawn as one of the pack's presences that moves
     the same way (checked on load), keeping its label, state, link and sound. A plugin that wants its own drawing
     sends `"override_theme": true`;
-    The app's own variants work too: `"shark": "hammerhead"`, `"helm": "rusty-helm"`, `"bottle": "deep-bottle"`
+    The app's own variants work too: `"shark": "hammerhead"`, `"helm": "rusty-helm"`, `"eggs": "egg-case"` (the deep sea's clutch: a shark's egg case) or `"root-eggs"` (the
+    lagoon's: eggs along a mangrove root), `"bottle": "deep-bottle"`
     (the deep sea's barnacle-crusted bottle, plankton glowing in the state's color), `"chest": "safe"` (a ship's
     safe) and `"chest": "fish-trap"` (a woven fishermen's trap), for the chest piece and the chest presence. Built-in
     scenery only for themes that list it: `helmet` (an old diving helmet on the sand), `wreck` (a sunken ship far away)
@@ -444,8 +445,12 @@ water, brisk while any of its school works (it never settles on the sand, where 
 markings and fin in their own project's color, with "↳" before their name, and keep a V behind it; one that's doing
 something goes and does it and comes back, whoever waits for you still comes to the glass, a sick one still sinks.
 Every session the aquarium starts, a leader's children included, hatches from the clutch of eggs instead of dropping
-in from the surface (`Scenery.expect`, `hatching`). A thread of light ties each one to the leader wherever it is: a spark runs down it to whoever is working and back
-up from whoever just finished, and it turns amber for the one that waits. The leader's card lists its school with
+in from the surface (`Scenery.expect`, `hatching`). A thread of light ties each one to the leader wherever it is, and shows what goes between them: a bubble of light
+down to a child that was just told something, a short pulse up for every tool it uses, a pearl up when it finishes
+(strung behind the leader with the others, until the leader finishes and lets them go); taut and blinking amber to
+one that waits for you, red and slack to one in error. While the leader waits on its school (`fishbots wait`) it
+holds still, turned to them, with the threads to those it waits for lit; when the last one finishes they close in
+around it for a moment. The leader's card lists its school with
 each one's state and last line (a click opens that fish's card), and what one of them asks is answered right there
 (a permission, a question with a menu); a child's card has a tag for its leader. A card's history has what was said
 to the session too (`Tank.told`), among what it did about it.
