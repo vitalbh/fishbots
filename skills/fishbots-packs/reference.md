@@ -613,7 +613,9 @@ float4 draw_lantern(float2 c, float t, float glow, float4 col, float4 extra) { â
 ```
 
 The shader's helpers (`sd_box`, `sd_seg`, `sd_tri`, `smin_k`, `vnoise`, `hash21`, `vor_edge`) can be used. A theme
-lists the pieces it wants in `"scenery"`, mixed with the built-in ones (`rock`, `shell`, `chest`, `coral`); a pack's
+lists the pieces it wants in `"scenery"`, mixed with the built-in ones (`rock`, `shell`, `chest`, `coral`; the clutch of `eggs`, where the
+sessions started from the aquarium hatch and a click starts one, is in every theme unless a pack piece of its own
+is called `eggs`); a pack's
 pieces only show up in a theme that lists them. A function that doesn't compile is dropped and reported in the menu,
 like a fish.
 

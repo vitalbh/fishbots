@@ -195,7 +195,8 @@ fishbots presence k8s prod end
 fishbots show
 ```
 
-**Nova sessão…** (⌘N) starts a session from the aquarium: its task, folder, agent and model. A session that launches
+**Nova sessão…** (⌘N, or a click on the clutch of eggs on the sand) starts a session from the aquarium: its task,
+folder, agent and model. Its fish hatches from the eggs. A session that launches
 others becomes the leader of a school: another fish for as long as it leads (the octopus; each theme can name its
 own), its sessions smaller behind it in a V, each tied to it by a thread of light.
 

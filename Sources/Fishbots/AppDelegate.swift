@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             let presence = f == nil ? self.tank.scene.presence(at: q) : nil
             self.hoverPresence = presence?.id
             self.hoverPearl = f == nil && presence == nil ? self.tank.pearls.at(q) : nil
-            return f != nil || presence != nil || self.tank.scenery.chestHit(self.tank, at: q)
+            return f != nil || presence != nil || self.tank.scenery.chestHit(self.tank, at: q) || self.tank.scenery.eggsHit(self.tank, at: q)
         }
         rexFish.start()
         herdrFish.check()
@@ -510,6 +510,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         } else if tank.scenery.chestHit(tank, at: q) {
             // the treasure chest keeps the last hours; clicking it again closes them
             if let c = card { c.close?() } else { recentSummary() }
+        } else if tank.scenery.eggsHit(tank, at: q) {
+            // the clutch of eggs: a new session, which will hatch from it
+            newSession()
         } else if !tank.scare(q) {
             tank.feed(at: q)        // away from everyone: food; near fish: they get startled
         }

@@ -92,6 +92,13 @@ extension Tank {
                                   aux: [s.extent.x, s.extent.y, 0, 0]))
                 continue
             }
+            if s.id == "eggs" {
+                // lit from inside: they dim less than the rest when the light goes
+                let own = mix(s.color * (0.72 + 0.28 * light), water, t: 0.08)
+                out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: scenery.eggsGlow, phase: Float(time),
+                                  color: SIMD4(own, 1), extra: [1, 0, 0, 0], aux: [s.extent.x, s.extent.y, 0, 0]))
+                continue
+            }
             // the deep sea dresses the chest as a ship's safe (extra.z)
             // the theme's own chest, a built-in variant (the deep sea's safe, the lagoon's fish trap) in extra.z
             let look = Themes.current.looks["chest"].flatMap { Scene.variants[$0] }

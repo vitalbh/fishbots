@@ -26,6 +26,8 @@ final class Scenery {
         Item(id: "rock", kind: 21, u: 0.17, scale: 0.075, color: [0.42, 0.4, 0.36], seed: 0.3),
         Item(id: "rock", kind: 21, u: 0.235, scale: 0.042, color: [0.36, 0.38, 0.41], seed: 1.7),
         Item(id: "chest", kind: 23, u: 0.335, scale: 0.06, color: [0.5, 0.31, 0.16], seed: 0),
+        // the clutch: sessions started from the aquarium hatch here, and a click on it starts one
+        Item(id: "eggs", kind: 46, u: 0.405, scale: 0.042, color: [1.0, 0.62, 0.3], seed: 0, extent: [1.25, 0.85], solid: false),
         // only where a theme lists it (the deep sea)
         Item(id: "helmet", kind: 41, u: 0.6, scale: 0.068, color: [0.75, 0.75, 0.75], seed: 0),
         Item(id: "shell", kind: 22, u: 0.66, scale: 0.04, color: [0.66, 0.6, 0.56], seed: 0),   // the oyster
@@ -44,7 +46,8 @@ final class Scenery {
     private(set) var items: [Item] = Scenery.items(for: nil, looks: [:])
 
     private static func items(for ids: [String]?, looks: [String: String]) -> [Item] {
-        var out = all.filter { ids?.contains($0.id) ?? ($0.id != "helmet") }.map { s -> Item in
+        // the clutch is in every theme that doesn't have a pack's own piece called "eggs"
+        var out = all.filter { ids?.contains($0.id) ?? ($0.id != "helmet") || ($0.id == "eggs" && SceneryKinds.index(of: "eggs") == nil) }.map { s -> Item in
             // another look for a built-in piece: the pack's drawing, extent and color, in the same place
             guard let look = looks[s.id], let i = SceneryKinds.index(of: look) else { return s }
             let k = SceneryKinds.all[i]
@@ -108,6 +111,46 @@ final class Scenery {
         return x
     }
 
+    // MARK: the clutch of eggs
+
+    var eggs: Item? { items.first { $0.id == "eggs" } }
+
+    /// The clutch under the point (clicking it starts a session).
+    func eggsHit(_ t: Tank, at p: SIMD2<Float>) -> Bool {
+        guard let s = eggs else { return false }
+        let (c, sz) = place(t, s)
+        return abs(p.x - c.x) < sz * 1.05 && p.y > c.y - sz * 0.35 && p.y < c.y + sz * 0.85
+    }
+
+    /// Sessions the aquarium itself started and that haven't shown up yet: by agent, and until when they're awaited.
+    private var expected: [(source: String, until: Double)] = []
+    /// How stirred the eggs are: one is on its way (0…1), plus the jolt of one that just hatched.
+    private(set) var eggsStir: Float = 0
+    private var eggsJolt: Float = 0
+    var eggsGlow: Float { min(1.4, eggsStir * 0.7 + eggsJolt) }
+
+    /// A session of this agent was started from the aquarium: its fish will hatch from the clutch.
+    func expect(_ t: Tank, source: String, for seconds: Double) {
+        expected.append((source, t.time + seconds))
+    }
+
+    /// A fish of this agent is being born: where it hatches from, if it's one the clutch was waiting for.
+    func hatching(_ t: Tank, source: String) -> SIMD2<Float>? {
+        expected.removeAll { $0.until < t.time }
+        guard let i = expected.firstIndex(where: { $0.source == source }), let s = eggs else { return nil }
+        expected.remove(at: i)
+        let (c, sz) = place(t, s)
+        let at = c + [0, sz * 0.45]
+        eggsJolt = 1
+        for _ in 0..<10 {
+            t.addParticle(Particle(pos: at + [Float.random(in: -sz * 0.5...sz * 0.5), 0], vel: [Float.random(in: -26...26), Float.random(in: 20...60)],
+                                   life: 0, maxLife: Float.random(in: 0.8...1.6), size: Float.random(in: 3...6), grow: 1, kind: 4,
+                                   color: [1, 0.8, 0.5, 1]))
+        }
+        for i in 0..<6 { t.after(Double(i) * 0.08) { [weak t] in t?.bubble(at: at + [Float.random(in: -sz * 0.4...sz * 0.4), 0], size: Float.random(in: 1.5...3)) } }
+        return at
+    }
+
     // MARK: the treasure chest
 
     var chest: Item? { items.first { $0.id == "chest" } }
@@ -127,6 +170,9 @@ final class Scenery {
     private var chestBubblesAt: Double = 0
 
     func update(_ t: Tank, dt: Float) {
+        expected.removeAll { $0.until < t.time }
+        eggsStir += ((expected.isEmpty ? 0 : 1) - eggsStir) * min(1, dt * 2)
+        eggsJolt = max(0, eggsJolt - dt * 0.7)
         let goal: Float = chestOpen ? 1 : 0
         chestLidVel += ((goal - chestLid) * 40 - chestLidVel * 7) * dt
         chestLid = max(0, min(1.08, chestLid + chestLidVel * dt))

@@ -217,11 +217,13 @@ final class Tank {
         let color = hsv((hue + vh).truncatingRemainder(dividingBy: 1), variant % 2 == 1 ? 0.45 : 0.62, variant == 0 ? 0.95 : 0.85)
         let profile = self.profile(source)
         let timbre = profile.timbre ?? ((h >> 12) & 1 == 0 ? .pluck : .bell)
-        let start: SIMD2<Float> = [Float.random(in: size.x * 0.2...size.x * 0.8), size.y + 30]
+        // one the aquarium started itself hatches from the clutch of eggs; the others drop in from the surface
+        let hatched = scenery.hatching(self, source: source)
+        let start: SIMD2<Float> = hatched ?? [Float.random(in: size.x * 0.2...size.x * 0.8), size.y + 30]
         let f = Fish(id: key, source: source, label: name, pos: start, size: Float(30 + (h >> 20) % 12) * (variant == 0 ? 1 : 0.82),
                      color: color, stripes: (h >> 8) & 1 == 1, motif: motif, timbre: timbre,
                      phase: fish.filter { !$0.decor }.count, decor: false, now: time)
-        f.vel = [0, -120]
+        f.vel = hatched == nil ? [0, -120] : [Float.random(in: -50...50), 120]
         f.variant = variant
         profile.apply(to: f)
         if f.isAgent { f.veteran = Self.veteranLevel(f.projectKey) }
@@ -233,7 +235,7 @@ final class Tank {
         f.state = state
         f.intro = true
         fish.append(f)
-        burst(at: [start.x, size.y - 10], n: 12)
+        if hatched == nil { burst(at: [start.x, size.y - 10], n: 12) }
         onState?(f, nil)
     }
 

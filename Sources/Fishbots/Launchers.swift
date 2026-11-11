@@ -11,9 +11,9 @@ struct LaunchRequest {
     let tab: Bool
     /// Where the asker's other children run, oldest first: the new pane joins their column.
     let siblings: [[String: String]]
-    /// The new pane comes to the front (the person asked for it themselves), in a session of the host made for it
-    /// where the host has them; a session's children never do.
-    var focus = false
+    /// The person asked for it themselves (the aquarium's menu, the clutch of eggs): it gets a session of the host
+    /// made for it, where the host has them. It doesn't take the focus either: the person is looking at the aquarium.
+    var own = false
     /// Set in the new pane before the command (FISHBOTS_PARENT…).
     let env: [String: String]
 
@@ -100,7 +100,7 @@ enum Launchers {
 
 /// Rex: a block in the asker's window (`rex run --split`: to its right, then down that column), or a window (a tab)
 /// of its own in the asker's session; neither takes the focus. One the person opens themselves gets a Rex session
-/// of its own (`rex new`), where its children's panes will go, and Rex is brought to it.
+/// of its own (`rex new`), where its children's panes will go.
 final class RexLauncher: SessionLauncher {
     let id = "rex"
 
@@ -113,7 +113,7 @@ final class RexLauncher: SessionLauncher {
             done(.failure(LaunchError(message: "rex isn't installed"))); return
         }
         let session = r.near?["rex_session"]
-        var args = ["--autostart=false", "--timeout", "10s", "run", "--focus=\(r.focus)", "--json", "-c", r.cwd]
+        var args = ["--autostart=false", "--timeout", "10s", "run", "--focus=false", "--json", "-c", r.cwd]
         if let session { args += ["-s", session] }
         if let l = r.label, !l.isEmpty { args += ["--label", l] }
         let asker = r.near?["rex_block"]
@@ -135,7 +135,7 @@ final class RexLauncher: SessionLauncher {
                 }
             }
         }
-        if r.focus, session == nil { own(r, bin, interactive: true, done: done); return }
+        if r.own, session == nil { own(r, bin, interactive: true, done: done); return }
         guard !r.tab, let asker else { open([], interactive: true, else: nil); return }
         // which blocks share the asker's window: the siblings among them are the column
         var list = ["--autostart=false", "--timeout", "10s", "block", "ls", "--json"]
@@ -164,9 +164,7 @@ final class RexLauncher: SessionLauncher {
                 if interactive, err.contains("unknown flag: --interactive") { self.own(r, bin, interactive: false, done: done); return }
                 done(.failure(Launchers.failure("rex", err))); return
             }
-            let place = ["term": "rex", "rex_session": session, "rex_block": block, "rex_bin": bin]
-            Whereabouts.go(to: place)
-            done(.success(place))
+            done(.success(["term": "rex", "rex_session": session, "rex_block": block, "rex_bin": bin]))
         }
     }
 
@@ -236,7 +234,7 @@ final class TmuxLauncher: SessionLauncher {
             if let anchor = Launchers.anchor(r, "tmux", window: window) {
                 args = ["split-window", "-d", anchor.below ? "-v" : "-h", "-t", anchor.pane]
             } else {
-                args = ["new-window"] + (r.focus ? [] : ["-d"])
+                args = ["new-window", "-d"]
                 if let pane { args += ["-a", "-t", pane] }
                 if let l = r.label, !l.isEmpty { args += ["-n", l] }
             }

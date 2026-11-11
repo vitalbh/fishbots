@@ -754,6 +754,48 @@ float4 draw_diving_helmet(float2 c, float phase, float4 col) {
     return float4(c3 * inside, inside);
 }
 
+// A clutch of eggs laid on the sand: where the sessions started from the aquarium hatch. Translucent shells, each
+// with its embryo turning inside; glow: how stirred they are (one is about to hatch, or just did).
+float4 draw_eggs(float2 c, float phase, float glow, float4 col) {
+    float2 p = c * float2(1.25, 0.85);
+    float3 acc = float3(0.0);
+    float alpha = 0.0;
+    for (int i = 0; i < 11; i++) {
+        float fi = float(i);
+        float2 h = float2(fract(sin(fi * 12.9898) * 43758.5453), fract(sin(fi * 78.233) * 12543.123));
+        // a little heap: five at the bottom, four on them, two on top
+        float row = i < 5 ? 0.0 : (i < 9 ? 1.0 : 2.0);
+        float n = i < 5 ? 5.0 : (i < 9 ? 4.0 : 2.0);
+        float j = i < 5 ? fi : (i < 9 ? fi - 5.0 : fi - 9.0);
+        float stir = sin(phase * (5.0 + h.x * 3.0) + fi * 2.1) * 0.012 * glow;
+        float2 at = float2((j - (n - 1.0) * 0.5) * 0.36 + (h.x - 0.5) * 0.05 + stir, row * 0.29 + (h.y - 0.5) * 0.04);
+        float r = 0.185 + h.y * 0.025;
+        float2 q = (p - at) / r;
+        float d = length(q);
+        float aa = fwidth(d) + 1e-4;
+        float a = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, d);
+        if (a <= 0.0) continue;
+        float rim = smoothstep(0.5, 1.0, d);
+        float pulse = 0.5 + 0.5 * sin(phase * 1.4 + fi * 1.7);
+        // the shell, lighter at the rim and lit from inside
+        float3 e = mix(col.rgb * 0.8, col.rgb * 1.2 + 0.12, rim);
+        e += col.rgb * (0.12 + 0.22 * pulse) * (1.0 - rim) + float3(1.0, 0.85, 0.6) * glow * 0.45 * (1.0 - rim * 0.5);
+        // the embryo: a dark comma that turns slowly, with its eye
+        float turn = phase * 0.5 + fi * 1.3;
+        float2 m = q - float2(cos(turn), sin(turn)) * 0.14;
+        float body = 1.0 - smoothstep(0.34, 0.44, length(m));
+        e = mix(e, col.rgb * 0.22, body * 0.85);
+        float eye = 1.0 - smoothstep(0.08, 0.12, length(m - float2(cos(turn + 1.2), sin(turn + 1.2)) * 0.17));
+        e = mix(e, float3(0.02), eye * body);
+        // a wet highlight
+        e += (1.0 - smoothstep(0.08, 0.26, length(q - float2(-0.36, 0.4)))) * 0.55;
+        float op = a * (0.8 + 0.2 * rim);
+        acc = acc * (1.0 - op) + e * op;
+        alpha = alpha + op * (1.0 - alpha);
+    }
+    return float4(acc, alpha);
+}
+
 // ---------- the music fish (a betta with a flowing, iridescent tail) and the notes it lets out ----------
 
 """#

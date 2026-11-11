@@ -174,7 +174,7 @@ final class SessionControl: EventSink {
     /// From the aquarium itself (the "Nova sessão…" menu): a session of the person's own, nobody's child. `done`
     /// gets what went wrong, or nil once its fish is born.
     func open(agent: String, cwd: String, prompt: String?, model: String?, label: String? = nil, done: @escaping (String?) -> Void) {
-        var m: [String: Any] = ["agent": agent, "cwd": cwd, "tab": true, "focus": true]
+        var m: [String: Any] = ["agent": agent, "cwd": cwd, "tab": true, "own": true]
         if let prompt { m["prompt"] = prompt }
         if let model { m["model"] = model }
         m["env"] = account(agent)
@@ -182,7 +182,7 @@ final class SessionControl: EventSink {
         let words = (prompt ?? "").split(whereSeparator: { $0.isWhitespace }).prefix(5).joined(separator: " ")
         m["label"] = label ?? (words.isEmpty ? (cwd as NSString).lastPathComponent : String(words.prefix(32)))
         spawn(m, [:]) { code, data in
-            // 504: the pane is open and in front of the person, with whatever the agent asks first; nothing to add
+            // 504: by then the terminal came to the front with whatever the agent asks first; nothing to add
             done(code == 200 || code == 504 ? nil : (Whereabouts.json(data)?["error"] as? String ?? "error \(code)"))
         }
     }
@@ -232,20 +232,29 @@ final class SessionControl: EventSink {
         // an aquarium on another port (a test instance): the new session's hook reports to this one
         if port() != 7777 { env["FISHBOTS_PORT"] = String(port()) }
         let patience = Self.seconds(m["timeout"], or: 30, upTo: 120)
+        let own = parent == nil && m["own"] as? Bool == true
         let before = Set(tank.fish.filter { $0.source == provider.id }.map(\.id))
         let request = LaunchRequest(command: command, cwd: folder, label: m["label"] as? String, near: parent?.whereabouts,
                                     tab: m["tab"] as? Bool ?? false,
                                     siblings: (parent.map { children(of: $0.id) } ?? []).sorted { $0.bornAt < $1.bornAt }.map(\.whereabouts),
-                                    focus: parent == nil && m["focus"] as? Bool == true, env: env)
+                                    own: own, env: env)
         launcher.launch(request) { [weak self] result in
             guard let self else { return }
             switch result {
             case .failure(let e):
                 reply(409, Self.error(e.message))
             case .success(let place):
+                self.tank.scenery.expect(self.tank, source: provider.id, for: patience + 30)
                 let b = Birth(id: self.next, source: provider.id, place: place, parent: parent?.id, cwd: folder, before: before, reply: reply)
                 self.next += 1
                 self.births.append(b)
+                // the person's own, and its fish is taking long to hatch: it's probably asking something first (to
+                // trust the folder, to log in), so the terminal comes to the front for them to answer
+                if own {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+                        if self?.births.contains(where: { $0.id == b.id }) == true { Whereabouts.go(to: place) }
+                    }
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + patience) { [weak self] in
                     self?.deliver(b.id, 504, ["error": "the pane opened, but no \(provider.id) session reported from it in \(Int(patience)) s (is its hook installed? is it asking something first?)",
                                               "where": place])

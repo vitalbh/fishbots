@@ -103,6 +103,7 @@ float emissive(float k, float glow) {
     if (k < 31.5) return 0.12 + clamp(glow, 0.0, 1.0) * 0.6;       // presences: their state's halo
     if (k < 32.5) return 0.0;                                      // shadow
     if (k < 33.5) return 0.25;                                     // marine snow
+    if (k > 45.5) return 0.1 + clamp(glow, 0.0, 1.0) * 0.5;        // the clutch of eggs: when it stirs
     if (k > 44.5) return 0.15 + clamp(glow, 0.0, 1.0) * 0.5;       // pilot light
     return 0.0;                                                    // coral
 }
@@ -166,6 +167,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float border = 1.0 - smoothstep(0.5, 1.0, max(abs(c.x), abs(c.y)));
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
+    } else if (k > 45.5) {             // scenery: the clutch of eggs (glow: how stirred)
+        outc = draw_eggs(c, in.phase, in.glow, in.color);
     } else if (k > 44.5) {             // a pilot light on the side glass (glow: how bright; extra.yzw: the lamp's color)
         outc = draw_pilot(c, in.glow, in.color, in.extra.yzw);
     } else if (k > 43.5) {             // a manatee (the lagoon's)

@@ -235,7 +235,9 @@ float4 draw_lantern(float2 c, float t, float glow, float4 col, float4 extra) { �
 ```
 
 The shader's helpers (`sd_box`, `sd_seg`, `sd_tri`, `smin_k`, `vnoise`, `hash21`, `vor_edge`) can be used. A theme
-lists the pieces it wants in `"scenery"`, mixed with the built-in ones (`rock`, `shell`, `chest`, `coral`); a pack's
+lists the pieces it wants in `"scenery"`, mixed with the built-in ones (`rock`, `shell`, `chest`, `coral`; the clutch of `eggs`, where the
+sessions started from the aquarium hatch and a click starts one, is in every theme unless a pack piece of its own
+is called `eggs`); a pack's
 pieces only show up in a theme that lists them. A function that doesn't compile is dropped and reported in the menu,
 like a fish.
 
@@ -440,14 +442,18 @@ orchestrator doesn't need to know its own id. A fish with children is the leader
 octopus; the deep sea's lanternfish, the lagoon's stingray) and bigger. Its children are smaller, dressed with its
 markings and fin in their own project's color, with "↳" before their name, and keep a V behind it; one that's doing
 something goes and does it and comes back, whoever waits for you still comes to the glass, a sick one still sinks.
-A thread of light ties each one to the leader wherever it is: a spark runs down it to whoever is working and back
+Every session the aquarium starts, a leader's children included, hatches from the clutch of eggs instead of dropping
+in from the surface (`Scenery.expect`, `hatching`). A thread of light ties each one to the leader wherever it is: a spark runs down it to whoever is working and back
 up from whoever just finished, and it turns amber for the one that waits. The leader's card lists its school with
 each one's state (a click opens that fish's card); a child's card has a tag for its leader.
 
-**From the aquarium:** "Nova sessão…" (the Sessions menu, ⌘N, and the menu bar) asks for the task, the folder, the
+**From the aquarium:** "Nova sessão…" (the Sessions menu, ⌘N, the menu bar, and a click on the clutch of eggs on
+the sand, `Scenery.eggs`) asks for the task, the folder, the
 agent and the model, and opens the session through the launchers as nobody's child (`SessionControl.open`); with
 its checkbox on, the session starts with the orchestrator skill in hand. In Rex it gets a
-session of its own named after the task (`rex new`), where its children's panes will go, and Rex is brought to it.
+session of its own named after the task (`rex new`), where its children's panes will go. The aquarium stays in
+front and its fish hatches from the clutch of eggs; Rex only comes forward if no fish hatched in 8 s (the agent is
+probably asking something first).
 It runs on
 the account of that agent's most recent session in the tank (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, read from where its
 conversation file is kept).
