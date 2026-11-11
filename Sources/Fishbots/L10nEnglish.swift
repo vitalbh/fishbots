@@ -476,6 +476,7 @@ let english: [String: String] = [
     "Ligue \"Sessões podem comandar outras\" em Preferências → Geral": "Turn on \"Sessions can command other sessions\" in Settings → General",
     "O que ela deve fazer, em que pasta e com qual agente. Ela abre no terminal e aparece aqui como um peixe.": "What it should do, in which folder and with which agent. It opens in the terminal and shows up here as a fish.",
     "Abrir": "Open",
+    "Pasta": "Folder",
     "Não consegui abrir a sessão": "Couldn't open the session",
     "abrir o cartão dele": "open its card",
     "quem lançou esta sessão": "the session that launched this one",

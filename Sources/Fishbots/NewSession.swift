@@ -2,7 +2,8 @@ import AppKit
 
 /// "Nova sessão…": the person starts a session from the aquarium itself, with its task, its folder and its agent.
 /// It opens in a terminal host through the launchers, like one a session launches, but it's nobody's child; asked
-/// to, it starts with the orchestrator skill in hand, so it can launch its own.
+/// to, it starts with the orchestrator skill in hand, so it can launch its own. A sheet on the aquarium's window, not
+/// a modal dialog: the aquarium keeps running (and hearing its sessions) while the person writes.
 extension AppDelegate {
     @objc func newSession() {
         let agents = Providers.all.values.filter { $0.launchCommand(prompt: nil, model: nil) != nil }.sorted { $0.name < $1.name }
@@ -10,7 +11,8 @@ extension AppDelegate {
             let a = NSAlert()
             a.messageText = tr("Não há onde abrir uma sessão")
             a.informativeText = tr("O aquário abre sessões no Rex, no Herdr ou no tmux, e nenhum deles está instalado.")
-            a.runModal()
+            show()
+            a.beginSheetModal(for: window)
             return
         }
         let defaults = UserDefaults.standard
@@ -29,7 +31,14 @@ extension AppDelegate {
         let folder = NSPathControl()
         folder.pathStyle = .popUp
         folder.allowedTypes = ["public.folder"]
-        folder.url = URL(fileURLWithPath: defaults.string(forKey: "newSessionFolder") ?? NSHomeDirectory())
+        // the folder picked last time; the first time, where the most recent session works
+        let recent = tank.fish.filter { $0.isAgent && !$0.decor && $0.whereabouts["cwd"] != nil }.max { $0.bornAt < $1.bornAt }?.whereabouts["cwd"]
+        folder.url = URL(fileURLWithPath: defaults.string(forKey: "newSessionFolder") ?? recent ?? NSHomeDirectory())
+        let folderLabel = NSTextField(labelWithString: tr("Pasta"))
+        folderLabel.textColor = .secondaryLabelColor
+        let place = NSStackView(views: [folderLabel, folder])
+        place.orientation = .horizontal
+        place.spacing = 8
 
         let agent = NSPopUpButton()
         for p in agents { agent.addItem(withTitle: p.name) }
@@ -46,12 +55,12 @@ extension AppDelegate {
         let pick = NSStackView(views: [agent, model])
         pick.orientation = .horizontal
         pick.spacing = 8
-        let stack = NSStackView(views: [scroll, folder, pick, leads])
+        let stack = NSStackView(views: [scroll, place, pick, leads])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
         stack.frame = NSRect(x: 0, y: 0, width: width, height: 210)
-        for v in [scroll, folder, pick] as [NSView] { v.widthAnchor.constraint(equalToConstant: width).isActive = true }
+        for v in [scroll, place, pick] as [NSView] { v.widthAnchor.constraint(equalToConstant: width).isActive = true }
         scroll.heightAnchor.constraint(equalToConstant: 96).isActive = true
 
         let a = NSAlert()
@@ -61,12 +70,19 @@ extension AppDelegate {
         a.addButton(withTitle: tr("Cancelar"))
         a.accessoryView = stack
         a.window.initialFirstResponder = task
+        show()
         NSApp.activate(ignoringOtherApps: true)
-        guard a.runModal() == .alertFirstButtonReturn, let dir = folder.url?.path else { return }
+        a.beginSheetModal(for: window) { [weak self] answer in
+            guard let self, answer == .alertFirstButtonReturn, let dir = folder.url?.path else { return }
+            let named = model.stringValue.trimmingCharacters(in: .whitespaces)
+            self.open(agents[max(0, agent.indexOfSelectedItem)], in: dir, task: task.string, model: named.isEmpty ? nil : named,
+                      leading: leads.state == .on && SessionControl.enabled)
+        }
+    }
 
-        let chosen = agents[max(0, agent.indexOfSelectedItem)]
-        let words = task.string.trimmingCharacters(in: .whitespacesAndNewlines)
-        let leading = leads.state == .on && SessionControl.enabled
+    func open(_ chosen: SessionProvider, in dir: String, task: String, model: String?, leading: Bool) {
+        let defaults = UserDefaults.standard
+        let words = task.trimmingCharacters(in: .whitespacesAndNewlines)
         defaults.set(dir, forKey: "newSessionFolder")
         defaults.set(chosen.id, forKey: "newSessionAgent")
         if SessionControl.enabled { defaults.set(leading, forKey: "newSessionLeads") }
@@ -75,13 +91,14 @@ extension AppDelegate {
             prompt = "Use the fishbots-orchestrator skill: where it helps, split this work across sessions with `fishbots spawn`, "
                 + "follow them and bring their results together." + (words.isEmpty ? " Ask me what the work is." : "\n\n" + words)
         }
-        let named = model.stringValue.trimmingCharacters(in: .whitespaces)
-        sessionControl.open(agent: chosen.id, cwd: dir, prompt: prompt, model: named.isEmpty ? nil : named) { failure in
-            guard let failure else { return }
+        // the host's session is named after the task itself, not after the orchestrator's preamble
+        let name = words.split(whereSeparator: { $0.isWhitespace }).prefix(5).joined(separator: " ")
+        sessionControl.open(agent: chosen.id, cwd: dir, prompt: prompt, model: model, label: name.isEmpty ? nil : String(name.prefix(32))) { [weak self] failure in
+            guard let self, let failure else { return }
             let e = NSAlert()
             e.messageText = tr("Não consegui abrir a sessão")
             e.informativeText = failure
-            e.runModal()
+            e.beginSheetModal(for: self.window)
         }
     }
 }

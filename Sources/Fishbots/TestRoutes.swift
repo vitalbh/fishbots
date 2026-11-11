@@ -29,8 +29,14 @@ extension AppDelegate {
             self.preferences.show(tab: tab)
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/new-session":
-            // the "Nova sessão…" dialog, without the menu (it's modal: the answer goes out before it opens)
-            DispatchQueue.main.async { self.newSession() }
+            // the "Nova sessão…" sheet, without the menu; ?cwd=<folder>&task=<text>: as if it had been filled in and
+            // sent (Claude Code, not leading)
+            let asked = URLComponents(string: path)?.queryItems ?? []
+            if let dir = asked.first(where: { $0.name == "cwd" })?.value, let claude = Providers.of("claude-code") {
+                self.open(claude, in: dir, task: asked.first { $0.name == "task" }?.value ?? "", model: nil, leading: false)
+            } else {
+                self.newSession()
+            }
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/music-paused":
             // as if your music had played and paused: the music fish offers the aquarium's

@@ -154,15 +154,36 @@ final class SessionControl: EventSink {
     /// the aquarium's own menu has no shell to take them from, and should run on the same account.
     private static let accountVariables = ["CLAUDE_CONFIG_DIR", "CODEX_HOME"]
 
+    /// The account a session opened from the menu runs on: the one this agent's most recent session here runs on,
+    /// read from where its conversation file is kept (<account>/projects/… for Claude Code, <account>/sessions/…
+    /// for Codex; the usual folder needs no variable); with none in the tank, what the last spawn passed along.
+    private func account(_ agent: String) -> [String: String] {
+        let kept: [String: (variable: String, under: String, usual: String)] = [
+            "claude-code": ("CLAUDE_CONFIG_DIR", "/projects/", "~/.claude"),
+            "codex": ("CODEX_HOME", "/sessions/", "~/.codex"),
+        ]
+        if let k = kept[agent],
+           let path = tank.fish.filter({ $0.source == agent && !$0.decor && $0.transcriptPath != nil }).max(by: { $0.bornAt < $1.bornAt })?.transcriptPath,
+           let cut = path.range(of: k.under) {
+            let home = String(path[..<cut.lowerBound])
+            return home == NSString(string: k.usual).expandingTildeInPath ? [:] : [k.variable: home]
+        }
+        return (UserDefaults.standard.dictionary(forKey: "launchAccount") as? [String: [String: String]])?[agent] ?? [:]
+    }
+
     /// From the aquarium itself (the "Nova sessão…" menu): a session of the person's own, nobody's child. `done`
     /// gets what went wrong, or nil once its fish is born.
-    func open(agent: String, cwd: String, prompt: String?, model: String?, done: @escaping (String?) -> Void) {
-        var m: [String: Any] = ["agent": agent, "cwd": cwd, "tab": true]
+    func open(agent: String, cwd: String, prompt: String?, model: String?, label: String? = nil, done: @escaping (String?) -> Void) {
+        var m: [String: Any] = ["agent": agent, "cwd": cwd, "tab": true, "focus": true]
         if let prompt { m["prompt"] = prompt }
         if let model { m["model"] = model }
-        m["env"] = (UserDefaults.standard.dictionary(forKey: "launchAccount") as? [String: [String: String]])?[agent] ?? [:]
+        m["env"] = account(agent)
+        // the host's session it gets is named after its task (or its folder)
+        let words = (prompt ?? "").split(whereSeparator: { $0.isWhitespace }).prefix(5).joined(separator: " ")
+        m["label"] = label ?? (words.isEmpty ? (cwd as NSString).lastPathComponent : String(words.prefix(32)))
         spawn(m, [:]) { code, data in
-            done(code == 200 ? nil : (Whereabouts.json(data)?["error"] as? String ?? "error \(code)"))
+            // 504: the pane is open and in front of the person, with whatever the agent asks first; nothing to add
+            done(code == 200 || code == 504 ? nil : (Whereabouts.json(data)?["error"] as? String ?? "error \(code)"))
         }
     }
 
@@ -215,7 +236,7 @@ final class SessionControl: EventSink {
         let request = LaunchRequest(command: command, cwd: folder, label: m["label"] as? String, near: parent?.whereabouts,
                                     tab: m["tab"] as? Bool ?? false,
                                     siblings: (parent.map { children(of: $0.id) } ?? []).sorted { $0.bornAt < $1.bornAt }.map(\.whereabouts),
-                                    env: env)
+                                    focus: parent == nil && m["focus"] as? Bool == true, env: env)
         launcher.launch(request) { [weak self] result in
             guard let self else { return }
             switch result {

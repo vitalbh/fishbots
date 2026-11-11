@@ -225,6 +225,12 @@ enum Whereabouts {
         return true
     }
 
+    /// To a pane by its whereabouts alone (one just opened: it has no fish yet).
+    static func go(to o: [String: String]) {
+        guard let s = o["rex_session"], let b = o["rex_block"], let bin = rexBin(o) else { return }
+        DispatchQueue.global(qos: .userInitiated).async { goRex(bin: bin, session: s, block: b, whereabouts: o) }
+    }
+
     // MARK: - typing into the session (reply, stop)
 
     enum Target { case rex(bin: String, block: String), herdr(core: String, terminal: String), ghostty(tty: String), iterm(String), tmux(String) }

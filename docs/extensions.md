@@ -446,8 +446,11 @@ each one's state (a click opens that fish's card); a child's card has a tag for 
 
 **From the aquarium:** "Nova sessão…" (the Sessions menu, ⌘N, and the menu bar) asks for the task, the folder, the
 agent and the model, and opens the session through the launchers as nobody's child (`SessionControl.open`); with
-its checkbox on, the session starts with the orchestrator skill in hand. It runs on the account the last
-`fishbots spawn` passed along (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`).
+its checkbox on, the session starts with the orchestrator skill in hand. In Rex it gets a
+session of its own named after the task (`rex new`), where its children's panes will go, and Rex is brought to it.
+It runs on
+the account of that agent's most recent session in the tank (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, read from where its
+conversation file is kept).
 
 **Guards:** the Preferences switch; 6 children at work per parent (the ones that finished and sit at their prompt do not count) and depth 1 (a child doesn't launch children);
 permission requests of the children stay with the person; `spawn` takes no extra arguments for the agent, so it
