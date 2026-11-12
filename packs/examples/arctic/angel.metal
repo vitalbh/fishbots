@@ -24,8 +24,10 @@ float4 draw_arctic_sea_angel(float2 c, float phase, float glow, float4 col, floa
     // glassy: almost clear, bright at the rims; an orange-red heart and gut glowing inside
     float rim = 1.0 - smoothstep(0.0, 0.04, -d);
     float3 glass = float3(0.75, 0.88, 1.0);
-    float3 c3 = glass * (0.35 + 0.8 * rim);
-    float alpha = 0.3 + 0.55 * rim;
+    // (a milky body, rounder toward the middle, so it reads as a creature and not as an outline)
+    float vol = smoothstep(0.0, -0.1, d);
+    float3 c3 = glass * (0.5 + 0.22 * vol + 0.65 * rim) * (0.9 + 0.2 * smoothstep(-0.2, 0.2, p.y));
+    float alpha = 0.5 + 0.12 * vol + 0.4 * rim;
     float heart = exp(-dot((p - float2(0.1, 0.0)) / float2(0.3, 0.1), (p - float2(0.1, 0.0)) / float2(0.3, 0.1)) * 2.0);
     float3 core = mix(float3(1.0, 0.45, 0.15), col.rgb, 0.25);
     float pulse = 0.8 + 0.2 * sin(phase * 2.0);

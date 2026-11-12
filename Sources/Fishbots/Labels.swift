@@ -330,10 +330,11 @@ final class Labels {
                 let t = CATextLayer()
                 t.contentsScale = scale
                 t.alignmentMode = .center
-                t.shadowOpacity = 0.75
-                t.shadowRadius = 3
+                // (a heavier shadow than the fish's: these often sit over the scenery on the floor)
+                t.shadowOpacity = 1
+                t.shadowRadius = 4
                 t.shadowOffset = CGSize(width: 0, height: -0.5)
-                t.shadowColor = NSColor(red: 0, green: 0.03, blue: 0.08, alpha: 1).cgColor
+                t.shadowColor = NSColor(red: 0, green: 0.02, blue: 0.05, alpha: 1).cgColor
                 view!.layer!.addSublayer(t)
                 presenceLayers[p.id] = t
                 return t

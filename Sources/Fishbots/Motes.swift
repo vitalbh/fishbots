@@ -93,7 +93,7 @@ final class Motes {
             // three, each its own size: the rest stay specks, or the water fills up with confetti
             if let (i, k) = look, n % 3 == 0 {
                 return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * (2.0 + 1.6 * Float(n % 7) / 6), kind: 35, glow: glow, phase: Float(t.time),
-                              color: SIMD4(k.color * (0.55 + 0.45 * light), front ? 0.9 : 0.6), extra: [1, m.phase.truncatingRemainder(dividingBy: 1), Float(i), 0],
+                              color: SIMD4(k.color * (0.55 + 0.45 * light), (front ? 0.9 : 0.6) * (t.isNight ? 0.45 : 1)), extra: [1, m.phase.truncatingRemainder(dividingBy: 1), Float(i), 0],
                               aux: [k.extent.x, k.extent.y, 0, 0])
             }
             return Sprite(pos: m.pos + shift, dir: [1, 0], size: m.size * (1 + lit * 0.25 + lampLit * 0.5), kind: 33, glow: glow,

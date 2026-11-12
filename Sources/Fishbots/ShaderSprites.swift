@@ -129,6 +129,10 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
             float twinkle = pow(max(0.0, sin(in.world.x * 0.9 + u.time * 3.1) * sin(in.world.y * 1.3 - u.time * 2.3)), 14.0)
                        * smoothstep(0.62, 0.92, uw.y) * u.light;
             outc.rgb += outc.a * (float3(0.65, 0.9, 0.9) * lum + float3(1.0) * twinkle * 0.7);
+            // the same light for every kind of fish, whatever its drawing: brighter up near the surface and dimmer
+            // down by the floor, and the light behind showing through whatever is thin (fins, veils, glassy bodies)
+            outc.rgb *= mix(0.88, 1.07, smoothstep(0.08, 0.9, uw.y) * u.light);
+            outc.rgb += float3(0.6, 0.85, 0.9) * outc.a * (1.0 - outc.a) * 0.9 * u.light;
         }
     } else if (k < 1.5) {          // bubble
         float edge = 1.0 - smoothstep(0.82, 1.0, r);

@@ -21,21 +21,24 @@ final class Scenery {
         var solid = true
         var glowAtNight = false
         var bury: Float = 0.05
+        /// How far up front it stands on the floor: 0 at the back line, 1 in the middle, 2 near the glass (lower on the
+        /// screen and a little bigger). The floor is seen at a slant, so a row of things all at the back line reads as a shelf.
+        var row: Float = 0
     }
     static let all: [Item] = [
         Item(id: "rock", kind: 21, u: 0.17, scale: 0.075, color: [0.42, 0.4, 0.36], seed: 0.3),
-        Item(id: "rock", kind: 21, u: 0.235, scale: 0.042, color: [0.36, 0.38, 0.41], seed: 1.7),
-        Item(id: "chest", kind: 23, u: 0.335, scale: 0.06, color: [0.5, 0.31, 0.16], seed: 0),
+        Item(id: "rock", kind: 21, u: 0.235, scale: 0.042, color: [0.36, 0.38, 0.41], seed: 1.7, row: 1.4),
+        Item(id: "chest", kind: 23, u: 0.335, scale: 0.06, color: [0.5, 0.31, 0.16], seed: 0, row: 0.8),
         // the clutch: sessions started from the aquarium hatch here, and a click on it starts one
-        Item(id: "eggs", kind: 46, u: 0.405, scale: 0.042, color: [1.0, 0.62, 0.3], seed: 0, extent: [1.25, 0.85], solid: false),
+        Item(id: "eggs", kind: 46, u: 0.405, scale: 0.042, color: [1.0, 0.62, 0.3], seed: 0, extent: [1.25, 0.85], solid: false, row: 1.6),
         // only where a theme lists it (the deep sea)
-        Item(id: "helmet", kind: 41, u: 0.6, scale: 0.068, color: [0.75, 0.75, 0.75], seed: 0),
-        Item(id: "shell", kind: 22, u: 0.66, scale: 0.04, color: [0.66, 0.6, 0.56], seed: 0),   // the oyster
-        Item(id: "rock", kind: 21, u: 0.8, scale: 0.058, color: [0.4, 0.37, 0.35], seed: 2.9),
+        Item(id: "helmet", kind: 41, u: 0.6, scale: 0.068, color: [0.75, 0.75, 0.75], seed: 0, row: 1),
+        Item(id: "shell", kind: 22, u: 0.66, scale: 0.04, color: [0.66, 0.6, 0.56], seed: 0, row: 1.8),   // the oyster
+        Item(id: "rock", kind: 21, u: 0.8, scale: 0.058, color: [0.4, 0.37, 0.35], seed: 2.9, row: 0.9),
         // corals (seed: 0 branching, 1 sea fan, 2 brain), muted by the water
         Item(id: "coral", kind: 34, u: 0.47, scale: 0.085, color: [0.95, 0.45, 0.55], seed: 0.2),
-        Item(id: "coral", kind: 34, u: 0.565, scale: 0.05, color: [0.62, 0.5, 0.85], seed: 2.6),
-        Item(id: "coral", kind: 34, u: 0.735, scale: 0.06, color: [0.35, 0.78, 0.75], seed: 0.8),
+        Item(id: "coral", kind: 34, u: 0.565, scale: 0.05, color: [0.62, 0.5, 0.85], seed: 2.6, row: 1.5),
+        Item(id: "coral", kind: 34, u: 0.735, scale: 0.06, color: [0.35, 0.78, 0.75], seed: 0.8, row: 0.5),
         Item(id: "coral", kind: 34, u: 0.905, scale: 0.1, color: [0.98, 0.58, 0.3], seed: 1.4),
     ]
 
@@ -52,7 +55,7 @@ final class Scenery {
             guard let look = looks[s.id], let i = SceneryKinds.index(of: look) else { return s }
             let k = SceneryKinds.all[i]
             return Item(id: s.id, kind: 35, u: s.u, scale: s.scale, color: k.color, seed: s.seed, pack: i,
-                        anchor: .sand, extent: k.extent, glowAtNight: k.glowAtNight, bury: k.bury)
+                        anchor: .sand, extent: k.extent, glowAtNight: k.glowAtNight, bury: k.bury, row: s.row)
         }
         for (i, k) in SceneryKinds.all.enumerated() where ids?.contains(k.id) == true {
             for (j, u) in k.at.enumerated() {
@@ -71,11 +74,12 @@ final class Scenery {
     /// Where an item sits and how much room the fish give it.
     func place(_ t: Tank, _ s: Item) -> (center: SIMD2<Float>, size: Float) {
         let size = t.size
-        let sz = s.scale * size.y
+        var sz = s.scale * size.y
         switch s.anchor {
         case .sand:
             // a pack's piece stands on the sand with the bottom of its drawing (c.y = -1) a little buried
-            return ([s.u * size.x, size.y * t.sand(s.u) + (s.pack != nil ? sz * s.extent.y * (1 - 2 * s.bury) : sz * 0.3)], sz)
+            sz *= 1 + 0.07 * s.row                                       // nearer: a little bigger
+            return ([s.u * size.x, floorY(t, s) + (s.pack != nil ? sz * s.extent.y * (1 - 2 * s.bury) : sz * 0.3)], sz)
         case .surface:
             // floating: drifting slowly back and forth, riding the waves
             let x = s.u * size.x + (s.drift ? sinf(Float(t.time) * 0.035 + s.seed * 6.3) * size.x * 0.03 : 0)
@@ -84,6 +88,9 @@ final class Scenery {
             return ([s.u * size.x, size.y * s.height + sinf(Float(t.time) * 0.5 + s.seed * 6.3) * 3], sz)
         }
     }
+
+    /// Where an item touches the floor: the back line of the sand, lower for the ones standing nearer the glass.
+    func floorY(_ t: Tank, _ s: Item) -> Float { t.size.y * t.sand(s.u) * (1 - 0.2 * s.row) }
 
     /// The stretch of sand an item takes (for the crabs, who turn around instead of walking over it).
     func blocks(_ t: Tank, _ x: Float) -> Bool {

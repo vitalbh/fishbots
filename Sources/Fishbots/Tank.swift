@@ -86,7 +86,7 @@ final class Tank {
                 // a new school starts where the old fish were (no jump when the theme changes)
                 let from = old.isEmpty ? SIMD2<Float>(Float.random(in: 200...700), Float.random(in: 250...450)) : old.randomElement()!.pos
                 let f = Fish(id: "decor:\(s * 100 + i)", source: "decor", label: "",
-                             pos: from, size: Float.random(in: sc.size),
+                             pos: from, size: Float.random(in: sc.size) * 1.3,     // (a third bigger than asked: at their size they were lost)
                              color: sc.color, stripes: true, motif: 0, timbre: .pluck, phase: s * 100 + i, decor: true, now: time)
                 f.state = .idle
                 f.pattern = sc.pattern

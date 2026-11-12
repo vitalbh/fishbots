@@ -78,14 +78,21 @@ extension Tank {
         var out: [Sprite] = []
         // the scenery: behind the pearls, the creatures and the fish, softened a little by the water
         let lit = 0.45 + 0.55 * light
-        let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
+        let water = waterTint
         let night = max(0, min(1, (0.8 - light) / 0.6))
         // the rocks are the theme's own stone: tinted by its sand (brown in the river, blue-grey under the ice, near
         // black in the trench) and each theme with its own shapes
         let theme = Themes.current
         let stone = (theme.uniforms.sandDark + theme.uniforms.sandLight) * 0.5
         let stoneSeed = theme.id == "classic" ? 0 : Float(theme.id.unicodeScalars.reduce(0) { $0 + Int($1.value) } % 89) * 0.37
-        for s in scenery.items {
+        // the back ones first; each one on the sand with a short shadow where it touches the floor
+        let standing = scenery.items.sorted { $0.row < $1.row }
+        for s in standing where s.anchor == .sand && s.solid {
+            let (c, sz) = scenery.place(self, s)
+            out.append(Sprite(pos: [c.x + sz * 0.08, scenery.floorY(self, s) + 1], dir: [1, 0], size: sz * min(1.6, s.pack != nil ? s.extent.x : 1.1),
+                              kind: 32, glow: 0.3 * (0.45 + 0.55 * light), phase: 0, color: [0, 0, 0, 1], extra: [1, 0, 0, 0]))
+        }
+        for s in standing {
             let (c, sz) = scenery.place(self, s)
             var color = mix(s.color * lit, water, t: 0.15)
             if s.id == "rock" { color = mix(mix(s.color, SIMD3(stone.x, stone.y, stone.z) * 0.95, t: 0.5) * lit, water, t: 0.12) }
@@ -283,8 +290,14 @@ extension Tank {
             if f.offer != nil { glow = max(glow, 0.2 + 0.2 * sinf(Float(time) * 2)) }       // softer than waiting
             // waking up: stretches (grows and shrinks back)
             var len = f.size * (1 - 0.35 * f.depth)
-            let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
-            c = mix(c, water, t: f.depth * 0.55)
+            // far away, the water in between takes its color (the theme's water: brown in the river, green in the pond)
+            c = mix(c, waterTint, t: f.depth * 0.62)
+            // the little schools flash silver as they turn, and one or another glints now and then
+            if f.decor {
+                let turn = powf(max(0, 1 - abs(f.facingX)), 2)
+                let glint = powf(max(0, sinf(Float(time) * 1.3 + Float(f.phase) * 2.1)), 24)
+                c += SIMD3<Float>(0.8, 0.9, 1) * (0.55 * turn + 0.4 * glint) * light * (1 - 0.5 * f.depth)
+            }
             if time < f.awakeUntil { len *= 1 + 0.16 * sinf(Float(1 - (f.awakeUntil - time) / 1.8) * .pi) }
             // the octopus moves by jets: its body squeezes and stretches in pulses, more the faster it goes
             var squeeze: Float = 1
@@ -413,6 +426,13 @@ extension Tank {
     }
 
     /// A soft shadow on the sand under something swimming: darker and smaller the closer it is to the bottom.
+    /// The water's own color under this light: what far things fade into.
+    var waterTint: SIMD3<Float> {
+        let u = Themes.current.uniforms
+        let w = mix(SIMD3(u.deep.x, u.deep.y, u.deep.z), SIMD3(u.shallow.x, u.shallow.y, u.shallow.z), t: 0.45) * 1.35
+        return w * (0.5 + 0.5 * light)
+    }
+
     private func shadow(under p: SIMD2<Float>, size s: Float, strength: Float) -> Sprite? {
         let sy = size.y * sand(p.x / max(1, size.x)) + 2
         let t = max(0, min(1, (p.y - sy) / (size.y * 0.55)))
