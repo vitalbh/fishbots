@@ -128,14 +128,15 @@ extension Tank {
                               aux: s.kind > 40.5 ? [1, 1, 0, 0] : .zero))
         }
         // the old battery, in front of the scenery (at a spot it leaves free)
-        if let b = battery {
+        let floor = Themes.current.floor                                     // (the open sea has none: nothing lies on it)
+        if let b = battery, floor {
             let a = batteryAngle
             out.append(Sprite(pos: batteryPos, dir: [cosf(a), sinf(a)], size: 17, kind: 6, glow: b,
                               phase: jellyPhase, color: [1, 1, 1, 1], extra: [1, pluggedIn ? 1 : 0, 0, 0]))
         }
         // pebbles and little shells on the sand (the theme may draw them its own way: "pebble", "seashell")
         let looks = FishKinds.dressByTheme ? Themes.current.looks : [:]
-        for p in pebbles {
+        for p in pebbles where floor {
             let x = scenery.clear(self, size.x * p.u)
             if let look = looks[p.shell ? "seashell" : "pebble"], let i = SceneryKinds.index(of: look) {
                 let k = SceneryKinds.all[i]
@@ -170,7 +171,7 @@ extension Tank {
                               color: [p.color[0], p.color[1], p.color[2], 1], extra: [1, 0, 0, 0]))
         }
         // list pebbles (TodoWrite): the done ones glow in the fish's color
-        for f in fish where !f.decor && !f.leaving {
+        for f in fish where !f.decor && !f.leaving && floor {
             guard let t = f.todos, let u = f.todoU else { continue }
             let n = min(t.total, 12)
             for i in 0..<n {

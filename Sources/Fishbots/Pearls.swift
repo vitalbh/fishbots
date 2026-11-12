@@ -91,6 +91,13 @@ final class Pearls {
     }
 
     func layout(_ t: Tank) {
+        // a theme with no floor (the open sea) has nowhere to rest them: they're kept, out of sight, and come back
+        // with the next theme that has one
+        guard Themes.current.floor else {
+            places = [SIMD2<Float>](repeating: [-1000, -1000], count: all.count)
+            heaps = []
+            return
+        }
         let now = Date().timeIntervalSince1970
         let eight = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date())?.timeIntervalSince1970 ?? now - 4 * 3600
         let t0 = min(all.map(\.hour).min() ?? eight, eight)

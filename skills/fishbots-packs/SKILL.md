@@ -141,6 +141,9 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
   removes the blurred tufts up front; `"voices": {"chime": "koto"}` gives the scene's sounds another voice or a pack sound.
 - **Schools and jellyfish:** `"schools": [{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}]`
   (up to 3: middle, high, low and far) replaces the tropical neons; `"jellyfish": false` removes the drifting one.
+- **No floor:** `"floor": false` (the open sea) leaves the pearls of the day, the pebbles, shells and list pebbles out;
+  pair it with sand as dark as the deep water and a clutch of its own (a scenery piece called `eggs`, listed in the
+  theme's `scenery`) hanging somewhere else.
 - **Frost:** `"frost": 0.6` (0…1) grows ice on the glass from the sides and corners.
 - **Effects:** `"effects": {"fireworks": "#ff9ec8", "lightning": {"as": "sparkle", "color": "#a0ffd0"}}`: default
   colors for the effects plugins send, or another effect in its place.

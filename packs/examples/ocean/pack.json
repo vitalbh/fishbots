@@ -106,6 +106,7 @@
       },
       "foreground": false,
       "jellyfish": false,
+      "floor": false,
       "schools": [
         {
           "color": "#3f8fb0",
