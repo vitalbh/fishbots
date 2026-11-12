@@ -82,7 +82,7 @@
       "schools": [
         {
           "color": "#c9c2a0",
-          "kind": "slender",
+          "kind": "medaka",
           "count": 12,
           "size": [
             6,
@@ -96,7 +96,7 @@
         },
         {
           "color": "#d8b0b8",
-          "kind": "oval",
+          "kind": "medaka",
           "count": 8,
           "size": [
             7,
@@ -243,6 +243,15 @@
       },
       "metal": "ryukin.metal",
       "function": "draw_koi_ryukin"
+    },
+    {
+      "id": "medaka",
+      "name": "medaka",
+      "names": {
+        "en": "medaka"
+      },
+      "metal": "koi.metal",
+      "function": "draw_koi_medaka"
     }
   ],
   "scenery": [

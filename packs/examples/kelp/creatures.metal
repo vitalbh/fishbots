@@ -37,15 +37,13 @@ float4 draw_kelp_garibaldi(float2 c, float phase, float glow, float4 col, float4
         c3 *= 0.8;
         c3 *= 0.9 + 0.1 * sin(atan2(p.y, p.x + 0.2) * 40.0);         // fin rays
     }
-    c3 *= 0.7 + 0.45 * smoothstep(-0.5, 0.5, p.y);
+    if (body < min(min(dors, anal), tail)) c3 = fish_round(c3 * 1.1, (p - float2(0.1, 0.0)) / float2(0.72, 0.46 * thin), body);
+    else c3 *= 0.75 + 0.35 * smoothstep(-0.5, 0.5, p.y);
     c3 = mix(c3, float3(1.0, 0.8, 0.5), (1.0 - smoothstep(0.0, 0.03, -d)) * 0.25 * step(0.0, p.y));
-    // the eye; asleep (extra.w > 1.5) it's a line
-    float er = length(p - float2(0.52, 0.1));
-    if (extra.w > 1.5) c3 = mix(c3, float3(0.1), (1.0 - smoothstep(0.008, 0.016, abs(p.y - 0.1))) * step(er, 0.06));
-    else {
-        c3 = mix(c3, float3(0.03), 1.0 - smoothstep(0.05, 0.065, er));
-        c3 = mix(c3, float3(1.0), 1.0 - smoothstep(0.008, 0.016, length(p - float2(0.535, 0.12))));
-    }
+    // gill cover, a little mouth, and the eye (asleep, extra.w > 1.5, a line)
+    c3 *= 1.0 - (1.0 - smoothstep(0.006, 0.02, abs(length((p - float2(0.5, -0.02)) * float2(1.0, 0.7)) - 0.2))) * step(p.x, 0.5) * step(body, 0.0) * 0.22;
+    c3 = mix(c3, c3 * 0.35, (1.0 - smoothstep(0.0, 0.012, abs(p.y + 0.09 + (p.x - 0.76) * 0.3) - 0.006)) * step(0.7, p.x) * step(body, 0.0));
+    c3 = fish_eye(c3, p, float2(0.54, 0.11), 0.062, float3(1.0, 0.75, 0.2), extra.w > 1.5 ? 1.0 : 0.0);
     c3 += col.rgb * glow * 0.45;
     float halo = exp(-max(d, 0.0) * 18.0) * glow * 0.4 * (1.0 - a);
     c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.025, -d)) * 0.2;
@@ -81,11 +79,9 @@ float4 draw_kelp_sheephead(float2 c, float phase, float glow, float4 col, float4
     // scales and round shading
     float2 sc = p * float2(12.0, 15.0);
     c3 *= 0.9 + 0.12 * smoothstep(0.2, 0.5, length(fract(sc + float2(floor(sc.y) * 0.5, 0.0)) - 0.5));
-    c3 *= 0.7 + 0.45 * smoothstep(-0.45, 0.45, p.y);
-    float er = length(p - float2(0.82, 0.14));
-    c3 = mix(c3, float3(0.85, 0.2, 0.15), 1.0 - smoothstep(0.045, 0.055, er));                // a red eye
-    c3 = mix(c3, float3(0.02), 1.0 - smoothstep(0.022, 0.03, er));
-    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.025, -d)) * 0.25;
+    if (body < min(min(dors, anal), min(tail, pect))) c3 = fish_round(c3 * 1.1 + 0.015, p / float2(0.95, 0.42), body);
+    else c3 = c3 * (0.8 + 0.35 * smoothstep(-0.45, 0.45, p.y)) + 0.03;
+    c3 = fish_eye(c3, p, float2(0.82, 0.14), 0.055, float3(0.95, 0.15, 0.1), 0.0);            // a red eye
     c3 *= col.rgb / max(0.001, max(col.r, max(col.g, col.b)));                                 // the hour's light
     return float4(c3 * a, a);
 }
@@ -164,4 +160,37 @@ float4 draw_kelp_sealion(float2 c, float phase, float glow, float4 col, float4 e
     c3 += col.rgb * glow * 0.3;
     float halo = exp(-max(d, 0.0) * 22.0) * glow * 0.45 * (1.0 - a);
     return float4((c3 * a + col.rgb * halo) * col.a, (a + halo * 0.5) * col.a);
+}
+
+// Señorita: a small cigar-shaped wrasse, orange above and cream below, a pointed snout with buck teeth, a black
+// blotch at the base of the tail. The kelp forest's schools. col tints it; extra.w > 1.5: asleep.
+float4 draw_kelp_senorita(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    p.y -= sin(phase - p.x * 2.6) * 0.045 * smoothstep(0.3, -1.0, p.x);
+    float thin = mix(0.5, 1.0, smoothstep(-0.9, -0.1, p.x)) * mix(1.0, 0.55, smoothstep(0.45, 0.95, p.x));   // a pointed snout
+    float ry = 0.17 * thin;
+    float body = (length((p - float2(0.08, 0.0)) / float2(0.88, ry)) - 1.0) * ry;
+    float2 tq = p - float2(-0.72, sin(phase - 1.2) * 0.04);
+    float tail = max(sd_tri(tq, float2(0.08, 0.0), float2(-0.34, 0.25), float2(-0.34, -0.25)), length(tq - float2(0.06, 0.0)) - 0.32) - 0.01;
+    // one long low dorsal fin along the back, one anal fin below
+    float dors = max((length((p - float2(-0.1, 0.12)) / float2(0.6, 0.12)) - 1.0) * 0.12, 0.12 - p.y);
+    float anal = max((length((p - float2(-0.3, -0.12)) / float2(0.32, 0.1)) - 1.0) * 0.1, p.y + 0.12);
+    float fins = min(tail, min(dors, anal));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 orange = mix(float3(0.95, 0.55, 0.15), col.rgb, 0.3), cream = float3(0.98, 0.9, 0.7);
+    float yn = p.y / max(ry, 0.03);
+    float3 c3 = mix(cream, orange, smoothstep(-0.5, 0.15, yn));
+    float2 sc = p * float2(18.0, 22.0);
+    c3 *= 0.94 + 0.08 * smoothstep(0.25, 0.5, length(fract(sc + float2(floor(sc.y) * 0.5, 0.0)) - 0.5));     // scales
+    c3 = mix(c3, float3(0.05, 0.04, 0.05), (1.0 - smoothstep(0.7, 1.0, length((p - float2(-0.64, 0.0)) / float2(0.1, 0.12)))) * 0.9);   // the blotch
+    c3 = fish_round(c3 * 1.08, float2((p.x - 0.08) / 0.88, yn), body);
+    float al = a;
+    if (body > 0.0) { c3 = orange * 0.85 * (0.9 + 0.1 * cos(p.x * 60.0)); al *= 0.75; }
+    c3 = fish_eye(c3, p, float2(0.62, 0.035), 0.05, float3(1.0, 0.8, 0.3), extra.w > 1.5 ? 1.0 : 0.0);
+    c3 += col.rgb * glow * 0.45;
+    float fade = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = exp(-max(d, 0.0) * 12.0) * glow * (1.0 - a) * fade;
+    return float4((c3 * al + col.rgb * halo * 0.9) * col.a, min(al + halo * 0.55, 1.0) * col.a);
 }

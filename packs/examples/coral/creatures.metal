@@ -5,12 +5,19 @@ float4 draw_coral_chromis(float2 c, float phase, float glow, float4 col, float4 
     float body = (length((p - float2(0.15, 0.0)) / float2(0.75, 0.42)) - 1.0) * 0.42;
     float tail = sd_tri(p, float2(-0.5, 0.0), float2(-1.05, 0.38), float2(-1.05, -0.38));
     tail = max(tail, -sd_tri(p, float2(-0.8, 0.0), float2(-1.1, 0.22), float2(-1.1, -0.22)));
-    float d = min(body, tail - 0.01);
+    // a spiny dorsal fin along the back and a small anal fin
+    float dors = max((length((p - float2(0.05, 0.3)) / float2(0.5, 0.24)) - 1.0) * 0.24, 0.3 - p.y);
+    float anal = max((length((p - float2(-0.15, -0.3)) / float2(0.3, 0.2)) - 1.0) * 0.2, p.y + 0.3);
+    float fins = min(tail - 0.01, min(dors, anal));
+    float d = min(body, fins);
     float aa = fwidth(d) + 1e-4;
     float a = 1.0 - smoothstep(-aa, aa, d);
-    float3 c3 = col.rgb * (0.65 + 0.5 * smoothstep(-0.4, 0.4, p.y));
-    c3 += float3(0.6, 0.9, 1.0) * pow(max(0.0, 1.0 - length((p - float2(0.2, 0.18)) / float2(0.5, 0.12))), 2.0) * 0.35;
-    c3 = mix(c3, float3(0.02), 1.0 - smoothstep(0.06, 0.09, length(p - float2(0.65, 0.08))));
+    float3 c3 = fish_round(col.rgb, (p - float2(0.15, 0.0)) / float2(0.75, 0.42), body);
+    if (body > 0.0) {
+        c3 = col.rgb * 0.72 * (0.88 + 0.12 * cos(atan2(p.y, -(p.x + 0.3)) * 26.0));     // fins: darker, with rays
+        a *= 0.85;
+    }
+    c3 = fish_eye(c3, p, float2(0.62, 0.08), 0.095, col.rgb, 0.0);
     return float4(c3 * a * col.a, a * col.a);
 }
 
@@ -38,10 +45,9 @@ float4 draw_coral_tang(float2 c, float phase, float glow, float4 col, float4 ext
     c3 = mix(c3, black, (1.0 - smoothstep(0.0, 0.012, mark)) * step(body, 0.0) * step(-0.62, p.x) * step(p.x, 0.5));
     if (tail < min(body, min(dors, anal))) c3 = yellow * (0.85 + 0.15 * cos(atan2(tq.y, -tq.x) * 20.0));
     if (min(dors, anal) < min(body, tail)) c3 = mix(blue * 0.8, black, smoothstep(-0.03, -0.005, min(dors, anal)));
-    c3 *= 0.7 + 0.45 * smoothstep(-0.5, 0.5, p.y);
-    c3 = mix(c3, float3(0.02), 1.0 - smoothstep(0.045, 0.06, length(p - float2(0.62, 0.12))));
-    c3 = mix(c3, float3(1.0), 1.0 - smoothstep(0.008, 0.016, length(p - float2(0.63, 0.135))));
-    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.025, -d)) * 0.25;
+    if (body < min(tail, min(dors, anal))) c3 = fish_round(c3 * 1.15, (p - float2(0.1, 0.0)) / float2(0.78, 0.5), body);
+    else c3 *= 0.75 + 0.35 * smoothstep(-0.5, 0.5, p.y);
+    c3 = fish_eye(c3, p, float2(0.62, 0.12), 0.06, float3(0.9, 0.8, 0.3), 0.0);
     return float4(c3 * a * col.a, a * col.a);
 }
 
@@ -79,11 +85,10 @@ float4 draw_coral_butterfly(float2 c, float phase, float glow, float4 col, float
         float m = length((p - eye - float2(-0.02, 0.0)) / float2(0.12, 0.22));
         c3 = mix(c3, mask, 1.0 - smoothstep(0.85, 1.05, m));
         float re = length(p - eye);
-        c3 = mix(c3, float3(0.03), 1.0 - smoothstep(0.035, 0.045, re));
-        c3 = mix(c3, float3(1.0), 1.0 - smoothstep(0.006, 0.012, length(p - eye - float2(0.01, 0.012))));
+        c3 = fish_eye(c3, p, eye, 0.05 + 0.0 * re, float3(0.9, 0.75, 0.2), 0.0);
         c3 += float3(1.0) * pow(max(0.0, dot(reflect(-normalize(float3(-0.3, 0.8, 0.5)), n), float3(0, 0, 1))), 16.0) * 0.25;
     } else {
-        c3 = yellow * 0.9;
+        c3 = yellow * (0.72 + 0.22 * smoothstep(-0.5, 0.5, p.y)) * (0.9 + 0.1 * cos(p.y * 46.0 + p.x * 9.0));     // soft fins, with rays
         float st = abs(fract(p.x * 7.0 + 0.12 * sin(p.y * 5.0)) - 0.5);
         c3 = mix(c3, orange, (1.0 - smoothstep(0.07, 0.14, st)) * 0.7 * step(tail, 0.0) * 0.0 + (1.0 - smoothstep(0.07, 0.14, st)) * 0.6 * (1.0 - step(tail, min(fins, pect))));
         c3 = mix(c3, float3(0.25, 0.2, 0.1), smoothstep(-0.03, -0.008, d) * 0.8 * step(-0.45, p.x));   // dark rim
@@ -92,4 +97,10 @@ float4 draw_coral_butterfly(float2 c, float phase, float glow, float4 col, float
     }
     c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.02, -d)) * 0.2;
     return float4(c3 * a * col.a, a * col.a);
+}
+
+// The chromis as a fish kind (a fish's quad is 1.25 × 0.8): the reef's schools, and a session can be one.
+float4 draw_coral_chromis_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float4 o = draw_coral_chromis(c * float2(1.25 / 1.6, 0.8), phase, glow, col, extra);
+    return float4(o.rgb + col.rgb * glow * 0.45 * o.a, o.a);
 }

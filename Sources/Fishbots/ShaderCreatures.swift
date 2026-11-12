@@ -20,6 +20,34 @@ float smin_k(float a, float b, float k) {
 
 // stingray (Codex), seen from above and facing +x: a broad disc with pointed wing tips whose edges ripple in a wave
 // running back along them, a raised middle, spots, eyes with spiracles, pelvic lobes and a long whip of a tail
+// The same body light for every fish drawing, built-in or a pack's: `b` is the place on the body (0 at its middle,
+// ±1 at its edges, on both axes), `body` its signed distance (negative inside; elsewhere c3 comes back untouched).
+// Round and lit from above, a paler belly, a wet highlight on the upper flank, a rim of light along the back and a
+// darker line underneath, so the shape reads small or far.
+float3 fish_round(float3 c3, float2 b, float body) {
+    if (body > 0.0) return c3;
+    float z = sqrt(max(0.0, 1.0 - min(dot(b, b), 1.0)));
+    float3 n = normalize(float3(b * 0.9, z + 0.3));
+    float3 o = c3 * (0.6 + 0.52 * max(0.0, dot(n, normalize(float3(-0.25, 0.75, 0.6)))));
+    o += (o * 0.35 + 0.07) * smoothstep(-0.1, -0.85, b.y);
+    o += float3(1.0) * pow(max(0.0, dot(n, normalize(float3(-0.15, 0.55, 0.8)))), 26.0) * 0.26;
+    float edge = 1.0 - smoothstep(0.0, 0.035, -body);
+    o += float3(0.75, 0.9, 1.0) * edge * smoothstep(-0.1, 0.8, b.y) * 0.3;
+    o *= 1.0 - edge * smoothstep(0.1, -0.6, b.y) * 0.35;
+    return o;
+}
+
+// The same eye: a socket, a pale ring tinted by `iris`, a dark pupil and a catchlight; asleep (> 0.5), a curved line.
+float3 fish_eye(float3 c3, float2 p, float2 at, float er, float3 iris, float asleep) {
+    float2 q = p - at;
+    float re = length(q);
+    if (asleep > 0.5) return mix(c3, float3(0.05), (1.0 - smoothstep(0.0, er * 0.2, abs(q.y + q.x * q.x * 6.0) - er * 0.15)) * step(abs(q.x), er));
+    c3 = mix(c3, c3 * 0.55, (1.0 - smoothstep(er * 1.05, er * 1.4, re)) * 0.6);
+    c3 = mix(c3, mix(float3(0.94, 0.93, 0.86), iris, 0.3), 1.0 - smoothstep(er * 0.88, er * 1.04, re));
+    c3 = mix(c3, float3(0.02), 1.0 - smoothstep(er * 0.56, er * 0.68, re));
+    return mix(c3, float3(1.0), 1.0 - smoothstep(er * 0.14, er * 0.3, length(q - er * float2(0.22, 0.26))));
+}
+
 float4 draw_ray(float2 c, float phase, float glow, float4 col) {
     float2 p = c * float2(1.25, 0.8);
     float2 q = p - float2(0.12, 0.0);
@@ -142,9 +170,12 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra, fl
     float fins;
     if (sp == 3) {
         // tall fins, up and down, swept back
-        float up = sd_tri(p, float2(cx - 0.32, ry * 0.6), float2(cx + 0.12, ry * 0.75), float2(cx - 0.45, 0.78));
-        float dn = sd_tri(p, float2(cx - 0.32, -ry * 0.6), float2(cx + 0.12, -ry * 0.75), float2(cx - 0.45, -0.78));
-        fins = min(up, dn) - 0.01;
+        // (each a sickle: wide at the root, curving back to a soft point, trailing a little as it swims)
+        float hh = clamp((abs(p.y) - ry * 0.5) / (0.8 - ry * 0.5), 0.0, 1.0);
+        float2 w = float2(p.x + 0.2 * hh * hh + 0.03 * hh * sin(phase * 0.9 + abs(p.y) * 6.0), p.y);
+        float up = sd_tri(w, float2(cx - 0.36, ry * 0.5), float2(cx + 0.2, ry * 0.7), float2(cx - 0.2, 0.8));
+        float dn = sd_tri(w, float2(cx - 0.36, -ry * 0.5), float2(cx + 0.2, -ry * 0.7), float2(cx - 0.2, -0.8));
+        fins = min(up, dn) - 0.03;
     } else {
         // dorsal: a swept-back sail on the back; ventral and anal: two small ones under the belly
         float fl = slim ? 0.5 : sp == 2 ? 0.2 : 0.36;               // base length
@@ -525,6 +556,85 @@ float sd_seg(float2 p, float2 a, float2 b) {
 float sd_box(float2 p, float2 b, float r) {
     float2 q = abs(p) - b + r;
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+// Needlefish (the lagoon's schools): a silver sliver with a green back, a blue line down the flank and a long beak,
+// hanging just under the surface. col tints its back. extra.w > 1.5: asleep.
+float4 draw_needlefish(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    p.y -= sin(phase - p.x * 3.0) * 0.035 * smoothstep(0.4, -1.1, p.x);
+    float thin = mix(0.45, 1.0, smoothstep(-0.9, -0.2, p.x));
+    float ry = 0.085 * thin;
+    float body = (length((p - float2(-0.1, 0.0)) / float2(0.85, ry)) - 1.0) * ry;
+    float beak = sd_seg(p, float2(0.6, 0.0), float2(1.18, -0.005)) - mix(0.032, 0.006, clamp((p.x - 0.6) / 0.58, 0.0, 1.0));
+    body = smin_k(body, beak, 0.03);
+    float2 tq = p - float2(-0.9, sin(phase - 1.2) * 0.03);
+    float tail = max(sd_tri(tq, float2(0.08, 0.0), float2(-0.28, 0.18), float2(-0.28, -0.18)),
+                     -(length((tq - float2(-0.35, 0.0)) / float2(0.14, 0.1)) - 1.0) * 0.1) - 0.008;
+    // the dorsal and anal fins sit far back, opposite each other
+    float dors = sd_tri(p, float2(-0.48, 0.05), float2(-0.8, 0.03), float2(-0.74, 0.17)) - 0.008;
+    float anal = sd_tri(p, float2(-0.48, -0.05), float2(-0.8, -0.03), float2(-0.74, -0.17)) - 0.008;
+    float fins = min(tail, min(dors, anal));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 back = mix(float3(0.2, 0.46, 0.36), col.rgb, 0.45), silver = float3(0.86, 0.93, 0.94);
+    float yn = p.y / max(ry, 0.02);
+    float3 c3 = mix(silver, back, smoothstep(-0.05, 0.55, yn));
+    c3 = mix(c3, float3(0.5, 0.82, 1.0), (1.0 - smoothstep(0.08, 0.3, abs(yn - 0.08))) * 0.55 * step(p.x, 0.55));
+    c3 = fish_round(c3 * 1.1, float2((p.x + 0.1) / 0.85, yn), body);
+    if (body > 0.0) { c3 = back * 0.75 + 0.12; a *= 0.6; }
+    c3 = fish_eye(c3, p, float2(0.5, 0.015), 0.05, silver, extra.w > 1.5 ? 1.0 : 0.0);
+    c3 += col.rgb * glow * 0.45;
+    float fade = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = exp(-max(d, 0.0) * 12.0) * glow * (1.0 - a) * fade;
+    return float4((c3 * a + col.rgb * halo * 0.9) * col.a, min(a + halo * 0.55, 1.0) * col.a);
+}
+
+// Bristlemouth (the deep sea's schools): a small dark fish, all jaw, with a row of little lights along its belly
+// in the color it's given. extra.w > 1.5: asleep (the lights go dim).
+float4 draw_bristlemouth(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    bool asleep = extra.w > 1.5;
+    p.y -= sin(phase - p.x * 2.6) * 0.045 * smoothstep(0.3, -1.0, p.x);
+    float thin = mix(0.3, 1.0, smoothstep(-0.9, 0.2, p.x));
+    float ry = 0.21 * thin;
+    float body = (length((p - float2(0.08, 0.0)) / float2(0.82, ry)) - 1.0) * ry;
+    float2 tq = p - float2(-0.66, sin(phase - 1.2) * 0.04);
+    float tail = max(sd_tri(tq, float2(0.08, 0.0), float2(-0.36, 0.24), float2(-0.36, -0.24)),
+                     -(length((tq - float2(-0.42, 0.0)) / float2(0.16, 0.1)) - 1.0) * 0.1) - 0.01;
+    float dors = sd_tri(p, float2(-0.05, 0.16), float2(-0.42, 0.1), float2(-0.34, 0.3)) - 0.01;
+    float anal = sd_tri(p, float2(-0.12, -0.16), float2(-0.55, -0.08), float2(-0.46, -0.27)) - 0.01;
+    float fins = min(tail, min(dors, anal));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 dark = mix(float3(0.1, 0.12, 0.17), col.rgb, 0.22);
+    float3 c3 = fish_round(dark * 1.5, float2((p.x - 0.08) / 0.82, p.y / max(ry, 0.03)), body);
+    if (body > 0.0) { c3 = dark * 1.2; a *= 0.7; }
+    else {
+        // the long jaw, open a little, with bristle teeth
+        float jaw = abs(p.y + 0.05 + (p.x - 0.5) * 0.22) - 0.007;
+        c3 = mix(c3, float3(0.02), (1.0 - smoothstep(0.0, 0.012, jaw)) * step(0.32, p.x));
+        c3 += float3(0.8) * (1.0 - smoothstep(0.0, 0.012, jaw + 0.012)) * step(0.4, p.x) * step(0.5, fract(p.x * 30.0)) * 0.35;
+    }
+    c3 = fish_eye(c3, p, float2(0.62, 0.07), 0.055, float3(0.7, 0.9, 1.0), asleep ? 1.0 : 0.0);
+    // the lights: a row along the belly, each pulsing a little out of step
+    float3 lightC = mix(col.rgb, float3(0.55, 0.9, 1.0), 0.4) * 1.2;
+    float lum = 0.0;
+    for (int i = 0; i < 8; i++) {
+        float x = mix(0.5, -0.5, float(i) / 7.0);
+        float bxn = (x - 0.08) / 0.82;
+        float y = -0.21 * mix(0.3, 1.0, smoothstep(-0.9, 0.2, x)) * sqrt(max(0.0, 1.0 - bxn * bxn)) * 0.7;
+        float r = length(p - float2(x, y));
+        lum += (exp(-r * r * 3200.0) + exp(-r * r * 500.0) * 0.2) * (0.65 + 0.35 * sin(phase * 0.9 + float(i) * 1.7));
+    }
+    lum *= (asleep ? 0.3 : 1.0) * col.a;
+    c3 += col.rgb * glow * 0.45;
+    float fade = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = exp(-max(d, 0.0) * 12.0) * glow * (1.0 - a) * fade;
+    float al = a * col.a;
+    return float4(c3 * al * (1.0 - min(lum, 1.0)) + lightC * lum + col.rgb * halo * 0.9 * col.a, min(1.0, al + lum * 0.8 + halo * 0.55 * col.a));
 }
 
 """#

@@ -28,9 +28,11 @@ float4 draw_betta(float2 c, float phase, float glow, float4 col, float4 extra) {
     float shimmer = 0.5 + 0.5 * sin(t * 0.7);
     float3 fin = mix(base, hue3(fract(dot(base, float3(0.3, 0.5, 0.2)) + r * 0.6 + t * 0.05)) * 0.9, 0.55 * shimmer + 0.25);
     float onFin = smoothstep(-0.02, 0.02, body * 0.2 - fins);
-    float3 c3 = mix(base * (0.8 + 0.35 * (1.0 - length(p - float2(0.42, 0.06)) * 2.0)), fin, onFin);
+    float3 c3 = mix(fish_round(base, (p - float2(0.42, 0.0)) / float2(0.34, 0.2), body * 0.2), fin, onFin);
     c3 *= 0.85 + 0.15 * sin(ang * 18.0) * onFin;                       // the fin rays
-    c3 = mix(c3, float3(0.03), 1.0 - smoothstep(0.035, 0.05, length(p - float2(0.6, 0.05))));   // eye
+    // gill cover and eye, as on the other fish
+    c3 *= 1.0 - (1.0 - smoothstep(0.006, 0.018, abs(length((p - float2(0.56, -0.01)) * float2(1.0, 0.75)) - 0.1))) * step(p.x, 0.56) * step(body, 0.0) * 0.22;
+    c3 = fish_eye(c3, p, float2(0.61, 0.055), 0.05, base, extra.w > 1.5 ? 1.0 : 0.0);
     c3 += base * glow * 0.5;
     float aOut = inside * col.a * mix(1.0, 0.82, onFin);
     float fade = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));

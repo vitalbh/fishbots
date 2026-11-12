@@ -187,12 +187,14 @@ float4 draw_trench_hatchet(float2 c, float phase, float glow, float4 col, float4
     float d = min(smin_k(blade, stock, 0.12), tail);
     float aa = fwidth(d) + 1e-4;
     float a = 1.0 - smoothstep(-aa, aa, d);
-    float3 c3 = col.rgb * (0.5 + 0.8 * smoothstep(-0.5, 0.35, p.y));
+    float3 c3 = col.rgb * (0.6 + 0.6 * smoothstep(-0.5, 0.35, p.y));
+    c3 = fish_round(c3, (p - float2(0.2, 0.02)) / float2(0.55, 0.62), blade);
     c3 += col.rgb * 0.5 * pow(max(0.0, sin(p.x * 9.0 + p.y * 4.0 + phase * 0.5)), 6.0);          // a flash of mirror
     if (tail < 0.0 && tail < blade) c3 *= 0.6;
     float er = length(p - float2(0.45, 0.14));
     c3 = mix(c3, float3(0.8, 0.85, 0.9) * (0.4 + col.rgb), 1.0 - smoothstep(0.13, 0.15, er));
     c3 = mix(c3, float3(0.01), 1.0 - smoothstep(0.08, 0.1, er));
+    c3 = mix(c3, float3(1.0), 1.0 - smoothstep(0.015, 0.03, length(p - float2(0.47, 0.17))));
     // the belly lights
     float3 blue = float3(0.3, 0.75, 1.0);
     float ph = 0.0;

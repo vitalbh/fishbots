@@ -235,7 +235,7 @@ the fish, crabs and pearls clear of it and draws it with the rest of the scenery
 float4 draw_lantern(float2 c, float t, float glow, float4 col, float4 extra) { … }
 ```
 
-The shader's helpers (`sd_box`, `sd_seg`, `sd_tri`, `smin_k`, `vnoise`, `hash21`, `vor_edge`) can be used. A theme
+The shader's helpers (`sd_box`, `sd_seg`, `sd_tri`, `smin_k`, `vnoise`, `hash21`, `vor_edge`, and for fish `fish_round` and `fish_eye`: docs/packs.md) can be used. A theme
 lists the pieces it wants in `"scenery"`, mixed with the built-in ones (`rock`, `shell`, `chest`, `coral`; the clutch of `eggs`, where the
 sessions started from the aquarium hatch and a click starts one, is in every theme unless a pack piece of its own
 is called `eggs`); a pack's

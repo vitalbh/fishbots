@@ -111,7 +111,7 @@
       "schools": [
         {
           "color": "#b8c8d0",
-          "kind": "slender",
+          "kind": "polar-cod",
           "count": 14,
           "size": [
             7,
@@ -125,7 +125,7 @@
         },
         {
           "color": "#9ab0b8",
-          "kind": "slender",
+          "kind": "polar-cod",
           "count": 8,
           "size": [
             6,
@@ -457,6 +457,15 @@
         "beat": 0.6,
         "speed": 0.7
       }
+    },
+    {
+      "id": "polar-cod",
+      "name": "bacalhau-polar",
+      "names": {
+        "en": "polar cod"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_arctic_cod_fish"
     }
   ],
   "presences": [

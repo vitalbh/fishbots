@@ -69,6 +69,12 @@ Helpers from the app's shader you can call: `sd_box(p, half, radius)`, `sd_seg(p
 `smin_k(a, b, k)` (smooth union), `vnoise(p)` (0…1), `hash21(p)` (0…1), `vor_edge(p)` (distance to the nearest
 voronoi border: nets, plates, lace).
 
+For a fish, two more, so it sits with the others in the tank: `fish_round(c3, b, body)` lights a body the way the
+built-in fish are lit (round and lit from above, a paler belly, a wet highlight, a rim of light along the back);
+`b` is the place on the body (0 at its middle, ±1 at its edges) and `body` its signed distance, and outside the body
+the color comes back untouched. `fish_eye(c3, p, at, radius, iris, asleep)` draws the same eye (a socket, a pale
+ring tinted by `iris`, a pupil, a catchlight; a curved line while `asleep` is over 0.5, that is `extra.w > 1.5`).
+
 Rules that keep a pack working:
 - Name functions after the pack (`draw_sunkenship_anchor`): every pack shares one shader, and two functions with the
   same name break both packs.

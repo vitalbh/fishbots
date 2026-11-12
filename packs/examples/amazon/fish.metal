@@ -353,7 +353,7 @@ float4 draw_amazon_cardinal(float2 c, float phase, float glow, float4 col, float
         c3 = mix(red, float3(0.36, 0.3, 0.14), smoothstep(0.35, 0.6, yn));
         c3 = mix(c3, neon, (1.0 - smoothstep(0.16, 0.32, abs(yn - 0.2))) * smoothstep(-0.7, -0.5, p.x));
         c3 = mix(c3, float3(0.95, 0.9, 0.85), smoothstep(-0.75, -0.95, yn) * smoothstep(0.1, 0.5, p.x) * 0.6);
-        c3 *= 0.8 + 0.3 * smoothstep(-1.0, 0.6, yn);
+        c3 = fish_round(c3 * 1.1, (p - float2(0.12, 0.0)) / float2(0.8, 0.23 * thin), body);
         c3 = amazon_eye(c3, p, float2(0.68, 0.04), 0.068, float3(0.85, 0.9, 0.9), asleep);
     } else {
         c3 = mix(float3(0.9, 0.85, 0.75), red, tail < min(dors, anal) ? (1.0 - smoothstep(0.0, 0.2, -tq.x)) * 0.8 : 0.25);

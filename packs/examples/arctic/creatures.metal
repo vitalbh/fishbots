@@ -4,12 +4,18 @@ float4 draw_arctic_cod(float2 c, float phase, float glow, float4 col, float4 ext
     p.y -= sin(phase * 2.0 - p.x * 3.0) * 0.05 * smoothstep(0.4, -1.2, p.x);
     float body = (length((p - float2(0.1, 0.0)) / float2(0.95, 0.3)) - 1.0) * 0.3;
     float tail = sd_tri(p, float2(-0.75, 0.0), float2(-1.25, 0.28), float2(-1.25, -0.28)) - 0.01;
-    float d = min(body, tail);
+    // two small dorsal fins and one below, as a cod has
+    float fins = min(sd_tri(p, float2(0.35, 0.24), float2(-0.05, 0.22), float2(0.0, 0.42)),
+                     min(sd_tri(p, float2(-0.2, 0.2), float2(-0.6, 0.12), float2(-0.5, 0.36)),
+                         sd_tri(p, float2(-0.1, -0.24), float2(-0.55, -0.14), float2(-0.45, -0.38)))) - 0.012;
+    float d = min(body, min(tail, fins));
     float aa = fwidth(d) + 1e-4;
     float a = 1.0 - smoothstep(-aa, aa, d);
-    float3 c3 = mix(col.rgb * 1.2 + 0.1, col.rgb * 0.6, smoothstep(-0.2, 0.25, p.y));      // pale belly, darker back
-    c3 += float3(1.0) * pow(max(0.0, 1.0 - length((p - float2(0.2, 0.05)) / float2(0.7, 0.06))), 3.0) * 0.5;   // silver line
-    c3 = mix(c3, float3(0.03), 1.0 - smoothstep(0.06, 0.09, length(p - float2(0.85, 0.06))));
+    float3 c3 = mix(col.rgb * 1.2 + 0.1, col.rgb * 0.75, smoothstep(-0.2, 0.25, p.y));     // pale belly, darker back
+    c3 = fish_round(c3, (p - float2(0.1, 0.0)) / float2(0.95, 0.3), body);
+    c3 += float3(1.0) * pow(max(0.0, 1.0 - length((p - float2(0.2, 0.05)) / float2(0.7, 0.06))), 3.0) * 0.4 * step(body, 0.0);   // silver line
+    if (body > 0.0) { c3 = col.rgb * 0.7; a *= 0.8; }
+    c3 = fish_eye(c3, p, float2(0.8, 0.06), 0.085, col.rgb, 0.0);
     return float4(c3 * a * col.a, a * col.a);
 }
 
@@ -65,4 +71,10 @@ float4 draw_arctic_narwhal(float2 c, float phase, float glow, float4 col, float4
     if (tusk < body) c3 = float3(0.9, 0.88, 0.8) * (0.8 + 0.2 * step(0.5, fract(h * 14.0)));   // the spiral
     float aw = a * 0.65;
     return float4(c3 * aw, aw);
+}
+
+// The polar cod as a fish kind (a fish's quad is 1.25 × 0.8): the schools under the ice, and a session can be one.
+float4 draw_arctic_cod_fish(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float4 o = draw_arctic_cod(c * float2(1.25 / 1.8, 0.8), phase, glow, col, extra);
+    return float4(o.rgb + col.rgb * glow * 0.45 * o.a, o.a);
 }

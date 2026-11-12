@@ -73,7 +73,7 @@
       "schools": [
         {
           "color": "#ff8a6a",
-          "kind": "oval",
+          "kind": "reef-chromis",
           "count": 10,
           "size": [
             8,
@@ -87,7 +87,7 @@
         },
         {
           "color": "#ffd040",
-          "kind": "oval",
+          "kind": "reef-chromis",
           "count": 7,
           "size": [
             8,
@@ -225,6 +225,15 @@
         ],
         "beat": 1.8
       }
+    },
+    {
+      "id": "reef-chromis",
+      "name": "crômis",
+      "names": {
+        "en": "chromis"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_coral_chromis_fish"
     }
   ],
   "sounds": [

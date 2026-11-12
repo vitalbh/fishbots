@@ -106,6 +106,8 @@ let english: [String: String] = [
     "ainda não rodou": "hasn't run yet",
     "rodou %@": "ran %@",
     "Visualizador": "Visualizer",
+    "peixe-agulha": "needlefish",
+    "peixe-luz": "bristlemouth",
     "✨ Aurora de fundo": "✨ Background aurora",
     "Automático (pelo estilo)": "Automatic (by style)",
     "Aleatório (troca a cada peça)": "Random (changes every piece)",

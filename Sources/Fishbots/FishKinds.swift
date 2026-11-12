@@ -94,6 +94,9 @@ enum FishKinds {
         FishKind(id: "lanternfish", name: "peixe-lanterna", source: nil, call: "draw_fish(c, phase, glow, col, float4(extra.xy, 6.0, extra.w), aux)"),
         // the leader of a school of sessions (extra.y: how many of them are at work, the chambers lit on its shell)
         FishKind(id: "nautilus", name: "náutilo", source: nil, call: "draw_nautilus(c, phase, glow, col, extra.y)"),
+        // the lagoon's and the deep sea's own school fish (a session can be one too)
+        FishKind(id: "needlefish", name: "peixe-agulha", source: nil, call: "draw_needlefish(c, phase, glow, col, extra)"),
+        FishKind(id: "bristlemouth", name: "peixe-luz", source: nil, call: "draw_bristlemouth(c, phase, glow, col, extra)"),
     ]
 
     /// Kinds added after the shader was compiled only show up on the next launch.

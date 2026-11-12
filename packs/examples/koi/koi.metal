@@ -111,3 +111,37 @@ float4 draw_koi(float2 c, float phase, float glow, float4 col, float4 extra) {
     float halo = exp(-max(d, 0.0) * 12.0) * glow * (1.0 - inside) * fade;
     return float4(c3 * a + red * halo * 0.9, min(a + halo * 0.55, 1.0));
 }
+
+// Medaka (rice fish): tiny and almost see-through, pale gold, a big eye set high with a blue-green shine over it, an
+// upturned mouth, a long anal fin under the back half. The pond's schools. col tints it; extra.w > 1.5: asleep.
+float4 draw_koi_medaka(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    p.y -= sin(phase - p.x * 2.8) * 0.045 * smoothstep(0.3, -1.0, p.x);
+    float thin = mix(0.34, 1.0, smoothstep(-0.9, 0.0, p.x));
+    float ry = 0.2 * thin;
+    float body = (length((p - float2(0.1, 0.0)) / float2(0.78, ry)) - 1.0) * ry;
+    float2 tq = p - float2(-0.62, sin(phase - 1.2) * 0.04);
+    float tail = max(sd_tri(tq, float2(0.08, 0.0), float2(-0.4, 0.3), float2(-0.4, -0.3)), length(tq - float2(0.06, 0.0)) - 0.38) - 0.01;   // a rounded fan
+    float dors = sd_tri(p, float2(-0.3, 0.1), float2(-0.5, 0.06), float2(-0.48, 0.19)) - 0.01;            // small, far back
+    float anal = sd_tri(p, float2(0.0, -0.16), float2(-0.52, -0.06), float2(-0.42, -0.25)) - 0.01;        // long
+    float fins = min(tail, min(dors, anal));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 gold = mix(float3(0.95, 0.8, 0.5), col.rgb, 0.35);
+    float3 c3 = fish_round(gold, float2((p.x - 0.1) / 0.78, p.y / max(ry, 0.03)), body);
+    float al = a;
+    if (body > 0.0) { c3 = gold * 0.9 + 0.08; al *= 0.5; }
+    else {
+        // see-through: the silver gut shows low in the front half, the spine as a faint line
+        c3 = mix(c3, float3(0.92, 0.95, 0.98), (1.0 - smoothstep(0.6, 1.0, length((p - float2(0.25, -0.05)) / float2(0.25, 0.09)))) * 0.55);
+        c3 = mix(c3, gold * 0.6, (1.0 - smoothstep(0.0, 0.012, abs(p.y - 0.02))) * step(p.x, 0.3) * 0.35);
+        c3 += float3(0.3, 0.9, 0.9) * (1.0 - smoothstep(0.5, 1.0, length((p - float2(0.6, 0.15)) / float2(0.12, 0.035)))) * 0.5;   // the shine over the eye
+        al *= 0.88;
+    }
+    c3 = fish_eye(c3, p, float2(0.64, 0.07), 0.075, float3(0.75, 0.9, 0.95), extra.w > 1.5 ? 1.0 : 0.0);
+    c3 += col.rgb * glow * 0.45;
+    float fade = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = exp(-max(d, 0.0) * 12.0) * glow * (1.0 - a) * fade;
+    return float4((c3 * al + col.rgb * halo * 0.9) * col.a, min(al + halo * 0.55, 1.0) * col.a);
+}
