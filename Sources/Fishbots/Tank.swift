@@ -308,6 +308,7 @@ final class Tank {
 
     /// Music notes rising from a singing fish's head.
     func notes(from f: Fish, n: Int) {
+        guard !isHidden(f) else { return }                                   // (widget mode: no notes out of a fish that isn't shown)
         for i in 0..<n {
             let c = mix(f.color, [1, 1, 1], t: 0.35)
             particles.append(Particle(pos: f.pos + [Float.random(in: -f.size * 0.4...f.size * 0.4), f.size * 0.5 + Float(i) * 6],
@@ -552,19 +553,21 @@ final class Tank {
         return days > 60 ? 2 : days > 14 ? 1 : 0
     }
 
-    /// Widget mode: only who needs you shows (the rest keeps swimming, hidden). The theme's schools stay out of sight
-    /// too, except while nobody needs you: an empty tank is a dead one, so they have it to themselves until someone does.
+    /// Widget mode: only who needs you shows (the rest keeps swimming, hidden). The theme's schools and the music fish
+    /// stay out of sight too, except while no session needs you: an empty tank is a dead one, so they have it until one does.
     var compact = false
 
     func isHidden(_ f: Fish) -> Bool {
         guard compact else { return false }
-        return f.decor ? !widgetCalm : ![.waiting, .error, .alert].contains(f.state)
+        // (the music fish is company too, not work: it's there with the schools while nobody needs you)
+        return f.decor || f.source == NowPlaying.source ? !widgetCalm : ![.waiting, .error, .alert].contains(f.state)
     }
 
-    /// Widget mode with no session and no presence needing you (the same test as the widget's "nobody waiting" line).
+    /// Widget mode with no agent session needing you. What a plugin brings and needs you (a presence, or a fish of its
+    /// own: a pull request with a failed check) doesn't count here: it's one small thing, so the schools keep the
+    /// water alive around it. An agent session that needs you gets the tank to itself.
     var widgetCalm: Bool {
-        !fish.contains { !$0.decor && !$0.leaving && [.waiting, .error, .alert].contains($0.state) }
-            && !scene.presences.contains { !$0.leaving && $0.needsYou }
+        !fish.contains { $0.isAgent && !$0.decor && !$0.leaving && [.waiting, .error, .alert].contains($0.state) }
     }
 
     // MARK: - interaction
