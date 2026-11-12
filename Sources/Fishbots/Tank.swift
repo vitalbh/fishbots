@@ -553,7 +553,8 @@ final class Tank {
         return days > 60 ? 2 : days > 14 ? 1 : 0
     }
 
-    /// Widget mode: who needs you and the sessions at work show (the rest keeps swimming, hidden). The theme's schools
+    /// Widget mode: who needs you, the sessions at work or just heard from, and the last one you worked with show (the
+    /// rest keeps swimming, hidden). The theme's schools
     /// and the music fish stay out of sight too, except while no session needs you: an empty tank is a dead one.
     var compact = false
 
@@ -561,9 +562,16 @@ final class Tank {
         guard compact else { return false }
         // (the music fish is company too, not work: it's there with the schools while nobody needs you)
         if f.decor || f.source == NowPlaying.source { return !widgetCalm }
-        // who needs you, and the agent sessions at work right now (the notch counts them: their fish should be there)
-        return !([.waiting, .error, .alert].contains(f.state) || (f.isAgent && f.state == .busy))
+        // who needs you; the agent sessions at work, and for a couple of minutes after their last sign of life (a
+        // session goes quiet between one tool and the next: its fish shouldn't blink in and out); and, whatever its
+        // state, the agent session you were last working with, so the tank always has the one you're on
+        if [.waiting, .error, .alert].contains(f.state) { return false }
+        guard f.isAgent, !f.leaving else { return true }
+        return !(f.state == .busy || time - f.seen < 120 * Self.scale || f.id == widgetLatest)
     }
+
+    /// The agent session heard from last (the one you're working with, most likely): it stays in the widget's tank.
+    private var widgetLatest: String? { fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.max { $0.seen < $1.seen }?.id }
 
     /// Widget mode with no agent session needing you. What a plugin brings and needs you (a presence, or a fish of its
     /// own: a pull request with a failed check) doesn't count here: it's one small thing, so the schools keep the
