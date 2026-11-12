@@ -433,6 +433,10 @@ them it's the first one installed. None takes the focus:
 - **Herdr:** `herdr-core run --bg`, a terminal that stays alive with no one attached; it's the asker's child in
   Herdr too (`--parent`, outliving it, and without Herdr's own notes typed into the parent).
 - **tmux:** `split-window -d -h -t <the asker's pane>`, then `-v` under a sibling; with `tab`, `new-window -d -a`.
+- **background:** no terminal at all (point 12): the last resort, and what a parentless spawn falls back to.
+
+A spawn that no session in a pane asked for (the menu, the assistant, a plain shell) has nothing to open beside:
+in Rex it gets a session of its own, named after its task.
 
 A new host is a `SessionLauncher` registered in `Launchers`.
 
@@ -473,6 +477,86 @@ conversation file is kept).
 permission requests of the children stay with the person; `spawn` takes no extra arguments for the agent, so it
 can't ask for a session that skips permissions. No token: the server already refuses browsers, and a
 local process could type into the terminals by itself.
+
+### 12. The resident assistant and its brains
+Status: implemented (`Assistant.swift`, `AssistantCard.swift`, `Brains.swift`, `AgentCLIs.swift`).
+
+The same idea as point 11, one step further: the assistant isn't a feature with a model in it, it's **an ordinary
+agent session without a pane**, run by the aquarium in a folder of its own. The app stays the bus and the window.
+
+```swift
+protocol Brain: AnyObject {
+    var id: String { get }                 // "claude-code", "codex", "command"
+    var name: String { get }
+    var agent: String? { get }             // whose command line it runs (AgentCLIs)
+    var installed: Bool { get }
+    func ask(_ text: String, setup: BrainSetup, events: @escaping (BrainEvent) -> Void)
+    func decide(_ request: BrainRequest, allow: Bool)
+    func interrupt()
+    func sleep()
+    func terminalCommand(session: String) -> [String]?   // to go on with the conversation in a pane
+}
+```
+
+`BrainEvent` is what it says while it answers: `started` (the conversation's id, to resume later, and the model),
+`text` (more of the answer), `tool`, `permission`, `done`, `failed`. A new brain is a `Brain` registered in `Brains`.
+
+- **Claude Code** (`ClaudeBrain`): `claude -p` with `--input-format stream-json --output-format stream-json
+  --permission-prompt-tool stdio`. One process kept between turns; the answer comes in pieces
+  (`--include-partial-messages`); a permission request comes through the stream as a `control_request`
+  (`can_use_tool`) and is answered on the same stream, which is what lets the card ask with no terminal. Later
+  starts pass `--resume <id>`.
+- **Codex** (`CodexBrain`): `codex exec --json`, one run per turn, `exec resume <id>` afterwards. It can't ask in
+  this mode: it runs in its `workspace-write` sandbox with the network on (for the `fishbots` command).
+- **A command** (`CommandBrain`): the instructions, the notes, the context and the question on its input, the
+  answer on its output. No memory of its own.
+
+**Its folder** (`~/Library/Application Support/Fishbots/assistant`, made by `Assistant.prepareFolder`): `CLAUDE.md`
+and `AGENTS.md` (the instructions; rewritten by the app while they carry its `fishbots:managed` line), `notes.md`
+(its memory, imported by `CLAUDE.md`) and `.claude/skills` with the aquarium's skills (`fishbots skill install`).
+The agent's own conventions do the rest: nothing about memory or skills is code in the app.
+
+**What it knows:** `Assistant.context()` goes in front of each question, an `<aquarium>` block with every session
+(state, how long, branch, what it asks or wants permission for, what it takes), what else asks for attention and the
+journal: the whole day the first time, what's new since the last answer afterwards. The journal is kept on disk
+(`Journal.save`) and served at `GET /journal`.
+
+**What it may do:** the agent's own allow rules apply first (those requests never reach the app). Of what does
+reach it, `Assistant.allowedByItself` lets through the file tools inside its folder and the `fishbots` commands
+that only look (`show`, `journal`, `wait`); the person's "always" rules (`assistantAllow`: a tool's name, or
+`Bash:` and the first two words of a plain command, never one with pipes or redirections) come next; the rest is
+asked on the card. It acts on sessions through the control routes, with their guards.
+
+**Not a fish:** its brain fires the person's hooks like any session. `Assistant.owns` recognizes them by their
+`cwd` (its folder, where nothing else runs) and `Routes` drops them, the permission hook included, so it's never
+taken for a session. In the tank it's a presence of the app's own (`fishbots:assistant`, kind `moray`), whose
+state is the assistant's: `busy` thinking, `waiting` for leave, `done` with something unread; `Presence.open` is
+what a click on an app-owned presence runs. A theme dresses it through `looks`, like any presence kind.
+
+**Each agent's command line** (`AgentCLIs`, Preferences → Agents): binary, extra parameters and variables, used by
+the brains and by the providers' `launchCommand`, so a session started from the aquarium runs the way the person
+runs that agent (an alias does neither). The person's own parameters are their choice; `spawn` still takes none
+from the caller.
+
+**Telling on its own** (`Assistant.watch`, `POST /assistant/watch`, `fishbots watch <fish> [note]`): the brain asks
+to be woken when a session stops. The assistant is one of the tank's outputs (`AssistantEars`, point 8): when that
+fish finishes, asks or breaks, it starts a turn by itself with the session's reply in it, and the answer waits on the
+creature (`done`) until the card is opened.
+
+**Sessions with no terminal** (`Background.swift`): `BackgroundLauncher` is the last launcher in `Launchers`, picked
+when no terminal host is there (or when a parentless spawn fails in one, as tmux with no server running). It runs
+the agent through a brain of its own (`Brains.fresh(agent)`: each session has its process and conversation), in the
+session's folder. The agent's hooks make its fish as always; `Background` puts the fish in its place
+(`whereabouts["background"]`) once the brain says the conversation's id, which is how `spawn` finds what it launched.
+`TerminalAgentProvider` asks `Background.of(fish)` before the terminal: `reply` is the brain's next turn, `stop` its
+interrupt. A permission request from its stream goes through `permissionAsked` (Routes), the same path as the
+permission hook, so the card, the notch and a leader waiting on it see it alike; the hook itself, if installed, gets no
+decision for these sessions (`Background.owns`), or the same thing would be asked twice. `LaunchRequest` carries
+`agent`, `prompt` and `model` for launchers that don't run `command` in a terminal.
+
+Still open: the token for the control routes (the assistant acts through them), the morning summary and "while you
+were away" told by the assistant, holding the shortcut to talk, and a background session surviving the app (today
+its agent goes when the app quits).
 
 ## Order of work
 

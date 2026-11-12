@@ -10,6 +10,7 @@
 #   fishbots presence <source> <id> end                takes it out
 #   fishbots summon <creature|all>                     a passing creature comes by now (whale, turtle, sunfish…)
 #   fishbots show                                      current state as JSON
+#   fishbots journal [hours]                           what happened today (or in the last hours): done, errors, waits, PRs
 #
 #   fishbots spawn [--agent id] [--model m] [--cwd dir] [--label text] [--worktree] [--tab] [--env NAME]… [prompt]
 #                                            (--worktree: in a git worktree and branch of its own)   start a session in
@@ -23,6 +24,8 @@
 #   fishbots wait [--all] [--states a,b] [--timeout secs] <fish>…   until one stops working (done, waiting, error,
 #                                            or idle after an interruption): which, and its reply. --all: until
 #                                            every one has, one answer per fish
+#   fishbots watch <fish> [note]             for the resident assistant: be woken when that session stops, to tell
+#                                            the person (the note: what they want to know)
 #   fishbots close <fish>…                   close the pane of a session this one launched (its fish leaves)
 #                                            (these five need "Sessions can command other sessions" in Preferences)
 #
@@ -266,6 +269,7 @@ case "$cmd" in
            post "{\"source\":\"$(esc "$1")\",\"presence\":\"$(esc "$2")\",\"kind\":\"$(esc "$3")\",\"state\":\"$(esc "$4")\"$l$d}"
          fi ;;
   show)  curl -s -m 2 "$URL/state" || { echo "fishbots: is the app running?" >&2; exit 1; } ;;
+  journal) curl -s -m 2 "$URL/journal${1:+?hours=$1}" || { echo "fishbots: is the app running?" >&2; exit 1; } ;;
   spawn) agent=""; model=""; worktree=""; dir="$PWD"; label=""; launcher=""; timeout=30; tab=""; vars="CLAUDE_CONFIG_DIR CODEX_HOME"; set_vars=""
          while [ $# -gt 0 ]; do
            case "$1" in
@@ -327,6 +331,11 @@ case "$cmd" in
   reply) [ $# -ge 2 ] || { echo "usage: fishbots reply <fish> <text>" >&2; exit 2; }
          f="$1"; shift
          control reply 20 "{\"fish\":\"$(esc "$f")\",\"text\":\"$(esc "$(printf '%s' "$*" | tr '\n\r\t' '   ')")\"}" ;;
+  watch) [ $# -ge 1 ] || { echo "usage: fishbots watch <fish> [what to tell the person]" >&2; exit 2; }
+         f="$1"; shift
+         curl -s -m 5 -X POST -H 'Content-Type: application/json' "$URL/assistant/watch" \
+           -d "{\"fish\":\"$(esc "$f")\",\"note\":\"$(esc "$(printf '%s' "$*" | tr '\n\r\t' '   ')")\"}" || { echo "fishbots: is the app running?" >&2; exit 1; }
+         echo ;;
   stop)  [ $# -ge 1 ] || { echo "usage: fishbots stop <fish>" >&2; exit 2; }
          control stop 5 "{\"fish\":\"$(esc "$1")\"}" ;;
   close) [ $# -ge 1 ] || { echo "usage: fishbots close <fish>…" >&2; exit 2; }

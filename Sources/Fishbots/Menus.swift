@@ -153,7 +153,7 @@ extension AppDelegate {
         guard let f = tank.fish(at: [Float(p.x), Float(p.y)]) else {
             // on the water: the aquarium's own options
             let m = NSMenu()
-            let w = NSMenuItem(title: tr("Modo widget (janelinha no canto)"), action: #selector(toggleWidget), keyEquivalent: "")
+            let w = NSMenuItem(title: tr("Modo widget"), action: #selector(toggleWidget), keyEquivalent: "")
             w.target = self
             w.state = tank.compact ? .on : .off
             m.addItem(w)
@@ -380,7 +380,12 @@ extension AppDelegate {
         main.addItem(winItem)
         let win = NSMenu(title: tr("Janela"))
         add(win, "Flutuar sobre as janelas", #selector(toggleFloat), "t")
-        add(win, "Modo widget (janelinha no canto)", #selector(toggleWidget), "w", [.command, .option])
+        add(win, "Modo widget", #selector(toggleWidget), "w", [.command, .option])
+        let placeItem = NSMenuItem(title: tr("Onde fica o widget"), action: nil, keyEquivalent: "")
+        let place = NSMenu(title: tr("Onde fica o widget"))
+        place.delegate = widgetPlaceMenu
+        placeItem.submenu = place
+        win.addItem(placeItem)
         win.addItem(.separator())
         win.addItem(withTitle: tr("Fechar (continua na barra de menus)"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         win.addItem(withTitle: tr("Minimizar"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "")
@@ -388,5 +393,118 @@ extension AppDelegate {
         winItem.submenu = win
         NSApp.mainMenu = main
         NSApp.windowsMenu = win
+    }
+
+    // MARK: - the notch (WindowModes)
+
+    /// The answers that fit on the notch for a fish's pending request: Allow / Deny, or a question's options when
+    /// there are up to three short ones (nil: none, the card answers it).
+    func notchAnswers(_ f: Fish) -> (Int, [NotchEars.Action])? {
+        guard let r = permissions.request(ofFish: f.id) else { return nil }
+        if r.tool == "AskUserQuestion" {
+            guard let q = Permissions.Question(tool: r.tool, input: r.input), (1...3).contains(q.options.count),
+                  q.options.allSatisfy({ $0.label.count <= 14 }) else { return nil }
+            return (r.id, q.options.map { NotchEars.Action(label: $0.label, action: "answer:" + $0.label) })
+        }
+        return (r.id, [NotchEars.Action(label: tr("Permitir"), action: "allow"), NotchEars.Action(label: tr("Negar"), action: "deny")])
+    }
+
+    /// Right click on the notch: focus, silence, where it goes, back to the window.
+    func notchMenu(_ e: NSEvent, _ v: NSView) {
+        let m = NSMenu()
+        let focus = NSMenuItem(title: tr("Modo foco (só o que pede atenção)"), action: #selector(toggleFocus), keyEquivalent: "")
+        focus.target = self
+        focus.state = Attention.focus ? .on : .off
+        m.addItem(focus)
+        let muted = synth.muted.load(ordering: .relaxed)
+        let sound = NSMenuItem(title: muted ? tr("Ligar o som") : tr("Silenciar por 1 hora"),
+                               action: muted ? #selector(unmuteNow) : #selector(muteForAnHour), keyEquivalent: "")
+        sound.target = self
+        m.addItem(sound)
+        let anim = NSMenuItem(title: tr("Animações no notch"), action: #selector(toggleNotchAnimations), keyEquivalent: "")
+        anim.target = self
+        anim.state = WindowModes.animated ? .on : .off
+        m.addItem(anim)
+        m.addItem(.separator())
+        let place = NSMenuItem(title: tr("Onde fica o widget"), action: nil, keyEquivalent: "")
+        place.submenu = NSMenu(title: tr("Onde fica o widget"))
+        place.submenu?.delegate = widgetPlaceMenu
+        m.addItem(place)
+        let back = NSMenuItem(title: tr("Voltar para a janela"), action: #selector(toggleWidget), keyEquivalent: "")
+        back.target = self
+        m.addItem(back)
+        NSMenu.popUpContextMenu(m, with: e, for: v)
+    }
+
+    @objc func toggleNotchAnimations() { WindowModes.animated.toggle() }
+
+    @objc func muteForAnHour() {
+        synth.muted.store(true, ordering: .relaxed)
+        unmuteTimer?.invalidate()
+        unmuteTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: false) { [weak self] _ in
+            self?.synth.muted.store(false, ordering: .relaxed)
+        }
+    }
+
+    @objc func unmuteNow() {
+        unmuteTimer?.invalidate()
+        unmuteTimer = nil
+        synth.muted.store(false, ordering: .relaxed)
+    }
+
+    /// For the peek under the notch: what a session asked (the permission's command, the question with its answers,
+    /// what it last said, while waiting) and its latest steps; a presence's detail.
+    func notchPeek(_ id: String) -> WindowModes.Peek? {
+        if let f = tank.fish.first(where: { $0.id == id }) {
+            var p = WindowModes.Peek(steps: StepTrail.steps(of: f), busy: f.state == .busy,
+                                     tint: NSColor(red: CGFloat(f.color.x), green: CGFloat(f.color.y), blue: CGFloat(f.color.z), alpha: 1))
+            if let r = permissions.request(ofFish: f.id) { p.text = r.question?.asText ?? r.tool + ": " + r.summary }
+            else if f.state == .busy { p.text = f.doing }
+            else { p.text = f.asked ?? f.lastReply }
+            return p
+        }
+        guard let pr = tank.scene.presences.first(where: { "presence:" + $0.id == id }) else { return nil }
+        return WindowModes.Peek(text: pr.detail.map { pr.label + "\n" + $0 } ?? pr.label)
+    }
+
+    /// Files or text dropped on the notch: a menu of the sessions that take a reply (who's waiting first), and it
+    /// goes to the one picked, as a reply.
+    func notchDrop(_ text: String, _ v: NSView, _ at: NSPoint) {
+        let all = tank.fish.filter { !$0.decor && !$0.leaving && $0.isAgent && cards.canReply($0) }
+        let list = all.filter { $0.state == .waiting } + all.filter { $0.state != .waiting }.sorted { $0.seen > $1.seen }
+        guard !list.isEmpty else {
+            tank.notice = (tr("nenhuma sessão recebe isso agora"), tank.time)
+            NSSound.beep()
+            return
+        }
+        let m = NSMenu()
+        m.addItem(withTitle: tr("Mandar para…"), action: nil, keyEquivalent: "").isEnabled = false
+        for f in list.prefix(12) {
+            let i = NSMenuItem(title: (f.state == .waiting ? "✋ " : "") + (f.displayTitle ?? f.label), action: #selector(sendDropped(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = [f.id, text]
+            m.addItem(i)
+        }
+        m.popUp(positioning: nil, at: at, in: v)
+    }
+
+    @objc func sendDropped(_ i: NSMenuItem) {
+        guard let pair = i.representedObject as? [String], pair.count == 2,
+              let f = tank.fish.first(where: { $0.id == pair[0] }) else { return }
+        cards.sendReply(f, pair[1])
+    }
+
+    /// Back after a while away, in the notch: what happened meanwhile in a line, for 3 minutes or until clicked.
+    func notchAway() -> String? {
+        guard let p = journal.pending, Date().timeIntervalSince(p.until) < 180 else { return nil }
+        let list = journal.between(p.since, p.until)
+        var parts: [String] = []
+        let done = list.filter { $0.kind == .done }.count, errors = list.filter { $0.kind == .error }.count
+        if done > 0 { parts.append(done == 1 ? tr("1 terminou") : tr("%d terminaram", done)) }
+        if errors > 0 { parts.append(errors == 1 ? tr("1 erro") : tr("%d erros", errors)) }
+        let waiting = tank.fish.filter { !$0.decor && !$0.leaving && $0.state == .waiting }.count
+        if waiting > 0 { parts.append(tr("%d esperando", waiting)) }
+        let head = tr("fora %@", Journal.duration(p.until.timeIntervalSince(p.since)))
+        return ([head] + parts).joined(separator: " · ")
     }
 }

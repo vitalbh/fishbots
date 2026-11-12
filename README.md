@@ -19,13 +19,20 @@ open --env FISHBOTS_PACK_BUDGET_MS=50 build/Fishbots.app   # how slow (ms per fr
 
 Keys and shortcuts:
 - **Click a fish:** go to it. **Right-click:** fish menu. **Click empty water:** feed.
+- **The card's step trail:** what the session has been doing, drawn — its latest steps as beads on a line toward "now", each with an icon and a color for its kind (reading, searching, editing, running a command, the web, a sub-agent, its list, what you told it); while it works a light runs along the line and the current step breathes, and a new step pops in. Hover a bead for its time and what the session said about it; "see the history" lists them in words.
 - **Tab / ⇧Tab** (aquarium in front): goes through the sessions, the ones waiting for you first, opening each card with its reply field ready (type, Enter sends). On the chosen card: **⌘↩** go there, **⌘R** hear the question, **⌘D** speak the reply, **A / N** allow or deny a permission request, **Esc** close. The card's footer lists only the keys that fish takes.
-- **Global shortcuts** (any app, set in Preferências → Geral): **⌃⌥F** go to whoever has waited longest, **⌃⌥R** hear their question, **⌃⌥M** reply by voice.
+- **Global shortcuts** (any app, set in Preferências → Geral): **⌃⌥F** go to whoever has waited longest, **⌃⌥R** hear their question, **⌃⌥M** reply by voice, **⌃⌥A** talk to the aquarium's assistant.
 - **Click a pearl:** what was done around that time. The day's pearls are a timeline on the sand, from the morning (left) to now (right).
 - **Drag a fish:** it's pulled along a little and swims back when you let go. **Drag through the water:** a short current (snow, seaweed and fish go with it). **Double-click the water:** a knock on the glass, and the idle fish and the schools come to look. **Scroll over the water:** sprinkles food.
-- **D** demo · **M** sound · **S** focus mode · **T** float above windows · **F** food · **W** widget mode: a little frameless window in the corner of the screen, always on top and on every Space, showing only who needs you (drag the water to move it; W again to come back).
+- **D** demo · **M** sound · **S** focus mode · **T** float above windows · **F** food · **W** widget mode (see below). W again to come back.
 - **L** cycles the labels: **minimal** (default: the short title, or the name, plus a second line only when it matters: whenever it needs you, and for a few seconds when something happens), **full** or **none**. Everything else is in the hover card.
 - Closing the window doesn't quit: the aquarium stays in the **menu bar** (🐠, with whoever is waiting for you).
+
+**Widget mode (W):** the aquarium moves into the Mac's notch, or into a notch drawn at the top of another monitor (hidden while an app is full screen there), always on top and on every Space; the app comes back in it after a restart.
+- **Closed:** on the left, a fish per working session (up to three, in each one's color) and how many work, or the album's cover (and the song on the right) while music plays and nobody works; a thin light runs along the bottom while anyone works. On the right, who needs you, a session or a plugin's presence (✋, or ✕ for an error) and for how long, with what it asked and its latest steps (the step trail, below) showing under the name when the mouse rests on it, a 🎙 to answer by voice, with **Allow / Deny** or a short question's answers right there; back from a while away, what happened meanwhile (a click opens the summary); for a few seconds, ✓ who just finished; otherwise, dim, who has been working longest (its steps show under it too, and a click goes to it). On the Mac's own notch the right side only shows the count until the mouse is over it, so it stays off the menu bar's icons. Someone new needing you makes the strip pulse.
+- **Click the name** to go to that session's terminal (a presence: its link). **+** (on hover) starts a new session. **Drop files or text** on the strip to send them to a session as a reply (a menu picks which, who's waiting first). **Mouse over** (or a click, in Preferences) opens a small tank below the notch, with a band under the strip showing the steps of who needs you (or of who has been working longest) live, and showing only who needs you, in calm water (no schools, visitors, pearls or visualizer; at most three presences, the rest counted on the strip); clicking the strip also takes the keyboard (**Tab** through who's waiting, **Enter** to their terminal, **Esc** closes and gives the keyboard back).
+- **Right-click** the strip: focus mode, silence for an hour, animations on/off (off by default with macOS's Reduce motion), where the widget goes, back to the window.
+- Preferences → Appearance → Widget: the monitor (or the old little window in the corner, where dragging the water moves it), opening with the mouse or a click, and the open size.
 
 To avoid the automation permission prompt on every build, create a self-signed **Code Signing** certificate named `Fishbots Dev` in Keychain Access (Certificate Assistant → Create a Certificate). `scripts/app.sh` will use it.
 
@@ -104,7 +111,7 @@ The **aurora stays in the background** (default; turn off in Visualizador → Au
 
 ## Preferences
 
-**Preferências…** (⌘, or the menu bar menu) has four tabs: **Geral** (open at login, menu bar only, floating, sound and volume, ambient music, a note per tool, reading questions aloud, focus mode), **Aparência** (theme, visualizer, background aurora, labels), **Atenção** (notify when waiting or on errors, and your rules per source and state, next to the defaults and the ones from `config.json`, which win) and **Plugins e pacotes** (what's installed, how each plugin's last run went, and the folders). `config.json` is still where webhooks and fish menu actions go.
+**Preferências…** (⌘, or the menu bar menu) has five tabs (the fifth, **Assistente**, is the resident assistant's: who thinks for it, its voice, what it may do without asking, its notes): **Geral** (open at login, menu bar only, floating, sound and volume, ambient music, a note per tool, reading questions aloud, focus mode), **Aparência** (theme, visualizer, background aurora, labels), **Atenção** (notify when waiting or on errors, and your rules per source and state, next to the defaults and the ones from `config.json`, which win) and **Plugins e pacotes** (what's installed, how each plugin's last run went, and the folders). `config.json` is still where webhooks and fish menu actions go.
 
 **Languages:** the interface texts go through `tr(...)` (Sources/Fishbots/L10n.swift): the Portuguese text is the key and `L10nEnglish.swift` has the English. When adding a text, add its English too; `python3 scripts/l10n-check.py` lists what's missing. A pack's theme can bring its name in both languages with `"names": {"en": "…"}`.
 
@@ -179,7 +186,7 @@ Everything comes in through `POST http://127.0.0.1:7777/event` (local only) with
 
 **Effects and presences** change the aquarium itself, not just the fish: an effect is a one-off moment (fireworks, lightning, a quake, a school crossing, a shooting star…), and a presence is a creature or object a plugin keeps in the tank (shark, submarine, turtle, jellyfish, seahorse, crab, starfish, bottle, hourglass, anchor, flag, chest, battery) with a state, a label, a detail and a link. The full list, the states and how the text shows are in [docs/scene.md](docs/scene.md).
 
-States: `born busy idle waiting ok alert error done` (+ `end`). `GET /state` returns the aquarium as JSON. Packs:
+States: `born busy idle waiting ok alert error done` (+ `end`). `GET /state` returns the aquarium as JSON, `GET /journal` what happened today (`?hours=N`: in the last hours). Packs:
 `GET /packs` (what's installed and its problems), `POST /packs/reload`, `POST /packs/install` (`{"path": "…/x.fishbotspack"}`).
 
 From the command line (`bin/fishbots`):
@@ -260,7 +267,7 @@ The default is `*:waiting` and `*:error` at attention, and `github:error` at amb
 {"attention": {"claude-code:waiting": "urgent", "github:*": "ambient"}}
 ```
 
-**Focus mode** (**S**) silences the background music, and only what needs attention plays.
+**Focus mode** (**S**) silences the background music, and only what needs attention plays. It also turns on by itself while a macOS Focus is on (Do Not Disturb, Work, Sleep…, by hand or on a schedule) and off when that Focus ends, unless you had turned it on yourself (Preferências → Atenção).
 
 ### Webhooks and menu actions
 
@@ -353,6 +360,23 @@ The whole guide: [docs/agents.md](docs/agents.md). `bin/fishbots skill install` 
 - **MCP tool:** a seahorse comes in from the side with a little letter in the server's color; the fish goes to meet it, and the label shows "mcp · server".
 - **TodoWrite:** the list becomes pebbles in the sand, and the finished ones glow in the fish's color.
 - **Skill:** a ring of sparkles around the fish.
+
+### The resident assistant
+
+A moray lives in a burrow on the sand: the aquarium's own assistant. Click it (or **⌃⌥A** from any app: its card opens with the microphone on, and what you say is sent when you stop talking) and ask about the aquarium: who's waiting for you, what happened today, what each session is doing. Ask it to answer, stop or start a session, or to remember something. Its answer shows on the card as it's written and can be read aloud; the fish it names light up, and the card has a way to each.
+
+- **The app has no model in it.** What thinks is the agent you already have (Claude Code or Codex), run by the aquarium in the background, on your account and with the connectors it already has. Preferências → Assistente picks which one and the model (Claude Code answers on its small model unless you say otherwise), or any command of yours that takes the question on its input and writes the answer to its output.
+- **It sleeps between conversations:** nothing runs until you talk to it. The process stays for five minutes after the last answer (the next one comes in about a second), then goes; the conversation is resumed when needed and starts over each day.
+- **What it knows:** each question goes with the sessions in the tank and the day's journal (`GET /journal`, `fishbots journal`: kept on disk now, so it's still there after reopening the app). What it remembers between conversations is `notes.md` in its own folder (`~/Library/Application Support/Fishbots/assistant`, with its instructions and the aquarium's skills), which it reads and writes and so can you.
+- **What it may do:** looking at the aquarium and writing its own notes need no asking. Anything else its agent would ask about shows on the card (**Permitir**, **Sempre**, **Negar**), and the moray comes out of its burrow and waits; what you mark as *Sempre* is listed in Preferences, where it can be removed. The permissions the agent already has in its own settings still apply. It acts on sessions through the `fishbots` command, like any session that leads others (it needs "Sessions can command other sessions"). Codex has no one to ask in the background: it works inside its sandbox.
+- **"Always", as wide as you want:** for a shell command the card offers the command (`rex send …`) or the whole program (`rex`); for a connector's tool, the tool or the whole connector. Preferences → Assistente lists the rules, removes them and takes one written by hand. A command with pipes or redirections is asked every time.
+- **It tells you later:** ask it to let you know when a session finishes or what it answers, and it watches that session (`fishbots watch <fish> [what you want to know]`); when the session stops, the app wakes the assistant with its reply, and the moray comes out of its burrow with the news (read aloud, if you turned that on).
+- **Open in the terminal** (on the card, where Rex, Herdr or tmux can open one) goes on with the same conversation in a pane, to see everything it does.
+- Its sessions don't become fish: it's the creature in the burrow. `moray` is also a kind of presence plugins can use (docs/scene.md), and a theme can dress it.
+
+**Sessions with no terminal:** where none of Rex, Herdr or tmux can open a pane, a session started from the aquarium ("Nova sessão…", `fishbots spawn`, the assistant) runs in the background, with the aquarium as its terminal: it's a fish like the others, what you write on its card goes to the agent, Esc interrupts it, what it asks leave for shows on its card, and a click on the fish opens the card (there's nowhere else to go). `fishbots spawn --launcher background` asks for one anywhere. It needs a task to start with, works with Claude Code and Codex (Codex can't ask leave in this mode: it stays in its sandbox), and lives while the app is open.
+
+**Each agent's command line** (Preferências → Geral → Agentes): the binary, extra parameters and variables (`CLAUDE_CONFIG_DIR=~/.claude-work`) the aquarium uses when it starts Claude Code or Codex itself, for a new session in a terminal and for the assistant. A shell alias doesn't reach either, so what the alias did goes there.
 
 ### While you were away
 

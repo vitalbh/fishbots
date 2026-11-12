@@ -72,6 +72,8 @@ final class Presence {
     /// The plugin wants its own drawing even where the theme dresses this kind differently ("override_theme": true).
     var overrideTheme = false
     var party = false
+    /// One of the app's own (the resident assistant): a click runs this instead of opening a link.
+    var open: (() -> Void)?
     var alpha: Float = 0
     var shake: Float = 0
     var inkAt: Double = 0
@@ -102,4 +104,20 @@ final class Presence {
     var needsYou: Bool { [.waiting, .alert, .error].contains(state) }
     /// The little shake when it goes into error (the label shakes along).
     var shakeOffset: SIMD2<Float> { shake > 0 ? [sinf(phase * 40) * 3 * shake, 0] : .zero }
+}
+
+extension Scene {
+    /// How many presences the widget's small tank shows at most.
+    static let widgetRoom = 3
+
+    /// The presences that need you, the most pressing first: errors, then alerts, then waiting; the newest first
+    /// within each.
+    func needingYou() -> [Presence] {
+        func rank(_ s: State) -> Int { s == .error ? 0 : s == .alert ? 1 : 2 }
+        return presences.filter { $0.needsYou && !$0.leaving }
+            .sorted { (rank($0.state), -$0.since) < (rank($1.state), -$1.since) }
+    }
+
+    /// In the widget, only the few presences that need you most show (the rest are counted on the notch).
+    func shownInWidget() -> Set<String> { Set(needingYou().prefix(Self.widgetRoom).map(\.id)) }
 }

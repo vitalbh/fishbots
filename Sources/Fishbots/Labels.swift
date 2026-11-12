@@ -301,6 +301,12 @@ final class Labels {
         }
         for p in tank.scene.presences {
             guard let l = presenceLayers[p.id], l.opacity > 0 else { continue }
+            // its text stays inside the tank too
+            let room = view?.bounds ?? .zero
+            if l.frame.minX < 4 { l.position.x += 4 - l.frame.minX }
+            if l.frame.maxX > room.width - 4 { l.position.x -= l.frame.maxX - (room.width - 4) }
+            if l.frame.minY < 4 { l.position.y += 4 - l.frame.minY }
+            if l.frame.maxY > room.height - 4 { l.position.y -= l.frame.maxY - (room.height - 4) }
             let id = "presence:" + p.id
             claims.append(.init(id: id, home: l.frame, alt: nil, priority: priority(p)))
             base[id] = (l, l.opacity)
@@ -323,6 +329,7 @@ final class Labels {
     /// it needs you, for a few seconds after it changes, and on hover. See docs/scene.md.
     private func presenceLabels(_ tank: Tank, _ scale: CGFloat) {
         var alive = Set<String>()
+        let widget = tank.compact ? tank.scene.shownInWidget() : nil
         func short(_ t: String, _ n: Int) -> String { t.count > n ? String(t.prefix(n - 1)) + "…" : t }
         for p in tank.scene.presences {
             alive.insert(p.id)
@@ -342,7 +349,7 @@ final class Labels {
             let near = now.hoverPresence == p.id
             // labels off: only on hover, even while it needs you (its glow, its color and its sound already say so)
             if Self.mode == "none" && !near { l.opacity = 0; continue }
-            if tank.compact && !p.needsYou { l.opacity = 0; continue }
+            if let widget, !widget.contains(p.id) { l.opacity = 0; continue }
             // a light on the side glass is quiet while all is well: its text shows when it needs you, for a few
             // seconds after its state changes, and on hover
             let glass = p.kind.motion == .glass

@@ -186,7 +186,7 @@ final class SessionControl: EventSink {
     /// The account a session opened from the menu runs on: the one this agent's most recent session here runs on,
     /// read from where its conversation file is kept (<account>/projects/… for Claude Code, <account>/sessions/…
     /// for Codex; the usual folder needs no variable); with none in the tank, what the last spawn passed along.
-    private func account(_ agent: String) -> [String: String] {
+    func account(_ agent: String) -> [String: String] {
         let kept: [String: (variable: String, under: String, usual: String)] = [
             "claude-code": ("CLAUDE_CONFIG_DIR", "/projects/", "~/.claude"),
             "codex": ("CODEX_HOME", "/sessions/", "~/.codex"),
@@ -262,7 +262,8 @@ final class SessionControl: EventSink {
             let known = Launchers.all.map(\.id).joined(separator: ", ")
             reply(409, Self.error(wanted.map { "can't launch through \"\($0)\" (launchers: \(known))" } ?? "nowhere to launch a session (none of \(known) is installed)")); return
         }
-        var env: [String: String] = [:]
+        // the variables the person set for this agent's command line (Preferences → Agents); what's asked for wins
+        var env: [String: String] = AgentCLIs.environment(agent)
         for (k, v) in m["env"] as? [String: String] ?? [:] where k.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil {
             env[k] = v
         }
@@ -278,16 +279,31 @@ final class SessionControl: EventSink {
         // an aquarium on another port (a test instance): the new session's hook reports to this one
         if port() != 7777 { env["FISHBOTS_PORT"] = String(port()) }
         let patience = Self.seconds(m["timeout"], or: 30, upTo: 120)
-        let own = parent == nil && m["own"] as? Bool == true
+        // asked by no session in a pane (the menu, the resident assistant, a plain shell): there's nothing to open it
+        // beside, so it gets a session of the host made for it, named after its task (or its folder)
+        let own = parent == nil
         let before = Set(tank.fish.filter { $0.source == provider.id }.map(\.id))
-        let request = LaunchRequest(command: command, cwd: folder, label: m["label"] as? String, near: parent?.whereabouts,
+        var label = (m["label"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        if own, label == nil {
+            let words = (prompt ?? "").split(whereSeparator: { $0.isWhitespace }).prefix(5).joined(separator: " ")
+            label = words.isEmpty ? (folder as NSString).lastPathComponent : String(words.prefix(32))
+        }
+        let request = LaunchRequest(command: command, cwd: folder, label: label, near: parent?.whereabouts,
                                     tab: m["tab"] as? Bool ?? false,
                                     siblings: (parent.map { children(of: $0.id) } ?? []).sorted { $0.bornAt < $1.bornAt }.map(\.whereabouts),
-                                    own: own, env: env)
+                                    own: own, env: env, agent: provider.id, prompt: prompt, model: model)
         launcher.launch(request) { [weak self] result in
             guard let self else { return }
             switch result {
             case .failure(let e):
+                // a terminal that's installed but can't open anything now (tmux with no server running): nobody
+                // asked for it by name and there's no pane to stay beside, so the session runs in the background
+                if wanted == nil, parent == nil, launcher.id != "background", prompt != nil {
+                    var again = m
+                    again["launcher"] = "background"
+                    self.spawn(again, headers, reply)
+                    return
+                }
                 reply(409, Self.error(e.message))
             case .success(let place):
                 self.tank.scenery.expect(self.tank, source: provider.id, for: patience + 30)
@@ -417,7 +433,7 @@ final class SessionControl: EventSink {
     // MARK: - fish and answers
 
     /// By its whole id ("source:entity"), or by the start of its entity if only one fish has it.
-    private func fish(_ name: String) -> Fish? {
+    func fish(_ name: String) -> Fish? {
         let all = tank.fish.filter { !$0.decor && !$0.leaving }
         if let f = all.first(where: { $0.id == name }) { return f }
         // the start of the entity, with or without its source in front ("2d265f0e", "claude-code:2d265f0e")

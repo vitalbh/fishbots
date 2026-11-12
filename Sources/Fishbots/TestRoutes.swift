@@ -28,6 +28,31 @@ extension AppDelegate {
             let tab = path.components(separatedBy: "tab=").dropFirst().first.flatMap { Int($0.prefix(1)) }
             self.preferences.show(tab: tab)
             return (200, Data(#"{"ok":true}"#.utf8))
+        case "/test/permission":
+            // what waits for an answer, and ?decide=allow|deny&f=<end of the fish's id>: answers it as the card would
+            let goal = path.components(separatedBy: "f=").dropFirst().first?.removingPercentEncoding?.prefix(while: { $0 != "&" }).description
+            if let d = path.components(separatedBy: "decide=").dropFirst().first?.prefix(while: { $0 != "&" }),
+               let p = self.permissions.pending.last(where: { goal == nil || $0.fishId.hasSuffix(goal!) }) {
+                self.cards.decide(p.id, String(d))
+            }
+            let waiting: [[String: Any]] = self.permissions.pending.map { ["fish": $0.fishId, "tool": $0.tool, "summary": $0.summary] }
+            return (200, (try? JSONSerialization.data(withJSONObject: ["pending": waiting], options: [.prettyPrinted])) ?? Data())
+        case "/test/assistant":
+            // the assistant without clicking the moray. ?open=1: its card; ?ask=<text>: asks it that;
+            // ?decide=allow|always|deny: answers what it asks leave for. Answers how the conversation stands.
+            if path.contains("open=1") { self.openAssistant() }
+            if let d = path.components(separatedBy: "decide=").dropFirst().first?.prefix(while: { $0 != "&" }) {
+                let keys = self.assistant.request.map(Assistant.ruleKeys) ?? []
+                self.assistant.decide(allow: d != "deny", always: d == "always" ? keys.first : d == "always-all" ? keys.last : nil)
+            }
+            if let q = path.components(separatedBy: "ask=").dropFirst().first?.removingPercentEncoding, !q.isEmpty { self.assistant.ask(q) }
+            // how the conversation stands, to follow it without looking at the card
+            let turns: [[String: Any]] = self.assistant.turns.map {
+                ["question": $0.question, "answer": $0.answer, "doing": $0.doing ?? "", "failed": $0.failed, "mentions": $0.mentions]
+            }
+            let now: [String: Any] = ["thinking": self.assistant.thinking, "turns": turns, "allowed": Assistant.allowed, "context": self.assistant.context(),
+                                      "request": self.assistant.request.map { ["tool": $0.tool, "summary": $0.summary] } ?? [:]]
+            return (200, (try? JSONSerialization.data(withJSONObject: now, options: [.prettyPrinted, .sortedKeys])) ?? Data())
         case "/test/new-session":
             // the "Nova sessão…" sheet, without the menu; ?cwd=<folder>&task=<text>: as if it had been filled in and
             // sent (Claude Code, not leading)
@@ -121,7 +146,10 @@ extension AppDelegate {
             }
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/widget":
-            self.toggleWidget()
+            // ?open=1 / ?open=0: opens or closes the notch (in notch mode) instead of switching the widget
+            if path.contains("open=1") { self.windowModes.setNotchOpen(true, hold: 30) }
+            else if path.contains("open=0") { self.windowModes.setNotchOpen(false) }
+            else { self.toggleWidget() }
             return (200, Data(#"{"ok":true}"#.utf8))
         default:
             return nil

@@ -18,24 +18,43 @@ extension AppDelegate {
             server?.deferred.append { [unowned self] method, path, headers, body, reply in
                 let route = path.split(separator: "?").first.map(String.init) ?? path
                 guard method == "POST", let (provider, isPermission) = Providers.route(route), isPermission else { return false }
-                let source = provider.id
+                // the assistant's own brain, and a session run in the background, ask through their stream (on the
+                // assistant's card, on the fish's): no decision from the hook
+                if Assistant.owns(body) || Background.owns(body) { reply(200, Data("{}".utf8)); return true }
                 guard let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] else { reply(400, Data()); return true }
-                // the fish arrives/updates like a normal PermissionRequest, and the request stays waiting
-                var ev = m; ev["hook_event_name"] = "PermissionRequest"
-                if let d = try? JSONSerialization.data(withJSONObject: ev) {
-                    let mainRoute = provider.routes.first { route.hasPrefix($0 + "/") } ?? route
-                    _ = provider.handle(route: mainRoute, body: d, headers: headers, tank: self.tank)
-                }
-                if let p = self.permissions.add(m, source: source, reply: reply), let f = self.tank.fish(source: source, entity: p.session) {
-                    // a question with a menu: what it asks, with its answers, for the card and for a session waiting on it
-                    if let q = p.question { f.asked = q.asText }
-                    Outputs.emit(TankEvent(type: "permission", fish: f, detail: p.tool + ": " + p.summary))
-                    if Attention.level(source, .waiting) == .urgent { self.notifier.notify(f, request: p.id, summary: p.tool + ": " + p.summary) }
-                }
+                let mainRoute = provider.routes.first { route.hasPrefix($0 + "/") } ?? route
+                self.permissionAsked(m, provider: provider, route: mainRoute, headers: headers, reply: reply)
                 return true
+            }
+            // a session with no terminal asks leave through its stream: the same request on its fish's card
+            Background.tank = tank
+            Background.askPermission = { [unowned self] session, request, answer in
+                guard let id = session.session, let provider = Providers.of(session.agent), let route = provider.routes.first else { answer([:]); return }
+                let m: [String: Any] = ["session_id": id, "tool_name": request.tool, "tool_input": request.input, "cwd": session.cwd]
+                self.permissionAsked(m, provider: provider, route: route, headers: [:]) { _, data in
+                    answer((try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:])
+                }
             }
         } catch {
             FileHandle.standardError.write("fishbots: couldn't open port \(port): \(error)\n".data(using: .utf8)!)
+        }
+    }
+
+    /// A session asks leave for a tool (its permission hook, or its stream when it runs in the background): its fish
+    /// arrives or updates like on any PermissionRequest, and the request waits on its card until `reply` gets the
+    /// decision.
+    func permissionAsked(_ m: [String: Any], provider: SessionProvider, route: String, headers: [String: String],
+                         reply: @escaping (Int, Data) -> Void) {
+        let source = provider.id
+        var ev = m; ev["hook_event_name"] = "PermissionRequest"
+        if let d = try? JSONSerialization.data(withJSONObject: ev) {
+            _ = provider.handle(route: route, body: d, headers: headers, tank: self.tank)
+        }
+        if let p = self.permissions.add(m, source: source, reply: reply), let f = self.tank.fish(source: source, entity: p.session) {
+            // a question with a menu: what it asks, with its answers, for the card and for a session waiting on it
+            if let q = p.question { f.asked = q.asText }
+            Outputs.emit(TankEvent(type: "permission", fish: f, detail: p.tool + ": " + p.summary))
+            if Attention.level(source, .waiting) == .urgent { self.notifier.notify(f, request: p.id, summary: p.tool + ": " + p.summary) }
         }
     }
 
@@ -77,10 +96,20 @@ extension AppDelegate {
         case ("GET", "/state"), ("GET", "/estado"):
             return (200, TankProtocol.state(self.tank))
         case ("GET", "/"):
-            let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload"] + SessionControl.routes
+            let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /journal", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload"] + SessionControl.routes
             return (200, (try? JSONSerialization.data(withJSONObject: ["fishbots": "ok", "routes": routes])) ?? Data())
+        case ("POST", "/assistant/watch"):
+            // the resident assistant asks to be woken when a session stops, to tell the person (`fishbots watch`)
+            return self.assistant.watch(body)
+        case ("GET", "/journal"):
+            // what happened today (or in the last ?hours=N): tasks done, errors, who waited, PRs, events
+            let hours = path.range(of: #"hours=([0-9.]+)"#, options: .regularExpression).flatMap { Double(path[$0].dropFirst(6)) }
+            let since = hours.map { Date().addingTimeInterval(-$0 * 3600) } ?? Calendar.current.startOfDay(for: Date())
+            return (200, self.journal.json(since: since))
         case ("POST", _):
             if let (p, isPermission) = Providers.route(route), !isPermission {
+                // the resident assistant's brain runs an agent too: it's the creature in its burrow, not one more fish
+                if Assistant.owns(body) { return (200, Data(#"{"ok":true}"#.utf8)) }
                 return p.handle(route: route, body: body, headers: headers, tank: self.tank)
             }
             return (404, Data(#"{"error":"unknown route"}"#.utf8))

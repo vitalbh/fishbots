@@ -8,8 +8,8 @@ extension Tank {
         out.reserveCapacity(fish.count + particles.count + 1)
         out += backdrop()
         out += onTheSand()
-        // starfish, crabs, turtle and lanternfish
-        out += dressFauna(fauna.middle(self))
+        // starfish, crabs, turtle and lanternfish (not in the widget: there only who needs you shows)
+        if !compact { out += dressFauna(fauna.middle(self)) }
         // what plugins put in the tank (the ones waiting for you come after the fish)
         out += scene.sprites(self, front: false)
         out += behindTheFish()
@@ -20,12 +20,13 @@ extension Tank {
         out += motes.sprites(self, front: true)
         out += dust.sprites(self, front: true)
         // the snail on the glass
-        out += dressFauna(fauna.front(self))
+        if !compact { out += dressFauna(fauna.front(self)) }
         out += onTheGlass()
         out += upFront()
         // quake: everything shakes together
         if scene.shakeOffset != .zero { for i in out.indices { out[i].pos += scene.shakeOffset } }
-        // widget mode: a small window, so everything is drawn a little smaller
+        // widget mode: a small window, so everything is drawn a little smaller (and only who needs you shows, in calm
+        // water: no visitors, schools, pearls or pebbles)
         if compact { for i in out.indices { out[i].size *= 0.75 } }
         return out
     }
@@ -54,9 +55,9 @@ extension Tank {
             out.append(Sprite(pos: [size.x * 0.74, size.y * 0.11 + s * 0.5], dir: [1, 0], size: s, kind: 42, glow: 0, phase: 0,
                               color: SIMD4(c, 0.8), extra: [1, 0, 0, 0], aux: [2.2, 1.0, 0, 0]))
         }
-        out += dressFauna(fauna.background(self))
+        if !compact { out += dressFauna(fauna.background(self)) }
         // jellyfish (pad): the theme may leave it out or draw it its own way
-        if Themes.current.jellyfish {
+        if Themes.current.jellyfish && !compact {
             out += dressFauna([Sprite(pos: jellyPos, dir: [1, 0], size: 30, kind: 5, glow: 0.25 + jellyGlow + (isNight ? 0.35 : 0),
                                       phase: jellyPhase, color: [0.85, 0.55, 1.0, 0.75], extra: [1, 0, 0, 0])])
         }
@@ -67,7 +68,8 @@ extension Tank {
         for f in fish where !isHidden(f) {
             if let s = shadow(under: f.pos, size: f.size * (1 - 0.35 * f.depth), strength: (f.leaving ? 0.4 : 1) * (1 - f.depth * 0.6)) { out.append(s) }
         }
-        for p in scene.presences where [.swim, .drift, .hover].contains(p.kind.motion) {
+        let widget = compact ? scene.shownInWidget() : nil
+        for p in scene.presences where [.swim, .drift, .hover].contains(p.kind.motion) && (widget?.contains(p.id) ?? true) {
             if let s = shadow(under: p.pos, size: p.kind.size, strength: p.alpha) { out.append(s) }
         }
         return out
@@ -127,6 +129,8 @@ extension Tank {
                               extra: [1, s.id == "chest" ? min(1, scenery.chestLid) : s.id == "shell" ? 1 : 0, safe, 0],
                               aux: s.kind > 40.5 ? [1, 1, 0, 0] : .zero))
         }
+        // the widget keeps only the scenery: no battery, pebbles, pearls or list pebbles
+        if compact { return out }
         // the old battery, in front of the scenery (at a spot it leaves free)
         let floor = Themes.current.floor                                     // (the open sea has none: nothing lies on it)
         if let b = battery, floor {

@@ -16,6 +16,10 @@ struct LaunchRequest {
     var own = false
     /// Set in the new pane before the command (FISHBOTS_PARENT…).
     let env: [String: String]
+    /// What the command was made of, for a launcher that doesn't run it in a terminal (Background.swift).
+    var agent = ""
+    var prompt: String? = nil
+    var model: String? = nil
 
     /// The command with its environment in front (`env K=V … command`): every host runs it the same way.
     var argv: [String] { ["/usr/bin/env"] + env.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" } + command }
@@ -42,7 +46,11 @@ protocol SessionLauncher: AnyObject {
 
 /// The registry of launchers.
 enum Launchers {
-    private(set) static var all: [SessionLauncher] = [RexLauncher(), HerdrLauncher(), TmuxLauncher()]
+    /// In order of preference: the terminals first, the background when there's none.
+    private(set) static var all: [SessionLauncher] = [RexLauncher(), HerdrLauncher(), TmuxLauncher(), BackgroundLauncher()]
+
+    /// A launcher that opens a terminal the person can see (to take a conversation there).
+    static var terminal: SessionLauncher? { all.first { $0.available && $0.id != "background" } }
 
     static func register(_ l: SessionLauncher) {
         all.removeAll { $0.id == l.id }
@@ -57,7 +65,7 @@ enum Launchers {
     }
 
     /// The whereabouts keys that say which pane a session is in.
-    static let placeKeys = ["rex_block", "herdr", "tmux"]
+    static let placeKeys = ["rex_block", "herdr", "tmux", "background"]
 
     /// Runs a host's CLI off the main thread and hands what it printed (and what it complained about) back on it.
     static func run(_ bin: String, _ args: [String], done: @escaping (_ out: String, _ err: String) -> Void) {
