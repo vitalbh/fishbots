@@ -149,7 +149,11 @@ final class Assistant {
         }
         _ = tank.scene.upsert(tank, source: Self.source, id: Self.entity, kind: "moray", state: state, label: tr("assistente"),
                               detail: detail, link: nil, value: nil, color: nil, x: x)
-        tank.scene.presence(source: Self.source, id: Self.entity)?.open = { [weak self] in self?.onOpen?() }
+        tank.scene.presence(source: Self.source, id: Self.entity)?.open = { [weak self] in
+            // (called: it comes out to look at who clicked, for as long as a short exchange takes)
+            if let self { self.tank.scene.presence(source: Self.source, id: Self.entity)?.outUntil = self.tank.time + 12 }
+            self?.onOpen?()
+        }
     }
 
     /// Where the creature is, for the card to point at.

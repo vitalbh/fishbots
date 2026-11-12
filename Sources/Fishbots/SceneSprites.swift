@@ -105,6 +105,9 @@ extension Scene {
                 // (alpha above 1.5: rusted)
                 out.append(Sprite(pos: pos + [0, p.kind.size * 1.0], dir: [1, 0], size: p.kind.size, kind: 31, glow: glow,
                                   phase: p.spin + wobble, color: SIMD4(c, a + 2 * variant(p)), extra: [1, hub.x * lit, hub.y * lit, hub.z * lit]))
+            case 47 where !Themes.current.floor:     // the moray swimming free (extra.z: 1), where there's no floor for its rock
+                out.append(Sprite(pos: pos, dir: [1, 0], size: p.kind.size * 1.25, kind: 47, glow: glow,
+                                  phase: p.phase * (p.state == .busy ? 1.8 : 1), color: SIMD4(c, a), extra: [p.dir, p.swell, 1, 0], aux: [1.6, 0.7, 0, 0]))
             case 47:     // the moray in its burrow (extra.y: how far out of it)
                 // (its rock sits a little into the sand)
                 out.append(Sprite(pos: pos + [0, p.kind.size * 0.78], dir: [1, 0], size: p.kind.size, kind: 47, glow: glow,

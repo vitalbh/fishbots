@@ -350,6 +350,8 @@ final class Labels {
             // labels off: only on hover, even while it needs you (its glow, its color and its sound already say so)
             if Self.mode == "none" && !near { l.opacity = 0; continue }
             if let widget, !widget.contains(p.id) { l.opacity = 0; continue }
+            // the resident (the moray) needs no name tag, it's always the same one: its text shows under the mouse only
+            if p.kind.sprite == 47 && !near { l.opacity = 0; continue }
             // a light on the side glass is quiet while all is well: its text shows when it needs you, for a few
             // seconds after its state changes, and on hover
             let glass = p.kind.motion == .glass

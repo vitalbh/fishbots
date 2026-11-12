@@ -146,7 +146,7 @@ enum PackPreview {
     private static func themeCell(_ t: Theme) -> Cell {
         let u = t.uniforms
         func v(_ c: SIMD4<Float>) -> String { "float3(\(c.x), \(c.y), \(c.z))" }
-        let call = "pv_theme(c, \(v(u.deep)), \(v(u.shallow)), \(v(u.rays)), \(v(u.surface)), \(v(u.weedLow)), \(v(u.weedHigh)), \(v(u.sandDark)), \(v(u.sandLight)), \(v(u.farWeed)), \(u.params.z), \(Int(u.pack.x + 0.5) - 1))"
+        let call = "pv_theme(c, \(v(u.deep)), \(v(u.shallow)), \(v(u.rays)), \(v(u.surface)), \(v(u.weedLow)), \(v(u.weedHigh)), \(v(u.sandDark)), \(v(u.sandLight)), \(v(u.farWeed)), \(u.params.z), \(Int(u.pack.x + 0.5) - 1), \(u.params.x + u.params.y > 0.5 ? 1.0 : 0.0), \(t.floor ? 1.0 : 0.0))"
         return Cell(call: call, aspect: 1.5, label: "theme \(t.name)", sand: false)
     }
 
@@ -281,7 +281,7 @@ enum PackPreview {
         let src = (base ?? FishKinds.shaderSource()) + """
 
         float4 pv_theme(float2 c, float3 deep, float3 shallow, float3 rays, float3 surf, float3 wl, float3 wh,
-                        float3 sd, float3 sl, float3 far, float raysK, int bg) {
+                        float3 sd, float3 sl, float3 far, float raysK, int bg, float weeds, float floorOn) {
             float2 uv = clamp(c * 0.5 + 0.5, 0.0, 1.0);
             float3 col = mix(deep, shallow, pow(uv.y, 1.3));
             float r = pow(sin((uv.x + uv.y * 0.35) * 9.0) * 0.5 + 0.5, 3.0) * smoothstep(0.1, 1.0, uv.y);
@@ -298,11 +298,11 @@ enum PackPreview {
                 float yy = uv.y - 0.15, t = clamp(yy / h, 0.0, 1.0);
                 float dx = uv.x - x0 - sin(yy * 12.0 + float(k)) * 0.015 * t;
                 float blade = (1.0 - smoothstep(0.006, 0.011, abs(dx) / (1.0 - 0.6 * t))) * step(0.0, yy) * step(yy, h);
-                col = mix(col, k % 2 == 0 ? mix(wl, wh, t) : far, blade * (k % 2 == 0 ? 0.9 : 0.5));
+                col = mix(col, k % 2 == 0 ? mix(wl, wh, t) : far, blade * (k % 2 == 0 ? 0.9 : 0.5) * weeds);   // (a theme with no seaweed: none)
             }
             float sandH = 0.17 + 0.02 * sin(uv.x * 7.0);
             float3 sand = mix(sd, sl, vnoise(uv * float2(26.0, 14.0)) * 0.6 + vnoise(uv * float2(70.0, 40.0)) * 0.4) * mix(0.65, 1.0, clamp(uv.y / sandH, 0.0, 1.0));
-            col = mix(sand, col, smoothstep(sandH - 0.005, sandH, uv.y));
+            col = mix(sand, col, max(smoothstep(sandH - 0.005, sandH, uv.y), 1.0 - floorOn));                    // (and with no floor: no sand)
             return float4(col, 1.0);
         }
 

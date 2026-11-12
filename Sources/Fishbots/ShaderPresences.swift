@@ -376,7 +376,8 @@ float4 draw_moray(float2 c, float phase, float glow, float4 col, float reach) {
     float2 door = float2(0.08, -0.5);
     float hole = (length((c - door) / float2(0.25, 0.21)) - 1.0) * 0.21;
     // the moray: from the door up and forward along a curve, swaying
-    float sway = sin(phase * 1.3) * 0.07 * reach;
+    // (even at the door it's never quite still: the head turns a little, slowly, looking around)
+    float sway = sin(phase * 1.3) * 0.07 * reach + sin(phase * 0.45) * 0.035;
     float2 tip = door + float2(0.4 + sway, 0.8) * reach + float2(0.1, 0.03);
     float2 mid = door + float2(-0.1 - sway * 0.6, 0.5) * reach;
     float body = 1e3, along = 0.0;
@@ -413,6 +414,61 @@ float4 draw_moray(float2 c, float phase, float glow, float4 col, float reach) {
     sk = mix(sk, float3(0.04, 0.02, 0.02), (1.0 - smoothstep(0.0, 0.012, mouth)) * step(head, 0.0));
     float inEel = 1.0 - smoothstep(-aa, aa, eel);
     return presence_out(d, mix(rc, sk, inEel), glow, col.rgb, col.a, c);
+}
+
+// The same moray out of its burrow, swimming: where a theme has no floor (the open sea) it has no rock to live in.
+// A long ribbon of a body with a wave running down it, a low fin along the whole back and under the tail, the same
+// blunt head, yellow eye and slow gape; `reach` (0…1) is how much it has to say: it swims straighter and gapes wider.
+// p = c * (1.6, 0.7); it faces +x. `col` is its skin, lit.
+float4 draw_moray_free(float2 c, float phase, float glow, float4 col, float reach) {
+    float2 p = c * float2(1.6, 0.7);
+    float lit = dot(col.rgb, float3(0.333)) / 0.46;
+    // the wave: small at the head, wide at the tail, travelling back
+    float amp = mix(0.16, 0.09, reach);
+    float body = 1e3, along = 0.0, fin = 1e3;
+    float2 prev = float2(-1.45, 0.0);
+    float2 headAt = float2(0.0), fwd = float2(1.0, 0.0);
+    for (int i = 0; i <= 12; i++) {
+        float u = float(i) / 12.0;                                         // 0 tail … 1 neck
+        float x = mix(-1.45, 0.95, u);
+        float2 q = float2(x, sin(phase * 1.3 - x * 3.4) * amp * (1.0 - 0.75 * u));
+        if (i > 0) {
+            float w = mix(0.02, 0.115, smoothstep(0.0, 0.5, u)) * mix(1.0, 0.92, smoothstep(0.8, 1.0, u));
+            float ds = sd_seg(p, prev, q) - w;
+            if (ds < body) { body = ds; along = u; }
+            // the fin: a soft ribbon over the back and, toward the tail, under it too
+            fin = min(fin, sd_seg(p, prev + float2(0.0, w + 0.02), q + float2(0.0, w + 0.02)) - 0.035);
+            if (u < 0.5) fin = min(fin, sd_seg(p, prev - float2(0.0, w + 0.015), q - float2(0.0, w + 0.015)) - 0.028);
+            if (i == 12) { headAt = q; fwd = normalize(q - prev); }
+        }
+        prev = q;
+    }
+    float2 hp = float2(dot(p - headAt, fwd), dot(p - headAt, float2(-fwd.y, fwd.x)));
+    float head = (length((hp - float2(0.1, 0.0)) / float2(0.27, 0.15)) - 1.0) * 0.15;
+    float eel = smin_k(body, head, 0.05);
+    float d = min(eel, fin);
+    float aa = fwidth(d) + 1e-4;
+    // skin: round, lit from above, mottled, a paler belly
+    float roundness = clamp(-eel / 0.12, 0.0, 1.0);
+    float3 sk = col.rgb * (0.5 + 0.65 * sqrt(roundness));
+    sk = mix(sk, sk * 0.45, smoothstep(0.5, 0.7, vnoise(p * 13.0 + 5.0)) * 0.65);
+    sk += col.rgb * 0.3 * smoothstep(0.0, 0.1, hp.y) * step(head, 0.02);
+    // the fin: thinner, see-through at its edge, with fine rays
+    float3 fc = col.rgb * (0.55 + 0.25 * cos(p.x * 70.0)) + 0.04 * lit;
+    float inEel = 1.0 - smoothstep(-aa, aa, eel);
+    float3 c3 = mix(fc, sk, inEel);
+    float eye = length(hp - float2(0.16, 0.055));
+    c3 = mix(c3, float3(0.95, 0.8, 0.3) * lit, (1.0 - smoothstep(0.036, 0.05, eye)) * inEel);
+    c3 = mix(c3, float3(0.02), (1.0 - smoothstep(0.014, 0.024, eye)) * inEel);
+    float gape = 0.007 + (0.012 + 0.014 * reach) * (0.5 + 0.5 * sin(phase * 1.7));
+    float mouth = sd_seg(hp, float2(0.35, -0.035), float2(0.1, -0.06)) - gape;
+    c3 = mix(c3, float3(0.04, 0.02, 0.02), (1.0 - smoothstep(0.0, 0.012, mouth)) * step(head, 0.0));
+    // gill opening: a small dark spot behind the head
+    c3 = mix(c3, c3 * 0.35, (1.0 - smoothstep(0.02, 0.035, length(hp - float2(-0.16, -0.01)))) * inEel);
+    float4 o = presence_out(d, c3, glow, col.rgb, col.a, c);
+    // the fin's edge lets the water through
+    float finOnly = (1.0 - inEel) * (1.0 - smoothstep(-aa, aa, fin));
+    return o * (1.0 - 0.3 * finOnly);
 }
 
 float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, float4 extra) {

@@ -397,10 +397,29 @@ final class Scene {
             case .sit:
                 // the moray comes out of its burrow while it has something going on, and goes back in to rest
                 if p.kind.sprite == 47 {
-                    let out: Float = p.leaving || p.state == .ok || p.state == .idle ? 0.22 : 1
+                    var out: Float = p.leaving || p.state == .ok || p.state == .idle ? 0.22 : 1
+                    if out < 1 && !p.leaving {
+                        // resting isn't still: it edges out of the door and back as it breathes, takes a longer look
+                        // around every half minute or so, and comes all the way out when it's called (a click)
+                        let tm = Float(t.time) + Float(abs(p.id.hashValue % 97))
+                        out += 0.1 * max(0, sinf(tm * 0.6))
+                        if (tm / 31).truncatingRemainder(dividingBy: 1) < 0.14 { out = 0.62 }
+                        if t.time < p.outUntil { out = 1 }
+                    }
                     p.swell += (out - p.swell) * min(1, dt * 2.2)
                 }
-                if !p.landed {
+                if p.kind.sprite == 47 && !Themes.current.floor {
+                    // where there's no floor (the open sea) there's no rock to live in: it swims free, a slow winding
+                    // round low in the water, and comes up toward the middle while it has something to say
+                    p.landed = true
+                    let tt = Float(t.time) * 0.045 + 1.7
+                    let goal: SIMD2<Float> = [t.size.x * (0.5 + 0.33 * sinf(tt) + 0.06 * sinf(tt * 2.3 + 1)),
+                                              t.size.y * (0.2 + 0.2 * p.swell + 0.05 * sinf(tt * 1.7))]
+                    let before = p.pos.x
+                    p.pos += (goal - p.pos) * min(1, dt * 0.9)
+                    let vx = (p.pos.x - before) / max(dt, 0.001)
+                    if abs(vx) > 2 { p.dir = vx > 0 ? 1 : -1 }
+                } else if !p.landed {
                     p.pos.y -= 320 * dt
                     if p.pos.y <= ground(p, t) {
                         p.landed = true

@@ -172,7 +172,11 @@ final class AssistantCard: NSViewController, NSTextFieldDelegate {
         }
         notes.toolTip = tr("O que ele lembra entre as conversas: um arquivo que ele lê e escreve, e você também pode.")
         terminal.toolTip = tr("Continua esta conversa num terminal, onde dá para ver tudo o que ele faz.")
-        let foot = NSStackView(views: [listen, fresh, terminal, notes])
+        // a card dragged off the creature stays until closed here (as a fish's card does)
+        let shut = chip(tr("fechar o cartão"), color: dim, filled: false, size: 10.5) { [weak self] in self?.close?() }
+        shut.isHidden = !pinned
+        closeChip = shut
+        let foot = NSStackView(views: [listen, fresh, terminal, notes, shut])
         foot.spacing = 12
 
         let stack = NSStackView(views: [head, WaveLine(width: width, tint: tint), scroll, tray, entry, foot])
@@ -382,6 +386,10 @@ final class AssistantCard: NSViewController, NSTextFieldDelegate {
         Speaker.shared.speak(ClaudeCodeHook.stripMarkdown(a))
     }
 
+    /// Dragged off the creature: it stays where it was put, and has its own way to close.
+    var pinned = false { didSet { closeChip?.isHidden = !pinned } }
+    private var closeChip: NSView?
+
     private func openInTerminal() {
         assistant.openInTerminal { [weak self] problem in
             if let problem { self?.notice?(problem) } else { self?.close?() }
@@ -390,6 +398,8 @@ final class AssistantCard: NSViewController, NSTextFieldDelegate {
 }
 
 /// Where the assistant's card lives: opened from the creature (a click) or the shortcut, pointing at its burrow.
+/// Like a fish's card, it can be dragged off the creature: then it stays where it's put, a click on the creature
+/// brings it forward, and it closes with its own link or Esc.
 final class AssistantPanel: NSObject, NSPopoverDelegate {
     let assistant: Assistant
     private let tank: Tank
@@ -407,11 +417,31 @@ final class AssistantPanel: NSObject, NSPopoverDelegate {
         assistant.onOpen = { [weak self] in self?.toggle() }
         assistant.cardOpen = { [weak self] in self?.isOpen ?? false }
         assistant.changed = { [weak self] in self?.card?.refresh() }
+        // Esc closes the card dragged off the creature, when the mouse is over it or the keys are going to it
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
+            guard let self, e.keyCode == 53, self.detached, let w = self.popover?.contentViewController?.view.window,
+                  w.frame.contains(NSEvent.mouseLocation) || w.isKeyWindow else { return e }
+            self.close()
+            return nil
+        }
     }
 
     var isOpen: Bool { popover?.isShown == true }
+    /// Dragged off the creature: it's a window of its own now.
+    private var detached = false
 
-    func toggle() { if isOpen { close() } else { show() } }
+    /// A click on the creature: opens the card, or closes it; one that was dragged away comes forward instead.
+    func toggle() {
+        if isOpen, detached { popover?.contentViewController?.view.window?.makeKeyAndOrderFront(nil) }
+        else if isOpen { close() } else { show() }
+    }
+
+    func popoverShouldDetach(_ popover: NSPopover) -> Bool { true }
+
+    func popoverDidDetach(_ popover: NSPopover) {
+        detached = true
+        card?.pinned = true
+    }
 
     func close() { popover?.close() }
 
@@ -419,6 +449,7 @@ final class AssistantPanel: NSObject, NSPopoverDelegate {
     @discardableResult
     func show(listening: Bool = false) -> Bool {
         if isOpen {
+            if detached { popover?.contentViewController?.view.window?.makeKeyAndOrderFront(nil) }
             if listening { card?.toggleDictation() }
             return true
         }
@@ -451,6 +482,7 @@ final class AssistantPanel: NSObject, NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         popover = nil
         card = nil
+        detached = false
     }
 }
 

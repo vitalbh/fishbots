@@ -173,7 +173,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         float a = exp(-r * r * 3.2) * (0.55 + 0.45 * n) * in.glow * 0.3 * border;
         outc = float4(in.color.rgb * a, a);
     } else if (k > 46.5) {             // the moray in its burrow (the resident assistant; extra.y: how far out)
-        outc = draw_moray(c, in.phase, in.glow, in.color, in.extra.y);
+        outc = in.extra.z > 0.5 ? draw_moray_free(c, in.phase, in.glow, in.color, in.extra.y)       // (no floor: it swims)
+                                : draw_moray(c, in.phase, in.glow, in.color, in.extra.y);
     } else if (k > 45.5) {             // scenery: the clutch of eggs (glow: how stirred)
         outc = draw_eggs(c, in.phase, in.glow, in.color, in.extra.z);     // extra.z: the theme's own (1 egg case, 2 on a root)
     } else if (k > 44.5) {             // a pilot light on the side glass (glow: how bright; extra.yzw: the lamp's color)

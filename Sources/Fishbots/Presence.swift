@@ -55,6 +55,8 @@ final class Presence {
     var home: SIMD2<Float> = .zero
     var side: Float = 1
     var swell: Float = 0
+    /// Called out until then (a click on it): the moray comes all the way out of its burrow to look at you.
+    var outUntil: Double = 0
     /// When it arrived.
     let born: Double
     /// Home position (0…1 of the width).

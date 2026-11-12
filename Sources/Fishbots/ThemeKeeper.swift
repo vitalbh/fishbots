@@ -43,6 +43,7 @@ final class ThemeKeeper {
         visual.themeVisualizer = t.visualizer
         tank.fauna.select(t.fauna)
         tank.weeds.shapes = t.weedShapes
+        tank.scenery.pack = Packs.themePack[t.id]
         tank.scenery.looks = t.looks
         tank.scenery.kinds = t.scenery
         // the theme's looks for presences and fish kinds (Preferences: "Vestir presenças e peixes com o tema")

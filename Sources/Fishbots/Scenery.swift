@@ -43,16 +43,23 @@ final class Scenery {
     ]
 
     /// The theme's list (nil: all the built-in scenery; a pack's scenery only shows up where a theme lists it).
-    var kinds: [String]? = nil { didSet { items = Self.items(for: kinds, looks: looks) } }
+    var kinds: [String]? = nil { didSet { items = Self.items(for: kinds, looks: looks, pack: pack) } }
+    /// The pack the theme comes from (nil: a built-in theme). Set before `kinds`: a pack's piece named like a built-in
+    /// one ("chest", "eggs") takes its place only in that pack's own themes.
+    var pack: String?
     /// Built-in pieces drawn by a pack's scenery instead (the theme's "looks": "chest": "shrine").
-    var looks: [String: String] = [:] { didSet { items = Self.items(for: kinds, looks: looks) } }
-    private(set) var items: [Item] = Scenery.items(for: nil, looks: [:])
+    var looks: [String: String] = [:] { didSet { items = Self.items(for: kinds, looks: looks, pack: pack) } }
+    private(set) var items: [Item] = Scenery.items(for: nil, looks: [:], pack: nil)
 
-    private static func items(for ids: [String]?, looks: [String: String]) -> [Item] {
+    private static func items(for ids: [String]?, looks: [String: String], pack: String?) -> [Item] {
         // the clutch is in every theme that doesn't have a pack's own piece called "eggs"
-        // (a built-in piece stays out where this theme lists a pack's piece of the same id: its own clutch, its own
-        // chest, anchored wherever the pack says, as the open sea's float at the surface)
-        func own(_ id: String) -> Bool { ids?.contains(id) == true && SceneryKinds.index(of: id) != nil }
+        // (a built-in piece stays out where this theme lists a piece of the same id from its own pack: its own
+        // clutch, its own chest, anchored wherever the pack says, as the open sea's float at the surface. Another
+        // pack's piece of that name is not this theme's: it's left out)
+        let builtIn = Set(all.map(\.id))
+        func own(_ id: String) -> Bool {
+            pack != nil && ids?.contains(id) == true && SceneryKinds.all.contains { $0.id == id && $0.pack == pack }
+        }
         var out = all.filter { own($0.id) ? false : $0.id == "eggs" ? true : ids?.contains($0.id) ?? ($0.id != "helmet") }.map { s -> Item in
             // another look for a built-in piece: the pack's drawing, extent and color, in the same place
             guard let look = looks[s.id], let i = SceneryKinds.index(of: look) else { return s }
@@ -60,7 +67,7 @@ final class Scenery {
             return Item(id: s.id, kind: 35, u: s.u, scale: s.scale, color: k.color, seed: s.seed, pack: i,
                         anchor: .sand, extent: k.extent, glowAtNight: k.glowAtNight, bury: k.bury, row: s.row)
         }
-        for (i, k) in SceneryKinds.all.enumerated() where ids?.contains(k.id) == true {
+        for (i, k) in SceneryKinds.all.enumerated() where ids?.contains(k.id) == true && (!builtIn.contains(k.id) || k.pack == pack) {
             for (j, u) in k.at.enumerated() {
                 out.append(Item(id: k.id, kind: 35, u: u, scale: k.size, color: k.color,
                                 seed: Float(j) * 0.618 - floor(Float(j) * 0.618) + 0.05, pack: i, anchor: k.anchor,
