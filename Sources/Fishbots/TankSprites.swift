@@ -100,7 +100,8 @@ extension Tank {
                 // a pack's piece: its own drawing (kind 35, its index in extra.z), the quad from its extent. A chest
                 // drawn by a pack gets how open it is in extra.y (instead of the seed) and glows while it's open.
                 let isChest = s.id == "chest"
-                let glow = max(s.glowAtNight ? night : 0, isChest ? min(1, scenery.chestLid) : 0)
+                // (a pack's own clutch glows as the built-in one does, when a session is about to hatch)
+                let glow = max(s.glowAtNight ? night : 0, isChest ? min(1, scenery.chestLid) : s.id == "eggs" ? min(1, scenery.eggsGlow) : 0)
                 out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: 35, glow: glow, phase: Float(time),
                                   color: SIMD4(color, 1), extra: [1, isChest ? min(1, scenery.chestLid) : s.seed, Float(i), night],
                                   aux: [s.extent.x, s.extent.y, 0, 0]))

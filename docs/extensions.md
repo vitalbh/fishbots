@@ -126,7 +126,7 @@ pond: koi, a stone lantern, lily pads, a shrine for the chest, frogs, koinobori,
 bathysphere for the chest, session fish as lanternfish lit in the project's color) and `amazon` (the Amazon's
 blackwater: the flooded forest behind tea-colored water, giant water lilies, a sunken branch, a Marajoara urn for the
 chest, session fish as discus, piranhas and peacock bass, cardinal tetras, an arapaima, the pink river dolphin, a river
-stingray, a pleco on the glass, an electric eel, a black caiman for the shark).
+stingray, a pleco on the glass, an electric eel, a black caiman for the shark) and `ocean` (the open sea: no floor, shafts of light fanning down, session fish as shark pups, sardines in schools, the dorado, tuna, a whale shark far away, flying fish, moon jellies, sargassum adrift with the clutch of eggs hanging in it) and `desk` (a little tank on a desk: blue gravel, a plastic castle and plastic plants, a toy diver, a no-fishing sign, goldfish, the bubble-eye, guppies, a pleco on the glass, and behind the glass the room out of focus, where a cat comes to look in).
 
 #### A theme's own background and looks
 A pack theme can draw its own far background and give the built-in pieces another look:
@@ -237,8 +237,8 @@ float4 draw_lantern(float2 c, float t, float glow, float4 col, float4 extra) { â
 
 The shader's helpers (`sd_box`, `sd_seg`, `sd_tri`, `smin_k`, `vnoise`, `hash21`, `vor_edge`, and for fish `fish_round` and `fish_eye`: docs/packs.md) can be used. A theme
 lists the pieces it wants in `"scenery"`, mixed with the built-in ones (`rock`, `shell`, `chest`, `coral`; the clutch of `eggs`, where the
-sessions started from the aquarium hatch and a click starts one, is in every theme unless a pack piece of its own
-is called `eggs`); a pack's
+sessions started from the aquarium hatch and a click starts one, is in every theme, unless the theme lists a pack
+piece of its own called `eggs`, which then is its clutch: the open sea hangs it in the sargassum); a pack's
 pieces only show up in a theme that lists them. A function that doesn't compile is dropped and reported in the menu,
 like a fish.
 

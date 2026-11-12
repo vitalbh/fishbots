@@ -50,7 +50,9 @@ final class Scenery {
 
     private static func items(for ids: [String]?, looks: [String: String]) -> [Item] {
         // the clutch is in every theme that doesn't have a pack's own piece called "eggs"
-        var out = all.filter { ids?.contains($0.id) ?? ($0.id != "helmet") || ($0.id == "eggs" && SceneryKinds.index(of: "eggs") == nil) }.map { s -> Item in
+        // (the built-in clutch stays out only where this theme lists a pack's piece called "eggs": its own clutch)
+        let ownEggs = ids?.contains("eggs") == true && SceneryKinds.index(of: "eggs") != nil
+        var out = all.filter { $0.id == "eggs" ? !ownEggs : ids?.contains($0.id) ?? ($0.id != "helmet") }.map { s -> Item in
             // another look for a built-in piece: the pack's drawing, extent and color, in the same place
             guard let look = looks[s.id], let i = SceneryKinds.index(of: look) else { return s }
             let k = SceneryKinds.all[i]

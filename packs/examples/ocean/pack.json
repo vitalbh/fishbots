@@ -1,0 +1,352 @@
+{
+  "id": "ocean",
+  "name": "Mar aberto",
+  "names": {
+    "en": "Open sea"
+  },
+  "version": "1.0",
+  "author": "Fishbots",
+  "license": "MIT",
+  "description": "O azul sem fundo: fachos de luz descendo da superfície, cardumes de sardinhas, filhotes de tubarão, o dourado-do-mar, atuns passando em bando, um tubarão-baleia ao longe, peixes-voadores saltando, águas-vivas-da-lua e sargaço boiando, com a desova presa nele.",
+  "descriptions": {
+    "en": "The blue with nothing under it: shafts of light coming down from the surface, schools of sardines, shark pups, the dorado, tuna passing in a pack, a whale shark far away, flying fish leaping, moon jellies and sargassum adrift, with the clutch of eggs hanging in it."
+  },
+  "themes": [
+    {
+      "id": "open-sea",
+      "name": "Mar aberto",
+      "names": {
+        "en": "Open sea"
+      },
+      "description": "O azul sem fundo: fachos de luz, cardumes de sardinhas, atuns, um tubarão-baleia ao longe, peixes-voadores e sargaço boiando.",
+      "descriptions": {
+        "en": "The blue with nothing under it: shafts of light, schools of sardines, tuna, a whale shark far away, flying fish and sargassum adrift."
+      },
+      "visualizer": "surface",
+      "music": "ambient",
+      "fauna": [
+        "turtle",
+        "whale",
+        "sunfish",
+        "tuna",
+        "whale-shark",
+        "flying-fish",
+        "moon-jelly"
+      ],
+      "scenery": [
+        "sargassum",
+        "eggs"
+      ],
+      "looks": {
+        "oval": "shark-pup",
+        "slender": "sardine",
+        "puffer": "dorado",
+        "angelfish": "dorado",
+        "stingray": "shark-pup",
+        "octopus": "shark-pup"
+      },
+      "background": {
+        "metal": "ocean.metal",
+        "function": "draw_ocean_background",
+        "replaceReef": true
+      },
+      "sky": {
+        "night": [
+          0.6,
+          0.72,
+          1.1
+        ],
+        "dawn": [
+          1.1,
+          0.92,
+          0.85
+        ],
+        "day": [
+          0.96,
+          1.0,
+          1.06
+        ],
+        "golden": [
+          1.2,
+          0.98,
+          0.78
+        ],
+        "dusk": [
+          0.9,
+          0.8,
+          1.02
+        ],
+        "light": [
+          0.5,
+          1.0
+        ],
+        "sun": 1.4,
+        "moon": 1.2
+      },
+      "water": {
+        "deep": "#020d1c",
+        "shallow": "#1568ac",
+        "rays": "#7cc4f0",
+        "raysStrength": 0.2,
+        "caustics": "#bfe6ff",
+        "causticsStrength": 0.04,
+        "surface": "#7fc6ee",
+        "murk": "#0c2a3a"
+      },
+      "weeds": {
+        "count": 0,
+        "farCount": 0,
+        "far": "#06223a",
+        "low": "#06223a",
+        "high": "#0c3a5a"
+      },
+      "sand": {
+        "dark": "#010811",
+        "light": "#03101e"
+      },
+      "foreground": false,
+      "jellyfish": false,
+      "schools": [
+        {
+          "color": "#3f8fb0",
+          "kind": "sardine",
+          "count": 16,
+          "size": [
+            8,
+            9.5
+          ],
+          "pattern": 0,
+          "depth": [
+            0.2,
+            0.55
+          ]
+        },
+        {
+          "color": "#5aa0c8",
+          "kind": "sardine",
+          "count": 14,
+          "size": [
+            7,
+            8.5
+          ],
+          "pattern": 0,
+          "depth": [
+            0.3,
+            0.6
+          ]
+        },
+        {
+          "color": "#2f6f92",
+          "kind": "sardine",
+          "count": 16,
+          "size": [
+            7,
+            8
+          ],
+          "pattern": 0,
+          "depth": [
+            0.6,
+            0.85
+          ]
+        }
+      ],
+      "effects": {
+        "sparkle": "#bfe6ff",
+        "ring": "#9fd8ff"
+      },
+      "swim": {
+        "sardine": {
+          "speed": 1.25,
+          "beat": 1.2
+        }
+      }
+    }
+  ],
+  "fish": [
+    {
+      "id": "shark-pup",
+      "name": "filhote de tubarão",
+      "names": {
+        "en": "shark pup"
+      },
+      "metal": "fish.metal",
+      "function": "draw_ocean_sharkpup",
+      "swim": {
+        "speed": 0.9,
+        "beat": 0.75,
+        "depth": [
+          0.25,
+          0.85
+        ]
+      }
+    },
+    {
+      "id": "sardine",
+      "name": "sardinha",
+      "names": {
+        "en": "sardine"
+      },
+      "metal": "fish.metal",
+      "function": "draw_ocean_sardine"
+    },
+    {
+      "id": "dorado",
+      "name": "dourado-do-mar",
+      "names": {
+        "en": "dorado"
+      },
+      "metal": "fish.metal",
+      "function": "draw_ocean_dorado",
+      "swim": {
+        "speed": 1.15,
+        "depth": [
+          0.45,
+          0.9
+        ]
+      }
+    }
+  ],
+  "scenery": [
+    {
+      "id": "sargassum",
+      "name": "sargaço",
+      "names": {
+        "en": "sargassum"
+      },
+      "metal": "ocean.metal",
+      "function": "draw_ocean_sargassum",
+      "anchor": "surface",
+      "size": 0.085,
+      "extent": [
+        1.6,
+        0.6
+      ],
+      "at": [
+        0.14,
+        0.7,
+        0.92
+      ],
+      "color": "#9e7524"
+    },
+    {
+      "id": "eggs",
+      "name": "desova no sargaço",
+      "names": {
+        "en": "eggs in the sargassum"
+      },
+      "metal": "ocean.metal",
+      "function": "draw_ocean_eggs",
+      "anchor": "surface",
+      "size": 0.085,
+      "extent": [
+        1.6,
+        0.6
+      ],
+      "at": [
+        0.4
+      ],
+      "drift": false,
+      "color": "#ff9e40"
+    }
+  ],
+  "fauna": [
+    {
+      "id": "tuna",
+      "name": "atuns",
+      "names": {
+        "en": "tuna"
+      },
+      "metal": "fish.metal",
+      "function": "draw_ocean_tuna",
+      "behavior": "school",
+      "size": 30,
+      "extent": [
+        1.8,
+        0.8
+      ],
+      "count": [
+        3,
+        4
+      ],
+      "speed": 46,
+      "height": [
+        0.35,
+        0.8
+      ],
+      "color": "#ffffff"
+    },
+    {
+      "id": "whale-shark",
+      "name": "tubarão-baleia",
+      "names": {
+        "en": "whale shark"
+      },
+      "metal": "fish.metal",
+      "function": "draw_ocean_whaleshark",
+      "behavior": "pass",
+      "size": 120,
+      "extent": [
+        2.2,
+        0.7
+      ],
+      "count": 1,
+      "speed": 11,
+      "height": [
+        0.3,
+        0.6
+      ],
+      "every": [
+        200,
+        520
+      ],
+      "color": "#ffffff"
+    },
+    {
+      "id": "flying-fish",
+      "name": "peixe-voador",
+      "names": {
+        "en": "flying fish"
+      },
+      "metal": "fish.metal",
+      "function": "draw_ocean_flyingfish",
+      "behavior": "skim",
+      "size": 22,
+      "extent": [
+        1.5,
+        1.0
+      ],
+      "count": [
+        2,
+        3
+      ],
+      "speed": 60,
+      "when": "day",
+      "color": "#ffffff"
+    },
+    {
+      "id": "moon-jelly",
+      "name": "água-viva-da-lua",
+      "names": {
+        "en": "moon jelly"
+      },
+      "metal": "fish.metal",
+      "function": "draw_ocean_moonjelly",
+      "behavior": "drift",
+      "size": 20,
+      "extent": [
+        1.0,
+        1.0
+      ],
+      "count": [
+        3,
+        5
+      ],
+      "speed": 5,
+      "height": [
+        0.3,
+        0.85
+      ],
+      "color": "#d8a0e8"
+    }
+  ]
+}

@@ -1,0 +1,263 @@
+{
+  "id": "desk",
+  "name": "Aquário de mesa",
+  "names": {
+    "en": "Desk tank"
+  },
+  "version": "1.0",
+  "author": "Fishbots",
+  "license": "MIT",
+  "description": "Um aquário pequeno em cima da mesa: cascalho azul com pedrinhas coloridas, castelo e plantas de plástico, um mergulhador de brinquedo soltando bolhas, uma plaquinha de proibido pescar, peixes-dourados, o kinguio olho-bolha, guppies, um cascudo limpando o vidro e, atrás do vidro, o quarto desfocado, de onde um gato vem espiar de vez em quando.",
+  "descriptions": {
+    "en": "A small tank on a desk: blue gravel with colored pebbles, a plastic castle and plastic plants, a toy diver letting out bubbles, a little no-fishing sign, goldfish, the bubble-eye, guppies, a pleco cleaning the glass and, behind the glass, the room out of focus, where a cat comes to look in now and then."
+  },
+  "themes": [
+    {
+      "id": "desk-tank",
+      "name": "Aquário de mesa",
+      "names": {
+        "en": "Desk tank"
+      },
+      "description": "Um aquário pequeno em cima da mesa: cascalho azul, castelo e plantas de plástico, peixes-dourados, guppies e o quarto desfocado atrás do vidro.",
+      "descriptions": {
+        "en": "A small tank on a desk: blue gravel, a plastic castle and plastic plants, goldfish, guppies and the room out of focus behind the glass."
+      },
+      "visualizer": "plankton",
+      "fauna": [
+        "pleco",
+        "apple-snail"
+      ],
+      "scenery": [
+        "chest",
+        "castle",
+        "plastic-plant",
+        "diver",
+        "sign"
+      ],
+      "looks": {
+        "chest": "toy-chest",
+        "pebble": "gravel",
+        "oval": "goldfish",
+        "slender": "goldfish",
+        "puffer": "bubble-eye",
+        "angelfish": "goldfish"
+      },
+      "background": {
+        "metal": "room.metal",
+        "function": "draw_desk_background",
+        "replaceReef": true
+      },
+      "sky": {
+        "night": [0.72, 0.78, 1.0],
+        "dawn": [1.06, 0.95, 0.88],
+        "day": [1.0, 1.0, 1.0],
+        "golden": [1.15, 0.98, 0.8],
+        "dusk": [0.95, 0.85, 0.98],
+        "light": [0.62, 1.0],
+        "sun": 0.5,
+        "moon": 0.3
+      },
+      "water": {
+        "deep": "#1d5a66",
+        "shallow": "#7fd3da",
+        "rays": "#d8fbff",
+        "raysStrength": 0.1,
+        "caustics": "#e8ffff",
+        "causticsStrength": 0.07,
+        "surface": "#c8f2f4",
+        "murk": "#4a5a2c"
+      },
+      "weeds": {
+        "count": 0,
+        "farCount": 0,
+        "far": "#2a6a4a",
+        "low": "#1f7a3a",
+        "high": "#4fd060"
+      },
+      "sand": {
+        "dark": "#1b4fb4",
+        "light": "#4f90f2"
+      },
+      "foreground": false,
+      "jellyfish": false,
+      "schools": [
+        {
+          "color": "#ff7a30",
+          "kind": "guppy",
+          "count": 7,
+          "size": [9, 11],
+          "pattern": 0,
+          "depth": [0.15, 0.5]
+        },
+        {
+          "color": "#3fa0ff",
+          "kind": "guppy",
+          "count": 5,
+          "size": [9, 10.5],
+          "pattern": 0,
+          "depth": [0.2, 0.5]
+        }
+      ],
+      "effects": {
+        "sparkle": "#fff2a0"
+      }
+    }
+  ],
+  "fish": [
+    {
+      "id": "goldfish",
+      "name": "peixe-dourado",
+      "names": {
+        "en": "goldfish"
+      },
+      "metal": "fish.metal",
+      "function": "draw_desk_goldfish",
+      "swim": {
+        "speed": 0.8,
+        "beat": 0.8
+      }
+    },
+    {
+      "id": "bubble-eye",
+      "name": "kinguio olho-bolha",
+      "names": {
+        "en": "bubble-eye goldfish"
+      },
+      "metal": "fish.metal",
+      "function": "draw_desk_bubbleeye",
+      "swim": {
+        "speed": 0.55,
+        "beat": 0.9,
+        "depth": [0.1, 0.5],
+        "bob": 0.25
+      }
+    },
+    {
+      "id": "guppy",
+      "name": "guppy",
+      "names": {
+        "en": "guppy"
+      },
+      "metal": "fish.metal",
+      "function": "draw_desk_guppy"
+    }
+  ],
+  "scenery": [
+    {
+      "id": "castle",
+      "name": "castelo de plástico",
+      "names": {
+        "en": "plastic castle"
+      },
+      "metal": "room.metal",
+      "function": "draw_desk_castle",
+      "anchor": "sand",
+      "size": 0.15,
+      "extent": [0.9, 1.0],
+      "at": [0.76],
+      "color": "#b8a8b4"
+    },
+    {
+      "id": "plastic-plant",
+      "name": "planta de plástico",
+      "names": {
+        "en": "plastic plant"
+      },
+      "metal": "room.metal",
+      "function": "draw_desk_plant",
+      "anchor": "sand",
+      "size": 0.17,
+      "extent": [0.6, 1.0],
+      "at": [0.19, 0.55, 0.92],
+      "color": "#ffffff",
+      "solid": false
+    },
+    {
+      "id": "diver",
+      "name": "mergulhador de brinquedo",
+      "names": {
+        "en": "toy diver"
+      },
+      "metal": "room.metal",
+      "function": "draw_desk_diver",
+      "anchor": "sand",
+      "size": 0.11,
+      "extent": [0.6, 1.0],
+      "at": [0.64],
+      "color": "#ffffff"
+    },
+    {
+      "id": "sign",
+      "name": "plaquinha de proibido pescar",
+      "names": {
+        "en": "no-fishing sign"
+      },
+      "metal": "room.metal",
+      "function": "draw_desk_sign",
+      "anchor": "sand",
+      "size": 0.065,
+      "extent": [0.8, 1.0],
+      "at": [0.47],
+      "color": "#ffffff",
+      "solid": false
+    },
+    {
+      "id": "toy-chest",
+      "name": "baú de brinquedo",
+      "names": {
+        "en": "toy treasure chest"
+      },
+      "metal": "room.metal",
+      "function": "draw_desk_chest",
+      "anchor": "sand",
+      "size": 0.06,
+      "extent": [1.0, 1.0],
+      "color": "#c86a30"
+    },
+    {
+      "id": "gravel",
+      "name": "cascalho colorido",
+      "names": {
+        "en": "colored gravel"
+      },
+      "metal": "room.metal",
+      "function": "draw_desk_gravel",
+      "anchor": "sand",
+      "size": 0.012,
+      "extent": [1.0, 0.7],
+      "color": "#ffffff"
+    }
+  ],
+  "fauna": [
+    {
+      "id": "pleco",
+      "name": "cascudo",
+      "names": {
+        "en": "pleco"
+      },
+      "metal": "fish.metal",
+      "function": "draw_desk_pleco",
+      "behavior": "glass",
+      "size": 26,
+      "extent": [1.6, 0.7],
+      "count": 1,
+      "speed": 5,
+      "color": "#6a5236"
+    },
+    {
+      "id": "apple-snail",
+      "name": "caramujo-maçã",
+      "names": {
+        "en": "apple snail"
+      },
+      "metal": "fish.metal",
+      "function": "draw_desk_snail",
+      "behavior": "crawl",
+      "size": 11,
+      "extent": [1.2, 1.0],
+      "count": 2,
+      "speed": 4,
+      "color": "#e8b030"
+    }
+  ]
+}
