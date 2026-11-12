@@ -478,6 +478,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         } else {
             backgroundTick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 guard let self else { return }
+                if let s = self.windowModes.notchTank { self.tank.size = [Float(s.width), Float(s.height)] }
                 self.tank.update(dt: 0.05)
             }
         }

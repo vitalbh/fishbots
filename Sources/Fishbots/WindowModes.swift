@@ -79,6 +79,13 @@ final class WindowModes {
     var draggable: Bool { mode == .corner }
     /// The tank can't be seen: the notch is closed.
     var holdsDrawing: Bool { mode == .notch && !notchOpen }
+    /// The size the tank has when the notch opens (nil: not in the notch). While it's closed nothing lays the tank's
+    /// view out, so what goes on in the meantime (a session dropping in) needs to be told how big the tank is.
+    var notchTank: CGSize? {
+        guard mode == .notch, let n = notch else { return nil }
+        let f = openFrame
+        return f.width > 1 ? CGSize(width: f.width, height: f.height - n.rect.height) : nil
+    }
 
     /// W: in and out of the widget, where `widgetPlace` says.
     func toggle() {

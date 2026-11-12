@@ -723,6 +723,13 @@ final class Tank {
         time = CACurrentMediaTime()
         runScheduled()
         bubbler()
+        // a tank that got smaller (the widget, the notch) leaves nobody stranded far outside it: whoever is beyond the
+        // glass is brought to just past it, and swims in from there (a session that came back while the app opened in
+        // the notch dropped in from over a tank the size of the default window, and took half a minute to show up)
+        for f in fish where !f.leaving {
+            f.pos.x = max(-60, min(size.x + 60, f.pos.x))
+            f.pos.y = max(-60, min(size.y + 90, f.pos.y))
+        }
 
         scene.update(self, dt: dt)
         weeds.update(self, dt: dt)
