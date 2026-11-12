@@ -22,6 +22,8 @@ final class Scene {
             PresenceKind(id: "helm", sprite: 31, motion: .sit, size: 34, color: [0.6, 0.4, 0.22], sound: "clang"),
             PresenceKind(id: "chest", sprite: 23, motion: .sit, size: 22, color: [0.5, 0.31, 0.16], sound: "bell"),
             PresenceKind(id: "pilot", sprite: 45, motion: .glass, size: 11, color: [0.72, 0.6, 0.38], sound: "soft"),
+            // the resident assistant's (Assistant.swift): a moray in its burrow, out when it has something to say
+            PresenceKind(id: "moray", sprite: 47, motion: .sit, size: 46, color: [0.6, 0.56, 0.3], sound: "kalimba"),
             PresenceKind(id: "battery", sprite: 6, motion: .sit, size: 20, color: [1, 1, 1], meter: true, sound: "bubble"),
         ]
         return Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
@@ -125,7 +127,7 @@ final class Scene {
     /// Where its text goes: above the objects on the sand, below the swimmers. (point, above)
     func labelAnchor(_ p: Presence) -> (SIMD2<Float>, above: Bool) {
         if p.kind.motion.grounded {
-            let top: Float = [27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 1.08, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
+            let top: Float = [47: 1.95, 27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 1.08, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
                 ?? (p.kind.pack != nil ? p.kind.extent.y * 1.9 : 1.2)
             return (p.pos + p.shakeOffset + [0, p.kind.size * top + 4], true)
         }
@@ -393,6 +395,11 @@ final class Scene {
                 p.pos += (p.home - p.pos) * min(1, dt * 3)
                 p.dir = p.side
             case .sit:
+                // the moray comes out of its burrow while it has something going on, and goes back in to rest
+                if p.kind.sprite == 47 {
+                    let out: Float = p.leaving || p.state == .ok || p.state == .idle ? 0.22 : 1
+                    p.swell += (out - p.swell) * min(1, dt * 2.2)
+                }
                 if !p.landed {
                     p.pos.y -= 320 * dt
                     if p.pos.y <= ground(p, t) {

@@ -130,19 +130,27 @@ class TerminalAgentProvider {
     }
 
     /// Typing is only safe in the exact terminal, with the agent idle at its prompt.
+    /// (A session the aquarium runs in the background has no terminal: what's written goes to the agent's input.)
     func atPrompt(_ f: Fish) -> Bool {
-        Whereabouts.target(f) != nil && [.waiting, .done, .idle, .ok].contains(f.state) && f.compactingSince == nil
+        (Whereabouts.target(f) != nil || Background.of(f) != nil) && [.waiting, .done, .idle, .ok].contains(f.state) && f.compactingSince == nil
     }
 
     func terminalCapabilities(_ f: Fish) -> Set<Capability> {
         var c: Set<Capability> = []
         if atPrompt(f) { c.insert(.reply) }
-        if Whereabouts.target(f) != nil && f.state == .busy { c.insert(.stop) }
+        if (Whereabouts.target(f) != nil || Background.of(f) != nil) && f.state == .busy { c.insert(.stop) }
         return c
     }
 
-    func reply(_ f: Fish, _ text: String, done: @escaping (String?) -> Void) { Whereabouts.reply(f, text, ready: done) }
-    func stop(_ f: Fish) { Whereabouts.stop(f) }
+    func reply(_ f: Fish, _ text: String, done: @escaping (String?) -> Void) {
+        if let b = Background.of(f) { Background.say(b, text); done(nil); return }
+        Whereabouts.reply(f, text, ready: done)
+    }
+
+    func stop(_ f: Fish) {
+        if let b = Background.of(f) { Background.interrupt(b); return }
+        Whereabouts.stop(f)
+    }
 }
 
 /// Claude Code: hooks posted to /claude-code (plugins/claude-code/hook.sh), the transcript for title and context.
@@ -160,12 +168,12 @@ final class ClaudeCodeProvider: TerminalAgentProvider, SessionProvider {
 
     func capabilities(_ f: Fish) -> Set<Capability> {
         var c = terminalCapabilities(f)
-        if atPrompt(f) { c.insert(.renameChat) }   // by typing /rename
+        if atPrompt(f), Background.of(f) == nil { c.insert(.renameChat) }   // by typing /rename
         return c
     }
 
     func launchCommand(prompt: String?, model: String?) -> [String]? {
-        ["claude"] + (model.map { ["--model", $0] } ?? []) + (prompt.map { [$0] } ?? [])
+        AgentCLIs.launch(id, ["claude"] + (model.map { ["--model", $0] } ?? []) + (prompt.map { [$0] } ?? []))
     }
 
     /// Types /rename in the session: Claude renames the conversation itself.
@@ -194,7 +202,7 @@ final class CodexProvider: TerminalAgentProvider, SessionProvider {
     func capabilities(_ f: Fish) -> Set<Capability> { terminalCapabilities(f).union([.renameChat]) }
 
     func launchCommand(prompt: String?, model: String?) -> [String]? {
-        ["codex"] + (model.map { ["--model", $0] } ?? []) + (prompt.map { [$0] } ?? [])
+        AgentCLIs.launch(id, ["codex"] + (model.map { ["--model", $0] } ?? []) + (prompt.map { [$0] } ?? []))
     }
 
     /// Adds a line to Codex's index (~/.codex/session_index.jsonl), which is where the name lives.

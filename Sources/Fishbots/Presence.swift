@@ -72,6 +72,8 @@ final class Presence {
     /// The plugin wants its own drawing even where the theme dresses this kind differently ("override_theme": true).
     var overrideTheme = false
     var party = false
+    /// One of the app's own (the resident assistant): a click runs this instead of opening a link.
+    var open: (() -> Void)?
     var alpha: Float = 0
     var shake: Float = 0
     var inkAt: Double = 0

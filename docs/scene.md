@@ -106,6 +106,7 @@ production down): it's shown as sent in every theme.
 | `pilot` | a small light on the side glass, in the state's color, next to the others from its source (see **Lights on the glass**) | many things you only need to hear from when they break: clusters, sites, jobs |
 | `chest` | stays on the sand; glows when `done` or `waiting` | a goal, a reward |
 | `battery` | lies on the sand; `value` is the charge | a level that runs out |
+| `moray` | lives in a burrow in a rock on the sand: just its snout at the door while `ok` or `idle`, out and swaying in any other state | something that's always there and speaks up now and then (the aquarium's own assistant is one) |
 
 ### Lights on the glass
 

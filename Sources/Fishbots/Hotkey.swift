@@ -6,12 +6,14 @@ enum HotkeyAction: String, CaseIterable {
     case go      // its terminal comes forward
     case read    // reads its question (or last reply) aloud
     case mic     // opens its card with the microphone on: speak, Enter sends
+    case assistant   // the resident assistant's card with the microphone on (not about who waits: about the aquarium)
 
     var id: UInt32 { UInt32(Self.allCases.firstIndex(of: self)! + 1) }
     var defaultsKey: String { self == .go ? "hotkey" : "hotkey." + rawValue }
-    /// ⌃⌥F ("fish"; ⌃⌥Space would clash with the Mac's input source switch), ⌃⌥R (read), ⌃⌥M (mic).
+    /// ⌃⌥F ("fish"; ⌃⌥Space would clash with the Mac's input source switch), ⌃⌥R (read), ⌃⌥M (mic), ⌃⌥A (assistant).
     var standard: Shortcut {
         switch self {
+        case .assistant: return Shortcut(keyCode: UInt32(kVK_ANSI_A), modifiers: UInt32(controlKey | optionKey), key: "A")
         case .go: return Shortcut(keyCode: UInt32(kVK_ANSI_F), modifiers: UInt32(controlKey | optionKey), key: "F")
         case .read: return Shortcut(keyCode: UInt32(kVK_ANSI_R), modifiers: UInt32(controlKey | optionKey), key: "R")
         case .mic: return Shortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: UInt32(controlKey | optionKey), key: "M")
@@ -22,6 +24,7 @@ enum HotkeyAction: String, CaseIterable {
         case .go: return tr("Ir para quem espera há mais tempo")
         case .read: return tr("Ouvir a pergunta de quem espera")
         case .mic: return tr("Responder falando (abre o microfone)")
+        case .assistant: return tr("Falar com o assistente do aquário")
         }
     }
 

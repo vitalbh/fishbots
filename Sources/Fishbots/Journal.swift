@@ -2,8 +2,8 @@ import AppKit
 import CoreGraphics
 
 /// What happened in the aquarium (for the "Enquanto você estava fora" summary).
-struct Happening {
-    enum Kind { case done, error, waiting, merge, event }
+struct Happening: Codable {
+    enum Kind: String, Codable { case done, error, waiting, merge, event }
     let when: Date
     let kind: Kind
     let label: String
@@ -21,13 +21,48 @@ final class Journal {
     private let limit: TimeInterval = 600 * Tank.scale
 
     init() {
+        // the last day's happenings come back when the app reopens ("what happened today?" still has an answer)
+        let day = Date().addingTimeInterval(-86400)
+        if let d = try? Data(contentsOf: Self.url), let saved = try? JSONDecoder().decode([Happening].self, from: d) {
+            items = saved.filter { $0.when > day }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.gaze() }
+    }
+
+    /// Where the day's happenings are kept between runs.
+    static var url: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Fishbots/journal.json")
+    }
+    private var saveAt: DispatchWorkItem?
+
+    /// Writes the last day to disk, a few seconds after the last thing that happened (or right now, on quitting).
+    func save(now: Bool = false) {
+        saveAt?.cancel()
+        let write = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let day = Date().addingTimeInterval(-86400)
+            guard let d = try? JSONEncoder().encode(self.items.filter { $0.when > day }) else { return }
+            try? FileManager.default.createDirectory(at: Self.url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? d.write(to: Self.url, options: .atomic)
+        }
+        saveAt = write
+        if now { write.perform() } else { DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: write) }
     }
 
     func record(_ kind: Happening.Kind, _ label: String, fish: String? = nil) {
         items.append(Happening(when: Date(), kind: kind, label: label, fishId: fish))
         let day = Date().addingTimeInterval(-86400)
         if items.count > 2000 { items.removeAll { $0.when < day } }
+        save()
+    }
+
+    /// What happened since `since`, for GET /journal and the assistant: when, what, and whose.
+    func json(since: Date) -> Data {
+        let f = ISO8601DateFormatter()
+        let list: [[String: Any]] = items.filter { $0.when >= since }.map {
+            ["when": f.string(from: $0.when), "kind": $0.kind.rawValue, "label": $0.label, "fish": $0.fishId ?? ""]
+        }
+        return (try? JSONSerialization.data(withJSONObject: ["journal": list], options: [.prettyPrinted, .sortedKeys])) ?? Data()
     }
 
     func between(_ a: Date, _ b: Date) -> [Happening] { items.filter { $0.when >= a && $0.when <= b } }
