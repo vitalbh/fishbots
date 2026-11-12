@@ -148,8 +148,7 @@ final class Labels {
         footerOpacity += (wanted - footerOpacity) * (wanted > footerOpacity ? 0.25 : 0.04)
         footer.opacity = tank.compact || now.quiet ? 0 : footerOpacity
         // widget mode with nobody needing you: a quiet line in the middle
-        let anyone = tank.fish.contains { !$0.decor && !$0.leaving && [.waiting, .error, .alert].contains($0.state) }
-            || tank.scene.presences.contains { !$0.leaving && $0.needsYou }
+        let anyone = !tank.widgetCalm
         calmText.string = tr("✓ ninguém esperando")
         calmText.frame = CGRect(x: 0, y: view.bounds.height / 2 - 9, width: view.bounds.width, height: 18)
         calmText.opacity = tank.compact && !anyone ? 0.55 : 0

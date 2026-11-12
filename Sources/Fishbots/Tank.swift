@@ -552,11 +552,19 @@ final class Tank {
         return days > 60 ? 2 : days > 14 ? 1 : 0
     }
 
-    /// Widget mode: only who needs you shows (the rest keeps swimming, hidden, and the schools stay out of sight).
+    /// Widget mode: only who needs you shows (the rest keeps swimming, hidden). The theme's schools stay out of sight
+    /// too, except while nobody needs you: an empty tank is a dead one, so they have it to themselves until someone does.
     var compact = false
 
     func isHidden(_ f: Fish) -> Bool {
-        compact && (f.decor || ![.waiting, .error, .alert].contains(f.state))
+        guard compact else { return false }
+        return f.decor ? !widgetCalm : ![.waiting, .error, .alert].contains(f.state)
+    }
+
+    /// Widget mode with no session and no presence needing you (the same test as the widget's "nobody waiting" line).
+    var widgetCalm: Bool {
+        !fish.contains { !$0.decor && !$0.leaving && [.waiting, .error, .alert].contains($0.state) }
+            && !scene.presences.contains { !$0.leaving && $0.needsYou }
     }
 
     // MARK: - interaction
