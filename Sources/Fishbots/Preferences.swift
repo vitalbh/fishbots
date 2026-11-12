@@ -297,6 +297,7 @@ private struct AttentionTab: View {
                 Toggle(tr("Notificar quando esperarem por você"), isOn: prefs.bind({ Attention.level("*", .waiting) == .urgent },
                                                                                { Attention.setLevel("*:waiting", $0 ? .urgent : .attention) }))
                     .disabled(Attention.fromFile["*:waiting"] != nil)
+                Toggle(tr("Seguir o Foco do macOS (Não Perturbe, Trabalho…)"), isOn: prefs.bind({ FocusFollow.enabled }, { FocusFollow.enabled = $0 }))
                 Toggle(tr("Notificar erros"), isOn: prefs.bind({ Attention.level("*", .error) == .urgent },
                                                            { Attention.setLevel("*:error", $0 ? .urgent : .attention) }))
                     .disabled(Attention.fromFile["*:error"] != nil)

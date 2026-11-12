@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private(set) var windowModes: WindowModes!
     /// "Silenciar por 1 hora": brings the sound back when it's up.
     var unmuteTimer: Timer?
+    let focusFollow = FocusFollow()
     lazy var widgetPlaceMenu = WidgetPlaceMenu { [weak self] in self?.windowModes }
     /// What terminals say by themselves, through Rex and Herdr: what a session is doing, titles and places, and
     /// programs without hooks as fish (TerminalPrograms, RexFish, HerdrFish).
@@ -38,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     let permissions = Permissions()
     let journal = Journal()
     private var outsideButton: NSButton?
-    private var card: SummaryView?
+    private(set) var card: SummaryView?
     /// The fish's card, the request bubble and the keyboard's pick (Cards.swift).
     lazy var cards = Cards(tank: tank, permissions: permissions)
     /// The "Nova sessão…" card while it's open (NewSession.swift).
@@ -141,10 +142,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         window.contentView!.addSubview(labels)
         labelLayers.attach(to: labels, scale: window.backingScaleFactor)
         windowModes = WindowModes(window: window, view: view, labels: labels, tank: tank)
-        windowModes.cardOpen = { [unowned self] in self.cards.isOpen || self.newSessionCard?.isShown == true }
+        windowModes.cardOpen = { [unowned self] in self.cards.isOpen || self.newSessionCard?.isShown == true || self.card != nil }
         windowModes.onDrawingChanged = { [unowned self] in self.visibilityChanged() }
         windowModes.onGo = { [unowned self] id in
-            if let f = self.tank.fish.first(where: { $0.id == id }) { Whereabouts.go(f) }
+            if let f = self.tank.fish.first(where: { $0.id == id }) { Whereabouts.go(f); return }
+            // a plugin's presence: its link, else the notch opens on it
+            let p = self.tank.scene.presences.first { "presence:" + $0.id == id }
+            if let l = p?.link, let u = URL(string: l) { NSWorkspace.shared.open(u) } else { self.windowModes.setNotchOpen(true, hold: 4) }
         }
         windowModes.answers = { [unowned self] f in self.notchAnswers(f) }
         windowModes.onAnswer = { [unowned self] id, action in self.cards.decide(id, action) }
@@ -152,6 +156,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             NowPlaying.playing ? self.tank.fish(source: NowPlaying.source, entity: NowPlaying.entity)?.art : nil
         }
         windowModes.onMenu = { [unowned self] e, v in self.notchMenu(e, v) }
+        windowModes.song = { [unowned self] in
+            guard NowPlaying.playing, let f = self.tank.fish(source: NowPlaying.source, entity: NowPlaying.entity) else { return nil }
+            return (f.id, f.label)
+        }
+        windowModes.peek = { [unowned self] id in self.notchPeek(id) }
+        windowModes.onNewSession = { [unowned self] in self.newSession() }
+        windowModes.onDrop = { [unowned self] text, v, at in self.notchDrop(text, v, at) }
+        windowModes.away = { [unowned self] in self.notchAway() }
+        windowModes.onAway = { [unowned self] in self.windowModes.openLarge(); self.openAwaySummary() }
+        windowModes.onClosed = { [unowned self] in self.card?.close?() }
 
         renderer.frame = { [unowned self] dt in self.frame(dt) }
         renderer.onGPUFrame = { [unowned self] ms, failed in self.packGuard.gpu(ms: ms, failed: failed) }
@@ -218,6 +232,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }
         rexFish.start()
         herdrFish.check()
+        focusFollow.changed = { [unowned self] in self.buildMenu() }
+        focusFollow.start()
         // session, tab and title names change: refresh every so often
         Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [unowned self] _ in
             // Rex and Herdr tell by themselves; a stream that ended (or a Herdr that has just started) is opened here
@@ -555,6 +571,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     private func showOutsideButton() {
         guard let p = journal.pending else { return }
+        // in the notch, the strip tells it instead (WindowModes.away)
+        if windowModes.mode == .notch { statusItem?.button?.title = " 🌙"; return }
         outsideButton?.removeFromSuperview()
         let b = NSButton(title: tr("🌙 Enquanto você estava fora · %@", Journal.duration(p.until.timeIntervalSince(p.since))),
                          target: self, action: #selector(openAwaySummary))
@@ -661,7 +679,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         visual.update(dt: min(dt, 0.05))
         // dressing by the theme turned on or off in the Preferences
         if themeKeeper.dressedWith.on != FishKinds.dressByTheme { themeKeeper.apply() }
-        let sprites = packGuard.filter(visual.sprites() + tank.sprites())
+        // the widget: no visualizer, the water stays calm around who needs you
+        let sprites = packGuard.filter((tank.compact ? [] : visual.sprites()) + tank.sprites())
         // the album art's colors, while music plays: the water's light and the aurora take them, slowly
         let artGoal: Float = AlbumArt.enabled && NowPlaying.playing && AlbumArt.colors != nil ? 1 : 0
         artTint += (artGoal - artTint) * min(1, dt * 0.4)

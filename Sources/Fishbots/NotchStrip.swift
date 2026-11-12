@@ -31,8 +31,13 @@ final class NotchEars: NSView {
         var finished: String?
         /// Who has been working the longest (shown, dim, when there's nothing else to say).
         var workingName: String?
+        /// Back after a while away: what happened meanwhile (a click opens the summary).
+        var away: String?
+        /// The song playing, while its cover shows ("♪ title — artist"; a click brings the player forward).
+        var song: String?
+        var songId: String?
     }
-    enum Hit { case strip, name, action(Int, String) }
+    enum Hit { case strip, name, plus, action(Int, String) }
 
     /// Where the notch is in this view (it moves when the strip grows to the right).
     var notchX: CGFloat = 50 { didSet { needsDisplay = true } }
@@ -59,6 +64,23 @@ final class NotchEars: NSView {
     }
     var onClick: (Hit) -> Void = { _ in }
     var onMenu: (NSEvent) -> Void = { _ in }
+    /// Files or text dropped on the strip (paths quoted, separated by spaces), and where (in this view).
+    var onDrop: (String, NSPoint) -> Void = { _, _ in }
+    /// The mouse is over the strip or it's open: a "+" for a new session shows at the left.
+    var hovering = false {
+        didSet {
+            guard hovering != oldValue else { return }
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+    private var dropping = false { didSet { needsDisplay = true } }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL, .string])
+    }
+    required init?(coder: NSCoder) { fatalError() }
 
     static let maxRight: CGFloat = 340
     private static let swimColor = NSColor(red: 0.45, green: 0.85, blue: 1, alpha: 1)
@@ -86,12 +108,15 @@ final class NotchEars: NSView {
     private static func fishCount(_ c: Content) -> Int { c.working > 0 ? max(1, min(3, c.colors.count)) : 1 }
     private static func showsArt(_ c: Content) -> Bool { c.art != nil && c.working == 0 }
 
-    /// How wide the left side is (from its outer edge to the notch).
-    static func leftWidth(_ c: Content) -> CGFloat {
-        if showsArt(c) { return 50 }
+    static let plusWidth: CGFloat = 22
+
+    /// How wide the left side is (from its outer edge to the notch); `plus`: with room for the "+".
+    static func leftWidth(_ c: Content, plus: Bool = false) -> CGFloat {
+        let extra = plus ? plusWidth : 0
+        if showsArt(c) { return 50 + extra }
         let n = CGFloat(fishCount(c))
         let fish = n * fishSize.width + (n - 1) * 1
-        return max(50, 10 + fish + (c.working > 0 ? 4 + number(c).size().width : 0) + 10)
+        return max(50, 10 + fish + (c.working > 0 ? 4 + number(c).size().width : 0) + 10) + extra
     }
 
     private struct Right {
@@ -130,8 +155,10 @@ final class NotchEars: NSView {
             r.width = min(maxRight, (r.buttons.last?.0.maxX ?? r.name.maxX) + 12)
             return r
         }
+        if let away = c.away { return only(label(compact ? "🌙" : "🌙 " + away, NSColor(white: 1, alpha: 0.85)), max: 280) }
         if let done = c.finished { return only(label(compact ? "✓" : "✓ " + done, doneColor), max: 200) }
         if !compact, let name = c.workingName { return only(label(name, NSColor(white: 1, alpha: 0.45)), max: 160) }
+        if !compact, showsArt(c), let song = c.song { return only(label(song, NSColor(white: 1, alpha: 0.6)), max: 220) }
         return Right(width: leftWidth(c))                // nothing to say: as wide as the left, so the notch looks even
     }
 
@@ -165,6 +192,19 @@ final class NotchEars: NSView {
     /// The right side's origin: its left edge, at the strip's middle.
     private var rightOrigin: NSPoint { NSPoint(x: notchX + notchWidth, y: strip.midY) }
     private func placed(_ r: NSRect) -> NSRect { r.offsetBy(dx: rightOrigin.x, dy: rightOrigin.y) }
+    private var plusRect: NSRect {
+        guard hovering else { return .zero }
+        let s = strip
+        return NSRect(x: notchX - Self.leftWidth(content, plus: true) + 4, y: s.midY - 9, width: 18, height: 18)
+    }
+
+    /// Where the name (or the summary) is, on screen: the peek opens under it.
+    var nameOnScreen: NSRect? {
+        let c = content
+        guard c.who != nil || c.away != nil || (Self.showsArt(c) && c.song != nil), let w = window else { return nil }
+        let r = placed(Self.right(c, compact: compact).name)
+        return w.convertToScreen(convert(r, to: nil))
+    }
 
     // MARK: - clicks
 
@@ -180,14 +220,17 @@ final class NotchEars: NSView {
         if let req = content.request, !compact, let b = r.buttons.first(where: { placed($0.0).insetBy(dx: -2, dy: -4).contains(p) }) {
             onClick(.action(req, b.1.action)); return
         }
-        if content.who != nil, placed(r.name).insetBy(dx: -4, dy: -8).contains(p) { onClick(.name); return }
+        if content.who != nil || content.away != nil || r.text != nil && Self.showsArt(content) && content.song != nil,
+           placed(r.name).insetBy(dx: -4, dy: -8).contains(p) { onClick(.name); return }
+        if hovering, plusRect.insetBy(dx: -3, dy: -6).contains(p) { onClick(.plus); return }
         onClick(.strip)
     }
     override func rightMouseDown(with event: NSEvent) { onMenu(event) }
 
     override func resetCursorRects() {
         let r = Self.right(content, compact: compact)
-        if content.who != nil { addCursorRect(placed(r.name), cursor: .pointingHand) }
+        if content.who != nil || content.away != nil { addCursorRect(placed(r.name), cursor: .pointingHand) }
+        if hovering { addCursorRect(plusRect, cursor: .pointingHand) }
         for b in r.buttons { addCursorRect(placed(b.0), cursor: .pointingHand) }
     }
 
@@ -198,6 +241,16 @@ final class NotchEars: NSView {
         let s = strip
         let leftW = Self.leftWidth(c)
         let left = NSRect(x: notchX - leftW, y: s.minY, width: leftW, height: s.height)
+
+        // dragging something over it: a ring says it can be dropped here
+        if dropping {
+            NSColor(red: 0.45, green: 0.85, blue: 1, alpha: 0.9).setStroke()
+            let ring = NSBezierPath(roundedRect: s.insetBy(dx: 1.5, dy: 1.5), xRadius: 9, yRadius: 9)
+            ring.lineWidth = 1.5
+            ring.stroke()
+        }
+        // the egg for a new session, on hover (the new session's card rises from the tank's clutch of eggs too)
+        if hovering { Self.drawEgg(in: plusRect) }
 
         // left: the fish (layers, they swim on their own) or the cover, then how many work
         if Self.showsArt(c) {
@@ -225,6 +278,67 @@ final class NotchEars: NSView {
             let bt = Self.buttonText(a), ts = bt.size()
             bt.draw(at: NSPoint(x: b.midX - ts.width / 2, y: b.midY - ts.height / 2))
         }
+    }
+
+    /// A little egg: cream going peach, a few speckles, a shine, and a tiny "+" on a mint badge.
+    private static func drawEgg(in r: NSRect) {
+        let w: CGFloat = 12, h: CGFloat = 15
+        let cx = r.midX - 1, y0 = r.midY - h / 2
+        let egg = NSBezierPath()
+        egg.move(to: NSPoint(x: cx, y: y0))
+        egg.curve(to: NSPoint(x: cx + w / 2, y: y0 + h * 0.42), controlPoint1: NSPoint(x: cx + w * 0.3, y: y0),
+                  controlPoint2: NSPoint(x: cx + w / 2, y: y0 + h * 0.18))
+        egg.curve(to: NSPoint(x: cx, y: y0 + h), controlPoint1: NSPoint(x: cx + w / 2, y: y0 + h * 0.75),
+                  controlPoint2: NSPoint(x: cx + w * 0.28, y: y0 + h))
+        egg.curve(to: NSPoint(x: cx - w / 2, y: y0 + h * 0.42), controlPoint1: NSPoint(x: cx - w * 0.28, y: y0 + h),
+                  controlPoint2: NSPoint(x: cx - w / 2, y: y0 + h * 0.75))
+        egg.curve(to: NSPoint(x: cx, y: y0), controlPoint1: NSPoint(x: cx - w / 2, y: y0 + h * 0.18),
+                  controlPoint2: NSPoint(x: cx - w * 0.3, y: y0))
+        egg.close()
+        NSGradient(starting: NSColor(red: 1, green: 0.97, blue: 0.9, alpha: 1),
+                   ending: NSColor(red: 1, green: 0.78, blue: 0.7, alpha: 1))?.draw(in: egg, angle: -90)
+        // speckles
+        NSColor(red: 0.93, green: 0.55, blue: 0.5, alpha: 0.55).setFill()
+        for (dx, dy, d) in [(-2.2, 4.0, 1.6), (1.8, 6.5, 1.2), (2.4, 2.2, 1.4), (-1.0, 9.5, 1.0)] as [(CGFloat, CGFloat, CGFloat)] {
+            NSBezierPath(ovalIn: NSRect(x: cx + dx - d / 2, y: y0 + dy - d / 2, width: d, height: d)).fill()
+        }
+        // shine
+        NSColor(white: 1, alpha: 0.75).setFill()
+        NSBezierPath(ovalIn: NSRect(x: cx - 3.6, y: y0 + h * 0.6, width: 2.4, height: 3.6)).fill()
+        // the "+" badge
+        let b = NSRect(x: cx + 2.6, y: y0 - 1.2, width: 7, height: 7)
+        NSColor(red: 0.42, green: 0.88, blue: 0.75, alpha: 1).setFill()
+        NSBezierPath(ovalIn: b).fill()
+        NSColor(red: 0.04, green: 0.2, blue: 0.18, alpha: 1).setStroke()
+        let plus = NSBezierPath()
+        plus.lineWidth = 1.1
+        plus.lineCapStyle = .round
+        plus.move(to: NSPoint(x: b.midX - 1.8, y: b.midY)); plus.line(to: NSPoint(x: b.midX + 1.8, y: b.midY))
+        plus.move(to: NSPoint(x: b.midX, y: b.midY - 1.8)); plus.line(to: NSPoint(x: b.midX, y: b.midY + 1.8))
+        plus.stroke()
+    }
+
+    // MARK: - drop
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dropping = true
+        return .copy
+    }
+    override func draggingExited(_ sender: NSDraggingInfo?) { dropping = false }
+    override func draggingEnded(_ sender: NSDraggingInfo) { dropping = false }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        dropping = false
+        let pb = sender.draggingPasteboard
+        var text = ""
+        if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
+            text = urls.map { $0.path.contains(" ") ? "'" + $0.path + "'" : $0.path }.joined(separator: " ")
+        } else if let s = pb.string(forType: .string) {
+            text = s
+        }
+        guard !text.isEmpty else { return false }
+        onDrop(text, convert(sender.draggingLocation, from: nil))
+        return true
     }
 
     // MARK: - the fish

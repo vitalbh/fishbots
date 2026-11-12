@@ -29,8 +29,22 @@ final class WindowModes {
     var onAnswer: (Int, String) -> Void = { _, _ in }
     /// The album's cover, while music plays.
     var cover: () -> CGImage? = { nil }
+    /// The music fish, while a song plays: its id and "♪ title — artist".
+    var song: () -> (id: String, name: String)? = { nil }
     /// Right click on the notch.
     var onMenu: (NSEvent, NSView) -> Void = { _, _ in }
+    /// What who needs you asked (the question, the command it wants to run…), shown under the name on hover.
+    var peek: (String) -> String? = { _ in nil }
+    /// The "+" on the strip: a new session.
+    var onNewSession: () -> Void = {}
+    /// Files or text dropped on the strip: to which session (a menu at that point of the view).
+    var onDrop: (String, NSView, NSPoint) -> Void = { _, _, _ in }
+    /// Back after a while away: what happened meanwhile, in a line (nil: nothing to tell).
+    var away: () -> String? = { nil }
+    /// That line was clicked: the full summary.
+    var onAway: () -> Void = {}
+    /// The notch closed (what was open inside it closes too).
+    var onClosed: () -> Void = {}
 
     private var normalFrame: NSRect?
     private var levelBefore: NSWindow.Level = .normal
@@ -120,6 +134,15 @@ final class WindowModes {
         set { UserDefaults.standard.set(newValue, forKey: "widgetSize") }
     }
     private static var openSize: NSSize { sizes.first { $0.id == size }?.size ?? sizes[1].size }
+    /// Opened for something bigger than the tank (the summary): this size until it closes.
+    private var sizeOverride: NSSize?
+
+    /// Opens big (the largest size) until it closes, for a card that needs the room.
+    func openLarge() {
+        guard mode == .notch else { return }
+        sizeOverride = Self.sizes.last?.size
+        if notchOpen { layoutNotch(open: true, animate: true) } else { setNotchOpen(true, hold: 4) }
+    }
 
     /// The size changed in the Preferences: an open notch takes it now.
     func sizeChanged() {
@@ -254,11 +277,13 @@ final class WindowModes {
     private var ears: NotchEars?
     private var closedFrame: NSRect {
         let c = ears?.content ?? .init()
-        return notch?.closed(left: NotchEars.leftWidth(c), right: NotchEars.rightWidth(c, compact: ears?.compact ?? false)) ?? .zero
+        return notch?.closed(left: NotchEars.leftWidth(c, plus: ears?.hovering ?? false),
+                             right: NotchEars.rightWidth(c, compact: ears?.compact ?? false)) ?? .zero
     }
     private var openFrame: NSRect {
         let c = ears?.content ?? .init()
-        return notch?.opened(Self.openSize, ears: max(NotchEars.leftWidth(c), NotchEars.rightWidth(c, compact: false))) ?? .zero
+        return notch?.opened(sizeOverride ?? Self.openSize,
+                             ears: max(NotchEars.leftWidth(c, plus: true), NotchEars.rightWidth(c, compact: false))) ?? .zero
     }
     /// The Mac's own notch (not one drawn on another monitor): there the strip keeps narrow, off the menu bar's icons.
     private var realNotch: Bool { (notch?.screen.safeAreaInsets.top ?? 0) > 0 }
@@ -313,6 +338,7 @@ final class WindowModes {
         e.animated = Self.animated
         e.onClick = { [weak self] hit in self?.clicked(hit) }
         e.onMenu = { [weak self, weak e] ev in if let self, let e { self.onMenu(ev, e) } }
+        e.onDrop = { [weak self, weak e] text, at in if let self, let e { self.onDrop(text, e, at) } }
         needIds = nil
         lastStates = [:]
         finished = nil
@@ -363,6 +389,7 @@ final class WindowModes {
         labels.isHidden = !open
         ears?.open = open
         ears?.compact = !open && realNotch && !mouseOver
+        ears?.hovering = open || mouseOver
         if animate {
             NSAnimationContext.runAnimationGroup { c in
                 c.duration = 0.2
@@ -385,8 +412,9 @@ final class WindowModes {
         guard open != notchOpen else { return }
         notchOpen = open
         mouseSince = nil
+        if !open { sizeOverride = nil; hidePeek() }
         layoutNotch(open: open, animate: true)
-        if !open { giveKeyboardBack() }
+        if !open { giveKeyboardBack(); onClosed() }
         onDrawingChanged()
     }
 
@@ -404,6 +432,7 @@ final class WindowModes {
         guard hide != hiddenForFullScreen else { return }
         hiddenForFullScreen = hide
         if hide && notchOpen { setNotchOpen(false) }
+        if hide { hidePeek() }
         window.alphaValue = hide ? 0 : 1
         window.ignoresMouseEvents = hide
     }
@@ -433,9 +462,11 @@ final class WindowModes {
         if over != mouseOver {
             mouseOver = over
             ears?.compact = !notchOpen && realNotch && !over
+            ears?.hovering = notchOpen || over
             if !notchOpen { layoutNotch(open: false, animate: true) }
         }
         refreshEars()
+        updatePeek(m)
         // opening with a click: the mouse alone doesn't open it (it still closes when the mouse goes away)
         if !notchOpen && Self.opensOnClick { mouseSince = nil; return }
         let inside = notchOpen ? openFrame.insetBy(dx: -8, dy: -8).contains(m) || cardOpen() || Date() < heldOpenUntil
@@ -454,7 +485,11 @@ final class WindowModes {
     private func clicked(_ hit: NotchEars.Hit) {
         switch hit {
         case .action(let id, let a): onAnswer(id, a); return
-        case .name: if let id = ears?.content.whoId { onGo(id); return }
+        case .plus: onNewSession(); return
+        case .name:
+            if let id = ears?.content.whoId { onGo(id); return }
+            if ears?.content.away != nil { onAway(); return }
+            if let id = ears?.content.songId { onGo(id); return }
         case .strip: break
         }
         if !notchOpen { setNotchOpen(true); takeKeyboard() } else if Self.opensOnClick { setNotchOpen(false) }
@@ -475,21 +510,27 @@ final class WindowModes {
     private func refreshEars() {
         guard let ears, mode == .notch else { return }
         let live = tank.fish.filter { !$0.decor && !$0.leaving && $0.source != NowPlaying.source }
-        // who needs you: errors and alerts first, then the longest waiting
-        let needs = live.filter { [.waiting, .error, .alert].contains($0.state) }
+        // who needs you, sessions and the plugins' presences alike: errors and alerts first, then the longest waiting
+        struct Need { let id: String; let name: String; let state: State; let since: Double; let fish: Fish? }
+        let needs = (live.filter { [.waiting, .error, .alert].contains($0.state) }
+                        .map { Need(id: $0.id, name: $0.displayTitle ?? $0.label, state: $0.state, since: $0.since, fish: $0) }
+                     + tank.scene.needingYou().map { Need(id: "presence:" + $0.id, name: $0.label, state: $0.state, since: $0.since, fish: nil) })
             .sorted { ($0.state != .waiting ? 0 : 1, $0.since) < ($1.state != .waiting ? 0 : 1, $1.since) }
         let busy = live.filter { $0.state == .busy }
         var c = NotchEars.Content(working: busy.count)
         c.colors = busy.prefix(3).map { NSColor(red: CGFloat($0.color.x), green: CGFloat($0.color.y), blue: CGFloat($0.color.z), alpha: 1) }
-        if busy.isEmpty { c.art = cover() }
+        if busy.isEmpty {
+            c.art = cover()
+            if c.art != nil, let s = song() { c.song = s.name; c.songId = s.id }
+        }
         if let longest = busy.min(by: { $0.since < $1.since }) { c.workingName = longest.displayTitle ?? longest.label }
-        if let f = needs.first {
-            c.who = f.displayTitle ?? f.label
-            c.whoId = f.id
-            c.urgent = f.state != .waiting
+        if let n = needs.first {
+            c.who = n.name
+            c.whoId = n.id
+            c.urgent = n.state != .waiting
             c.more = needs.count - 1
-            c.waited = Int((tank.time - f.since) / Tank.scale / 60)
-            if f.state == .waiting, let (req, actions) = answers(f) { c.request = req; c.actions = actions }
+            c.waited = Int((tank.time - n.since) / Tank.scale / 60)
+            if n.state == .waiting, let f = n.fish, let (req, actions) = answers(f) { c.request = req; c.actions = actions }
         }
         // who went from working to done: "✓ name" for a few seconds
         for f in live where lastStates[f.id] == .busy && f.state == .done {
@@ -497,10 +538,11 @@ final class WindowModes {
         }
         lastStates = Dictionary(live.map { ($0.id, $0.state) }, uniquingKeysWith: { a, _ in a })
         if let d = finished, Date() < d.until { c.finished = d.name } else { finished = nil }
+        c.away = away()
 
         let before = ears.content
         ears.update(c)
-        let grew = NotchEars.leftWidth(c) != NotchEars.leftWidth(before)
+        let grew = NotchEars.leftWidth(c, plus: ears.hovering) != NotchEars.leftWidth(before, plus: ears.hovering)
             || NotchEars.rightWidth(c, compact: ears.compact) != NotchEars.rightWidth(before, compact: ears.compact)
         if grew && (!notchOpen || openFrame.width != window.frame.width) { layoutNotch(open: notchOpen, animate: true) }
         // someone new needs you: the strip pulses
@@ -510,6 +552,67 @@ final class WindowModes {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { ears.pulse(urgent: c.urgent) }   // after the strip grew
         }
         needIds = ids
+    }
+
+    // MARK: - peek
+
+    private var peekPanel: NSPanel?
+    private var peekLabel: NSTextField?
+    private var peekSince: Date?
+    private var peekShown: String?
+
+    /// The mouse rests on the name of who needs you: what it asked shows under the strip.
+    private func updatePeek(_ m: NSPoint) {
+        guard let ears, let r = ears.nameOnScreen, r.insetBy(dx: -4, dy: -6).contains(m),
+              let id = ears.content.whoId, let text = peek(id), !text.isEmpty else { hidePeek(); return }
+        if peekShown == id { return }
+        let since = peekSince ?? Date()
+        peekSince = since
+        guard Date().timeIntervalSince(since) > 0.3, let n = notch else { return }
+        showPeek(text, at: r.minX - 10, below: n.rect.minY - 6, on: n.screen)
+        peekShown = id
+    }
+
+    private func showPeek(_ text: String, at x: CGFloat, below top: CGFloat, on screen: NSScreen) {
+        let panel = peekPanel ?? {
+            let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            p.isOpaque = false
+            p.backgroundColor = .clear
+            p.hasShadow = true
+            p.level = .statusBar
+            p.ignoresMouseEvents = true
+            p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+            let box = NSView()
+            box.wantsLayer = true
+            box.layer?.backgroundColor = NSColor(white: 0.06, alpha: 0.96).cgColor
+            box.layer?.cornerRadius = 10
+            let l = NSTextField(wrappingLabelWithString: "")
+            l.font = .systemFont(ofSize: 12)
+            l.textColor = NSColor(white: 1, alpha: 0.9)
+            box.addSubview(l)
+            p.contentView = box
+            peekPanel = p
+            peekLabel = l
+            return p
+        }()
+        guard let l = peekLabel else { return }
+        let shown = text.count > 400 ? String(text.prefix(399)) + "…" : text
+        l.stringValue = shown
+        l.preferredMaxLayoutWidth = 360
+        let fit = l.fittingSize
+        let size = NSSize(width: min(380, fit.width) + 24, height: fit.height + 16)
+        l.frame = NSRect(x: 12, y: 8, width: size.width - 24, height: fit.height)
+        let vf = screen.frame
+        let left = max(vf.minX + 8, min(x, vf.maxX - size.width - 8))
+        panel.setFrame(NSRect(x: left, y: top - size.height, width: size.width, height: size.height), display: true)
+        panel.orderFrontRegardless()
+    }
+
+    private func hidePeek() {
+        peekSince = nil
+        guard peekShown != nil else { return }
+        peekShown = nil
+        peekPanel?.orderOut(nil)
     }
 }
 

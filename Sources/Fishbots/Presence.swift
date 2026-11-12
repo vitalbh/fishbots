@@ -103,3 +103,19 @@ final class Presence {
     /// The little shake when it goes into error (the label shakes along).
     var shakeOffset: SIMD2<Float> { shake > 0 ? [sinf(phase * 40) * 3 * shake, 0] : .zero }
 }
+
+extension Scene {
+    /// How many presences the widget's small tank shows at most.
+    static let widgetRoom = 3
+
+    /// The presences that need you, the most pressing first: errors, then alerts, then waiting; the newest first
+    /// within each.
+    func needingYou() -> [Presence] {
+        func rank(_ s: State) -> Int { s == .error ? 0 : s == .alert ? 1 : 2 }
+        return presences.filter { $0.needsYou && !$0.leaving }
+            .sorted { (rank($0.state), -$0.since) < (rank($1.state), -$1.since) }
+    }
+
+    /// In the widget, only the few presences that need you most show (the rest are counted on the notch).
+    func shownInWidget() -> Set<String> { Set(needingYou().prefix(Self.widgetRoom).map(\.id)) }
+}

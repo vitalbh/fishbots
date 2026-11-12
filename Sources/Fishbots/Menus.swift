@@ -451,4 +451,56 @@ extension AppDelegate {
         unmuteTimer = nil
         synth.muted.store(false, ordering: .relaxed)
     }
+
+    /// What who needs you asked, for the peek under the notch: the permission's command, the question with its
+    /// answers, what it last said; a presence's detail.
+    func notchPeek(_ id: String) -> String? {
+        if let f = tank.fish.first(where: { $0.id == id }) {
+            if let r = permissions.request(ofFish: f.id) { return r.question?.asText ?? r.tool + ": " + r.summary }
+            return f.asked ?? f.lastReply
+        }
+        guard let p = tank.scene.presences.first(where: { "presence:" + $0.id == id }) else { return nil }
+        return p.detail.map { p.label + "\n" + $0 }
+    }
+
+    /// Files or text dropped on the notch: a menu of the sessions that take a reply (who's waiting first), and it
+    /// goes to the one picked, as a reply.
+    func notchDrop(_ text: String, _ v: NSView, _ at: NSPoint) {
+        let all = tank.fish.filter { !$0.decor && !$0.leaving && $0.isAgent && cards.canReply($0) }
+        let list = all.filter { $0.state == .waiting } + all.filter { $0.state != .waiting }.sorted { $0.seen > $1.seen }
+        guard !list.isEmpty else {
+            tank.notice = (tr("nenhuma sessão recebe isso agora"), tank.time)
+            NSSound.beep()
+            return
+        }
+        let m = NSMenu()
+        m.addItem(withTitle: tr("Mandar para…"), action: nil, keyEquivalent: "").isEnabled = false
+        for f in list.prefix(12) {
+            let i = NSMenuItem(title: (f.state == .waiting ? "✋ " : "") + (f.displayTitle ?? f.label), action: #selector(sendDropped(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = [f.id, text]
+            m.addItem(i)
+        }
+        m.popUp(positioning: nil, at: at, in: v)
+    }
+
+    @objc func sendDropped(_ i: NSMenuItem) {
+        guard let pair = i.representedObject as? [String], pair.count == 2,
+              let f = tank.fish.first(where: { $0.id == pair[0] }) else { return }
+        cards.sendReply(f, pair[1])
+    }
+
+    /// Back after a while away, in the notch: what happened meanwhile in a line, for 3 minutes or until clicked.
+    func notchAway() -> String? {
+        guard let p = journal.pending, Date().timeIntervalSince(p.until) < 180 else { return nil }
+        let list = journal.between(p.since, p.until)
+        var parts: [String] = []
+        let done = list.filter { $0.kind == .done }.count, errors = list.filter { $0.kind == .error }.count
+        if done > 0 { parts.append(done == 1 ? tr("1 terminou") : tr("%d terminaram", done)) }
+        if errors > 0 { parts.append(errors == 1 ? tr("1 erro") : tr("%d erros", errors)) }
+        let waiting = tank.fish.filter { !$0.decor && !$0.leaving && $0.state == .waiting }.count
+        if waiting > 0 { parts.append(tr("%d esperando", waiting)) }
+        let head = tr("fora %@", Journal.duration(p.until.timeIntervalSince(p.since)))
+        return ([head] + parts).joined(separator: " · ")
+    }
 }

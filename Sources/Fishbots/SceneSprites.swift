@@ -21,8 +21,9 @@ extension Scene {
         var out: [Sprite] = []
         let lit = 0.55 + 0.45 * t.light
         let pulse = 0.5 + 0.5 * sinf(Float(t.time) * 4)
-        // (the lights on the side glass are in front of whatever swims by)
-        for p in presences where ((p.state == .waiting && !p.leaving) || p.kind.motion == .glass) == front && (!t.compact || p.needsYou) {
+        // (the lights on the side glass are in front of whatever swims by; the widget shows only a few, see shownInWidget)
+        let widget = t.compact ? shownInWidget() : nil
+        for p in presences where ((p.state == .waiting && !p.leaving) || p.kind.motion == .glass) == front && (widget?.contains(p.id) ?? true) {
             let dress = dressed(p)
             var c = p.color ?? dress?.color ?? p.kind.color
             var glow: Float = 0

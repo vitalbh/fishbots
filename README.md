@@ -28,8 +28,8 @@ Keys and shortcuts:
 - Closing the window doesn't quit: the aquarium stays in the **menu bar** (🐠, with whoever is waiting for you).
 
 **Widget mode (W):** the aquarium moves into the Mac's notch, or into a notch drawn at the top of another monitor (hidden while an app is full screen there), always on top and on every Space; the app comes back in it after a restart.
-- **Closed:** on the left, a fish per working session (up to three, in each one's color) and how many work, or the album's cover while music plays and nobody works; a thin light runs along the bottom while anyone works. On the right, who needs you (✋, or ✕ for an error) and for how long, with **Allow / Deny** or a short question's answers right there; for a few seconds, ✓ who just finished; otherwise, dim, who has been working longest. On the Mac's own notch the right side only shows the count until the mouse is over it, so it stays off the menu bar's icons. Someone new needing you makes the strip pulse.
-- **Click the name** to go to that session's terminal. **Mouse over** (or a click, in Preferences) opens a small tank below the notch showing only who needs you; clicking the strip also takes the keyboard (**Tab** through who's waiting, **Enter** to their terminal, **Esc** closes and gives the keyboard back).
+- **Closed:** on the left, a fish per working session (up to three, in each one's color) and how many work, or the album's cover (and the song on the right) while music plays and nobody works; a thin light runs along the bottom while anyone works. On the right, who needs you, a session or a plugin's presence (✋, or ✕ for an error) and for how long, with what it asked showing under the name when the mouse rests on it, with **Allow / Deny** or a short question's answers right there; back from a while away, what happened meanwhile (a click opens the summary); for a few seconds, ✓ who just finished; otherwise, dim, who has been working longest. On the Mac's own notch the right side only shows the count until the mouse is over it, so it stays off the menu bar's icons. Someone new needing you makes the strip pulse.
+- **Click the name** to go to that session's terminal (a presence: its link). **+** (on hover) starts a new session. **Drop files or text** on the strip to send them to a session as a reply (a menu picks which, who's waiting first). **Mouse over** (or a click, in Preferences) opens a small tank below the notch showing only who needs you, in calm water (no schools, visitors, pearls or visualizer; at most three presences, the rest counted on the strip); clicking the strip also takes the keyboard (**Tab** through who's waiting, **Enter** to their terminal, **Esc** closes and gives the keyboard back).
 - **Right-click** the strip: focus mode, silence for an hour, animations on/off (off by default with macOS's Reduce motion), where the widget goes, back to the window.
 - Preferences → Appearance → Widget: the monitor (or the old little window in the corner, where dragging the water moves it), opening with the mouse or a click, and the open size.
 
@@ -266,7 +266,7 @@ The default is `*:waiting` and `*:error` at attention, and `github:error` at amb
 {"attention": {"claude-code:waiting": "urgent", "github:*": "ambient"}}
 ```
 
-**Focus mode** (**S**) silences the background music, and only what needs attention plays.
+**Focus mode** (**S**) silences the background music, and only what needs attention plays. It also turns on by itself while a macOS Focus is on (Do Not Disturb, Work, Sleep…, by hand or on a schedule) and off when that Focus ends, unless you had turned it on yourself (Preferências → Atenção).
 
 ### Webhooks and menu actions
 

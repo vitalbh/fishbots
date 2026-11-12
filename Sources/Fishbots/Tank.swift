@@ -552,11 +552,11 @@ final class Tank {
         return days > 60 ? 2 : days > 14 ? 1 : 0
     }
 
-    /// Widget mode: only who needs you shows (the rest keeps swimming, hidden).
+    /// Widget mode: only who needs you shows (the rest keeps swimming, hidden, and the schools stay out of sight).
     var compact = false
 
     func isHidden(_ f: Fish) -> Bool {
-        compact && !f.decor && ![.waiting, .error, .alert].contains(f.state)
+        compact && (f.decor || ![.waiting, .error, .alert].contains(f.state))
     }
 
     // MARK: - interaction
