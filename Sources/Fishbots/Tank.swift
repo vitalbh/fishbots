@@ -553,14 +553,16 @@ final class Tank {
         return days > 60 ? 2 : days > 14 ? 1 : 0
     }
 
-    /// Widget mode: only who needs you shows (the rest keeps swimming, hidden). The theme's schools and the music fish
-    /// stay out of sight too, except while no session needs you: an empty tank is a dead one, so they have it until one does.
+    /// Widget mode: who needs you and the sessions at work show (the rest keeps swimming, hidden). The theme's schools
+    /// and the music fish stay out of sight too, except while no session needs you: an empty tank is a dead one.
     var compact = false
 
     func isHidden(_ f: Fish) -> Bool {
         guard compact else { return false }
         // (the music fish is company too, not work: it's there with the schools while nobody needs you)
-        return f.decor || f.source == NowPlaying.source ? !widgetCalm : ![.waiting, .error, .alert].contains(f.state)
+        if f.decor || f.source == NowPlaying.source { return !widgetCalm }
+        // who needs you, and the agent sessions at work right now (the notch counts them: their fish should be there)
+        return !([.waiting, .error, .alert].contains(f.state) || (f.isAgent && f.state == .busy))
     }
 
     /// Widget mode with no agent session needing you. What a plugin brings and needs you (a presence, or a fish of its
