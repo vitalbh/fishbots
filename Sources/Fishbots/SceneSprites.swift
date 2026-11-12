@@ -105,6 +105,10 @@ extension Scene {
                 // (alpha above 1.5: rusted)
                 out.append(Sprite(pos: pos + [0, p.kind.size * 1.0], dir: [1, 0], size: p.kind.size, kind: 31, glow: glow,
                                   phase: p.spin + wobble, color: SIMD4(c, a + 2 * variant(p)), extra: [1, hub.x * lit, hub.y * lit, hub.z * lit]))
+            case 47:     // the moray in its burrow (extra.y: how far out of it)
+                // (its rock sits a little into the sand)
+                out.append(Sprite(pos: pos + [0, p.kind.size * 0.78], dir: [1, 0], size: p.kind.size, kind: 47, glow: glow,
+                                  phase: p.phase * (p.state == .busy ? 1.8 : 1), color: SIMD4(c, a), extra: [1, p.swell, 0, 0], aux: [1, 1, 0, 0]))
             case 23:     // chest: glows when done or waiting
                 let open: Float = p.state == .done || p.state == .waiting ? 1 : 0.25
                 out.append(Sprite(pos: pos + [0, p.kind.size * 0.55], dir: [1, 0], size: p.kind.size, kind: 23, glow: open, phase: Float(t.time),

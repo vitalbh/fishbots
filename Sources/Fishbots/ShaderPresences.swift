@@ -364,6 +364,57 @@ float4 draw_pilot(float2 c, float level, float4 col, float3 lamp) {
     return float4((bezelC * inB + domeC * inD + lamp * halo) * col.a, (inside + halo * 0.5) * col.a);
 }
 
+// moray (47): the resident assistant's. A rock on the sand with a burrow in it and a moray living there: `reach`
+// (0…1) is how far out it is, just its snout at the door while it rests, out and swaying when it has something to
+// say. It gapes slowly, as morays do. The ground is at c.y = -0.9; `col` is its skin, lit.
+float4 draw_moray(float2 c, float phase, float glow, float4 col, float reach) {
+    float lit = dot(col.rgb, float3(0.333)) / 0.46;
+    // the rock: a lumpy mound, flat on the sand
+    float lump = vnoise(c * 3.0 + 3.0) * 0.07 + vnoise(c * 8.0) * 0.025;
+    float rock = (length((c - float2(-0.12, -0.66)) / float2(0.8, 0.5)) - 1.0) * 0.5 - lump;
+    rock = max(rock, -(c.y + 0.98));
+    float2 door = float2(0.08, -0.5);
+    float hole = (length((c - door) / float2(0.25, 0.21)) - 1.0) * 0.21;
+    // the moray: from the door up and forward along a curve, swaying
+    float sway = sin(phase * 1.3) * 0.07 * reach;
+    float2 tip = door + float2(0.4 + sway, 0.8) * reach + float2(0.1, 0.03);
+    float2 mid = door + float2(-0.1 - sway * 0.6, 0.5) * reach;
+    float body = 1e3, along = 0.0;
+    for (int i = 0; i < 8; i++) {
+        float t0 = float(i) / 8.0, t1 = float(i + 1) / 8.0;
+        float2 a = mix(mix(door, mid, t0), mix(mid, tip, t0), t0);
+        float2 b = mix(mix(door, mid, t1), mix(mid, tip, t1), t1);
+        float ds = sd_seg(c, a, b) - (0.12 + 0.02 * t1);
+        if (ds < body) { body = ds; along = t1; }
+    }
+    // the head: a blunt snout past the tip, pointing where the neck goes
+    float2 fwd = normalize(tip - mid + float2(1e-3, 0.0));
+    float2 hp = float2(dot(c - tip, fwd), dot(c - tip, float2(-fwd.y, fwd.x)));
+    float head = (length((hp - float2(0.07, 0.0)) / float2(0.25, 0.15)) - 1.0) * 0.15;
+    float eel = smin_k(body, head, 0.05);
+    float d = min(rock, eel);
+    float aa = fwidth(d) + 1e-4;
+    float3 rc = float3(0.3, 0.3, 0.31) * (0.75 + 0.4 * vnoise(c * 7.0 + 1.7)) * (0.6 + 0.6 * smoothstep(-0.95, -0.15, c.y)) * lit;
+    rc = mix(rc, float3(0.2, 0.27, 0.2) * lit, smoothstep(0.5, 0.75, vnoise(c * 5.0 + 9.0)) * smoothstep(-0.6, -0.25, c.y) * 0.6);   // moss on top
+    rc *= 0.75 + 0.25 * smoothstep(0.0, 0.08, hole);                                       // the door's rim, in shade
+    rc = mix(rc, float3(0.012, 0.018, 0.028), 1.0 - smoothstep(-0.02, 0.02, hole));       // the burrow's dark
+    // skin: round, lit from above, mottled; it comes out of the dark
+    float roundness = clamp(-eel / 0.13, 0.0, 1.0);
+    float3 sk = col.rgb * (0.5 + 0.65 * sqrt(roundness));
+    sk = mix(sk, sk * 0.45, smoothstep(0.5, 0.7, vnoise(c * 14.0 + 5.0)) * 0.65);
+    sk += col.rgb * 0.35 * smoothstep(0.0, 0.1, hp.y) * step(head, 0.02);                  // the top of the head
+    sk *= mix(0.12, 1.0, smoothstep(0.0, 0.3, along + step(head, 0.0)));
+    // a yellow eye with a dark pupil, and the mouth, opening and closing slowly
+    float eye = length(hp - float2(0.13, 0.055));
+    sk = mix(sk, float3(0.95, 0.8, 0.3) * lit, 1.0 - smoothstep(0.036, 0.05, eye));
+    sk = mix(sk, float3(0.02), 1.0 - smoothstep(0.014, 0.024, eye));
+    float gape = 0.007 + 0.014 * (0.5 + 0.5 * sin(phase * 1.7));
+    float mouth = sd_seg(hp, float2(0.3, -0.035), float2(0.08, -0.06)) - gape;
+    sk = mix(sk, float3(0.04, 0.02, 0.02), (1.0 - smoothstep(0.0, 0.012, mouth)) * step(head, 0.0));
+    float inEel = 1.0 - smoothstep(-aa, aa, eel);
+    return presence_out(d, mix(rc, sk, inEel), glow, col.rgb, col.a, c);
+}
+
 float4 draw_presence(int kind, float2 c, float phase, float glow, float4 col, float4 extra) {
     switch (kind) {
         case 25: return draw_shark(c, phase, glow, col, extra.z);   // extra.z: 1 is the hammerhead

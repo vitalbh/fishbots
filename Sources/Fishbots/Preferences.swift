@@ -26,6 +26,8 @@ final class Prefs: ObservableObject {
         var refreshFish: () -> Void
         var chooseWidgetPlace: (String) -> Void
         var widgetSizeChanged: () -> Void
+        /// The assistant was turned on or off, or got another brain: its creature comes or goes.
+        var assistantChanged: () -> Void
         var plugins: () -> [(name: String, ok: Bool, detail: String)]
     }
     let a: Actions
@@ -55,6 +57,7 @@ struct PrefsView: View {
             LookTab(prefs: prefs).tabItem { Label(tr("Aparência"), systemImage: "paintpalette") }.tag(1)
             AttentionTab(prefs: prefs).tabItem { Label(tr("Atenção"), systemImage: "bell.badge") }.tag(2)
             ExtrasTab(prefs: prefs).tabItem { Label(tr("Plugins e pacotes"), systemImage: "puzzlepiece.extension") }.tag(3)
+            AssistantTab(prefs: prefs).tabItem { Label(tr("Assistente"), systemImage: "bubble.left.and.text.bubble.right") }.tag(4)
         }
         .frame(width: 560, height: 470)
     }
@@ -183,6 +186,11 @@ private struct GeneralTab: View {
                         }
                     }
                     Text(tr("Vale para todos os peixes do agente, menos nos projetos onde você escolheu o peixe no menu dele. Um peixe escolhido aqui não é vestido pelo tema."))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                DisclosureGroup(tr("Linha de comando de cada agente")) {
+                    ForEach(AgentCLIRow.agents, id: \.id) { AgentCLIRow(prefs: prefs, agent: $0.id, name: $0.name, usual: $0.usual) }
+                    Text(tr("Como o aquário chama o agente quando é ele quem abre: uma nova sessão num terminal e o assistente. Um alias do seu shell não chega até aí; escreva aqui o que ele fazia (o binário, parâmetros, variáveis como CLAUDE_CONFIG_DIR=~/.claude-trabalho). Em branco: o comando de sempre."))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 HStack {
@@ -398,6 +406,116 @@ private struct ExtrasTab: View {
                 ForEach(Packs.problems, id: \.self) { Text(tr("⚠︎ ") + $0).font(.footnote).foregroundStyle(.orange) }
                 Button(tr("Abrir a pasta de pacotes")) { NSWorkspace.shared.open(Packs.folder) }
                 Text(tr("Pacotes novos entram ao reabrir o app.")).font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// One agent's command line (AgentCLIs): the binary, extra parameters and variables.
+private struct AgentCLIRow: View {
+    static let agents: [(id: String, name: String, usual: String)] = [("claude-code", "Claude Code", "claude"), ("codex", "Codex", "codex")]
+    @ObservedObject var prefs: Prefs
+    let agent: String
+    let name: String
+    let usual: String
+
+    private func field(_ title: String, _ hint: String, _ path: WritableKeyPath<AgentCLI, String>) -> some View {
+        TextField(title, text: prefs.bind({ AgentCLIs.settings(agent)[keyPath: path] },
+                                          { var c = AgentCLIs.settings(agent); c[keyPath: path] = $0; AgentCLIs.set(agent, c) }),
+                  prompt: Text(hint))
+            .font(.system(.body, design: .monospaced))
+    }
+
+    var body: some View {
+        Text(name).font(.headline)
+        field(tr("Binário"), usual, \.binary)
+        field(tr("Parâmetros"), "", \.arguments)
+        field(tr("Variáveis"), "NOME=valor", \.environment)
+    }
+}
+
+private struct AssistantTab: View {
+    @ObservedObject var prefs: Prefs
+    @SwiftUI.State var newRule = ""       // (`State` alone is the fish's)
+
+    /// A rule written by hand: a tool's name as it is (one capitalized word, or a connector's "mcp__…"), anything
+    /// else a program or the start of a command.
+    private func addRule() {
+        let words = newRule.split(separator: " ").map(String.init)
+        guard let first = words.first else { return }
+        let tool = words.count == 1 && (first.hasPrefix("mcp__") || first.range(of: "^[A-Z][A-Za-z]+$", options: .regularExpression) != nil)
+        let rule = tool ? first : "Bash:" + words.prefix(2).joined(separator: " ")
+        if !Assistant.allowed.contains(rule) { Assistant.allowed.append(rule) }
+        newRule = ""
+        prefs.refresh()
+    }
+
+    var body: some View {
+        let a = prefs.a
+        let brain = Assistant.brainID
+        Form {
+            Section {
+                Toggle(tr("Um assistente morando no aquário"), isOn: prefs.bind({ Assistant.on }, { Assistant.on = $0; a.assistantChanged() }))
+                Text(tr("Uma moreia na toca, sempre ali. Clique nela (ou use o atalho, em Geral → Atalhos) e pergunte: quem espera por você, o que aconteceu hoje. Ela também responde, para e abre sessões quando você pede. Dorme entre as conversas: parada não gasta nada."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section(tr("Quem pensa")) {
+                Picker(tr("Agente"), selection: prefs.bind({ Assistant.brainID }, { Assistant.brainID = $0; a.assistantChanged() })) {
+                    ForEach(Brains.all.map { (id: $0.id, name: $0.name) }, id: \.id) { Text($0.name).tag($0.id) }
+                }
+                if brain == "command" {
+                    TextField(tr("Comando"), text: prefs.bind({ CommandBrain.command }, { CommandBrain.command = $0; a.assistantChanged() }),
+                              prompt: Text(tr("recebe a pergunta na entrada, escreve a resposta na saída")))
+                        .font(.system(.body, design: .monospaced))
+                } else {
+                    TextField(tr("Modelo"), text: prefs.bind({ Assistant.model(brain) }, { Assistant.setModel(brain, $0) }),
+                              prompt: Text(tr("o padrão do agente")))
+                }
+                Text(tr("O aquário não tem modelo dentro: quem pensa é o agente que você já usa, rodado em segundo plano, na sua conta e com os conectores que ele já tem (agenda, e-mail…). O binário, os parâmetros e as variáveis dele ficam em Geral → Agentes."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section(tr("Voz")) {
+                Toggle(tr("Ler as respostas em voz alta"), isOn: prefs.bind({ Assistant.speaks }, { Assistant.speaks = $0 }))
+                Text(tr("O que você pergunta falando é sempre respondido em voz alta."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section(tr("O que ele faz sem perguntar")) {
+                LabeledContent(tr("Sempre"), value: tr("olhar o aquário e escrever as próprias notas"))
+                ForEach(Assistant.allowed, id: \.self) { rule in
+                    HStack {
+                        Text((rule.hasPrefix("Bash:") ? "$ " : "") + Assistant.ruleName(rule))
+                            .font(.system(.body, design: .monospaced))
+                        Spacer()
+                        Button(tr("Remover")) { Assistant.allowed.removeAll { $0 == rule }; prefs.refresh() }.controlSize(.small)
+                    }
+                }
+                HStack {
+                    TextField(tr("Permitir sempre"), text: $newRule, prompt: Text(tr("um programa (rex), um comando (git status) ou uma ferramenta (WebFetch)")))
+                        .font(.system(.body, design: .monospaced))
+                        .onSubmit(addRule)
+                    Button(tr("Adicionar"), action: addRule).disabled(newRule.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                Text(tr("O resto ele pede no card (Permitir, Sempre ou Negar); o que você marcar como Sempre aparece aqui. As permissões que o agente já tem nas configurações dele continuam valendo."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section(tr("Memória")) {
+                HStack {
+                    Button(tr("Abrir as notas")) {
+                        DispatchQueue.global().async {
+                            Assistant.prepareFolder()
+                            DispatchQueue.main.async { NSWorkspace.shared.open(Assistant.folder.appendingPathComponent("notes.md")) }
+                        }
+                    }
+                    Button(tr("Abrir a pasta dele")) {
+                        DispatchQueue.global().async {
+                            Assistant.prepareFolder()
+                            DispatchQueue.main.async { NSWorkspace.shared.open(Assistant.folder) }
+                        }
+                    }
+                }
+                Text(tr("Na pasta ficam as instruções dele (CLAUDE.md, AGENTS.md), as notas que ele lê e escreve e as skills do aquário. A conversa recomeça a cada dia; as notas ficam."))
+                    .font(.footnote).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

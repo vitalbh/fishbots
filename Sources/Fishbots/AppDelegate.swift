@@ -45,6 +45,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// The "Nova sessão…" card while it's open (NewSession.swift).
     var newSessionCard: NSPopover?
     /// Sessions commanding other sessions (/control, SessionControl.swift).
+    /// The resident assistant (Assistant.swift) and its card.
+    lazy var assistant = Assistant(tank: tank, journal: journal)
+    lazy var assistantPanel = AssistantPanel(assistant: assistant, tank: tank)
     lazy var sessionControl = SessionControl(tank: tank, port: { [unowned self] in self.port }) { [unowned self] c, f in self.cards.can(c, f) }
     private(set) var hoverBattery = false
     private(set) var hoverPearl: Pearl?
@@ -191,6 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         themeKeeper.apply()
         cards.view = view
         cards.read = { [unowned self] f in self.read(f) }
+        setUpAssistant()
         view.onKey = { [unowned self] k in self.key(k) }
         // while a card is open, its keys work even with its reply field focused: all of them when it was opened from
         // the keyboard (Tab), only Esc when the mouse opened it
@@ -378,6 +382,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             case .go: run = { [unowned self] in self.goToLongestWaiting() }
             case .read: run = { [unowned self] in self.readLongestWaiting() }
             case .mic: run = { [unowned self] in self.replyByVoice() }
+            case .assistant: run = { [unowned self] in self.talkToAssistant() }
             }
             if let h = Hotkey(a.shortcut, id: a.id, action: run) { hotkeys[a] = h }
             else { FileHandle.standardError.write("fishbots: couldn't register \(a.shortcut.display) (another app has it?)\n".data(using: .utf8)!) }
@@ -441,6 +446,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // quitting in widget mode: back to the normal window first, so it isn't remembered as the window's size
         windowModes.quit()
         SessionMemory.save(tank)
+        journal.save(now: true)
+        for b in Brains.all { b.sleep() }
+        Background.endAll()
         rexFish.events.stop()
         herdrFish.stop()
         plugins?.stop()
@@ -551,14 +559,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         if let f = tank.fish(at: q) {
             f.glow = 1
             tank.ring(at: f.pos, color: [1, 1, 1], size: f.size * 0.5, grow: 140, life: 0.6)
-            if !Whereabouts.go(f) {
+            if Background.of(f) != nil {
+                cards.open(f)             // it runs in the background: there's no terminal to go to, its card is the place
+            } else if !Whereabouts.go(f) {
                 tank.notice = (tr("%@: não sei onde fica", f.label), tank.time)
             }
         } else if let p = tank.scene.presence(at: q) {
             // a presence: opens its link, or shows its text
             tank.ring(at: q, color: [1, 1, 1], size: p.kind.size * 0.4, grow: 120, life: 0.6)
             // a light on the side glass: the card of everything its source keeps there
-            if p.kind.motion == .glass { cards.showSource(of: p) }
+            if let open = p.open { open() }
+            else if p.kind.motion == .glass { cards.showSource(of: p) }
             else if let l = p.link, let u = URL(string: l) { NSWorkspace.shared.open(u) }
             else { tank.notice = (p.detail.map { "\(p.label): \($0)" } ?? p.label, tank.time) }
         } else if let pearl = tank.pearls.at(q) {
@@ -786,6 +797,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         refreshFish: { [unowned self] in for f in self.tank.fish where !f.decor { Providers.refresh(f) } },
         chooseWidgetPlace: { [unowned self] in self.windowModes.choose($0) },
         widgetSizeChanged: { [unowned self] in self.windowModes.sizeChanged() },
+        assistantChanged: { [unowned self] in self.assistant.settingsChanged() },
         plugins: { [unowned self] in
             let files = ((try? FileManager.default.contentsOfDirectory(atPath: Plugins.folder.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
             let fmt = RelativeDateTimeFormatter(); fmt.locale = L10n.locale
