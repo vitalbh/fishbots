@@ -145,7 +145,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float3 fog = mix(deep, shallow, 0.35) * (0.55 + 0.45 * L);
     float ux = uv.x + u.gaze.x * 0.006;
     float pebbles = 0.1 + 0.05 * vnoise(float2(ux * 7.0, 1.3)) + 0.035 * vnoise(float2(ux * 19.0, 4.1));
-    if (uv.y < pebbles) col = mix(col, fog * 0.75, 0.55 * (1.0 - smoothstep(pebbles - 0.012, pebbles, uv.y) * 0.4));
+    if (uv.y < pebbles && th.pack.z < 0.5) col = mix(col, fog * 0.75, 0.55 * (1.0 - smoothstep(pebbles - 0.012, pebbles, uv.y) * 0.4));
     // a distant reef: soft silhouettes of rock and coral far away in the haze, higher in two outcrops (barely any parallax)
     if (th.pack.y < 0.5 && uv.y < 0.45) {                                // (the reef never goes higher: skip the noise above it)
         float rx = uv.x + u.gaze.x * 0.003;
@@ -283,7 +283,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
 
     // sand: a floor seen at a slant, so its texture shrinks toward the back line (floor coordinates fp)
     float sandH = 0.075 + 0.018 * sin(uv.x * 7.0 + 1.3) + 0.008 * sin(uv.x * 23.0);
-    if (uv.y < sandH) {
+    if (uv.y < sandH && th.pack.z < 0.5) {                               // (pack.z: a theme with no floor, the open sea)
         float depth = clamp(uv.y / sandH, 0.0, 1.0);                    // 0 at the front, 1 at the back line
         float persp = mix(1.0, 0.2, depth);
         float2 fp = float2((uv.x - 0.5) * aspect / persp, 1.0 / persp);

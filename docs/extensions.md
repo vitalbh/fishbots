@@ -238,9 +238,10 @@ float4 draw_lantern(float2 c, float t, float glow, float4 col, float4 extra) { â
 The shader's helpers (`sd_box`, `sd_seg`, `sd_tri`, `smin_k`, `vnoise`, `hash21`, `vor_edge`, and for fish `fish_round` and `fish_eye`: docs/packs.md) can be used. A theme
 lists the pieces it wants in `"scenery"`, mixed with the built-in ones (`rock`, `shell`, `chest`, `coral`; the clutch of `eggs`, where the
 sessions started from the aquarium hatch and a click starts one, is in every theme, unless the theme lists a pack
-piece of its own called `eggs`, which then is its clutch: the open sea hangs it in the sargassum). A theme with `"floor": false` has no floor to lay things on (the open sea): no pearls of the day
-(they're kept, and come back with a theme that has one), no pebbles and shells, no list pebbles, no old battery; give
-it sand as dark as its deep water; a pack's
+piece of its own called `eggs`, which then is its clutch: the open sea hangs it in the sargassum; the same goes for a pack piece called `chest`, which is
+then the theme's chest wherever the pack anchors it, lid and summary included). A theme with `"floor": false` has no floor to lay things on (the open sea): no pearls of the day
+(they're kept, and come back with a theme that has one), no sand, no pebbles and shells, no list pebbles, no old battery, no bubbler, no shadows under the fish; its
+background should take the water down to the bottom of the window; a pack's
 pieces only show up in a theme that lists them. A function that doesn't compile is dropped and reported in the menu,
 like a fish.
 

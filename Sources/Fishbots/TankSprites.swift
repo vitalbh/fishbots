@@ -436,6 +436,7 @@ extension Tank {
     }
 
     private func shadow(under p: SIMD2<Float>, size s: Float, strength: Float) -> Sprite? {
+        guard Themes.current.floor else { return nil }                       // nothing to cast it on
         let sy = size.y * sand(p.x / max(1, size.x)) + 2
         let t = max(0, min(1, (p.y - sy) / (size.y * 0.55)))
         let a = (1 - t) * (1 - t) * 0.5 * strength * (0.45 + 0.55 * light)

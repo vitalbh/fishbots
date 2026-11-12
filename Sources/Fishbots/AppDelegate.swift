@@ -650,7 +650,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         let theme = Themes.current
         if theme.uniforms.pack.x > 0.5, let bg = PackBackgrounds.all.first(where: { $0.id == theme.id }) {
             packGuard.notePresent(bg.pack)
-            renderer.theme.pack = packGuard.hidden.contains(bg.pack) ? .zero : theme.uniforms.pack
+            renderer.theme.pack = packGuard.hidden.contains(bg.pack) ? [0, 0, theme.uniforms.pack.z, 0] : theme.uniforms.pack
         }
         return (u, sprites)
     }

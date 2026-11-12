@@ -268,7 +268,7 @@ enum Packs {
                        let src = try? String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8) {
                         PackBackgrounds.all.removeAll { $0.id == theme.id }
                         PackBackgrounds.all.append(PackBackground(id: theme.id, source: src, function: fn, pack: pack.id))
-                        theme.uniforms.pack = [Float(PackBackgrounds.all.count), bg["replaceReef"] as? Bool ?? true ? 1 : 0, 0, 0]
+                        theme.uniforms.pack = [Float(PackBackgrounds.all.count), bg["replaceReef"] as? Bool ?? true ? 1 : 0, theme.floor ? 0 : 1, 0]
                     } else {
                         problems.append(tr("%@: fundo incompleto (%@)", name, theme.id))
                     }

@@ -127,3 +127,59 @@ float4 draw_ocean_eggs(float2 c, float t, float glow, float4 col, float4 extra) 
     }
     return o;
 }
+
+// The chest, here where there's no floor: an old sea chest adrift, riding low and a little crooked, half of it under
+// the water line, weed and barnacles on the wet half, a frayed rope trailing. Its lid swings open on its hinge
+// (extra.y: 0 closed … 1 open) with a glow from inside. p = c; the water line at p.y = 0.12.
+float4 draw_ocean_chest(float2 c, float t, float glow, float4 col, float4 extra) {
+    float open = clamp(extra.y, 0.0, 1.0);
+    float wl = 0.12;
+    float lum = max(col.r, max(col.g, col.b));
+    // it rocks with the swell
+    float tilt = 0.1 + sin(t * 0.7) * 0.06;
+    float2 p = c - float2(0.0, 0.2 + sin(t * 0.9) * 0.015);                  // riding with half of it out of the water
+    p = float2(p.x * cos(tilt) - p.y * sin(tilt), p.x * sin(tilt) + p.y * cos(tilt));
+    float box = sd_box(p - float2(0.0, -0.08), float2(0.5, 0.24), 0.04);
+    float ang = -open * 1.1;
+    float2 hinge = float2(-0.48, 0.16);
+    float2 lp = p - hinge;
+    lp = float2(lp.x * cos(ang) - lp.y * sin(ang), lp.x * sin(ang) + lp.y * cos(ang)) + hinge;
+    float lid = max((length((lp - float2(0.0, 0.16)) / float2(0.52, 0.24)) - 1.0) * 0.24, -(lp.y - 0.16));
+    // the rope: tied to a ring on the side, hanging down and swaying
+    float rx = 0.5 + sin(c.y * 6.0 + t * 0.8) * 0.04 * smoothstep(0.0, -0.8, c.y);
+    float rope = max(abs(c.x - rx) - 0.014, max(c.y - 0.0, -0.85 - c.y));
+    float d = min(min(box, lid), rope);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 wood = mix(float3(0.5, 0.32, 0.17), col.rgb, 0.25) * lum, iron = float3(0.75, 0.62, 0.3) * lum;
+    float2 bp = lid < box ? lp : p;
+    // planks, a rounded lid, the bands and the lock
+    float3 c3 = wood * (0.8 + 0.25 * vnoise(float2(bp.x * 4.0, bp.y * 40.0)));
+    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.012, abs(fract(bp.y * 6.0) - 0.5) - 0.46)) * 0.25;
+    c3 *= lid < box ? 0.85 + 0.35 * smoothstep(0.16, 0.4, lp.y) : 0.8 + 0.3 * smoothstep(-0.3, 0.16, p.y);
+    float bands = min(abs(abs(bp.x) - 0.3) - 0.04, lid < box ? 1.0 : abs(p.y - 0.12) - 0.025);
+    c3 = mix(c3, iron * (0.75 + 0.35 * vnoise(bp * 30.0)), 1.0 - smoothstep(0.0, 0.012, bands));
+    c3 = mix(c3, iron * 1.1, (1.0 - smoothstep(0.0, 0.012, sd_box(p - float2(0.0, 0.08), float2(0.05, 0.06), 0.02))) * step(box, lid) * (1.0 - open));
+    if (rope < min(box, lid)) c3 = float3(0.62, 0.52, 0.34) * lum * (0.8 + 0.2 * sin(c.y * 90.0));
+    // what's under the line is wet and takes the water: darker, bluer, with weed and barnacles
+    float under = smoothstep(wl + 0.02, wl - 0.04, c.y);
+    float grow = under * smoothstep(0.4, 0.7, vnoise(c * 12.0 + 3.0));
+    c3 = mix(c3, float3(0.16, 0.36, 0.2) * lum, grow * 0.6);
+    float2 bg = c * 16.0;
+    c3 = mix(c3, float3(0.8, 0.8, 0.74) * lum, under * (1.0 - smoothstep(0.16, 0.28, length(fract(bg) - 0.5))) * step(0.78, hash21(floor(bg))) * step(box, 0.0));
+    c3 = mix(c3, c3 * float3(0.5, 0.72, 0.9), under * 0.45);
+    // the wet line where the water laps at it
+    c3 += float3(0.8, 0.95, 1.0) * (1.0 - smoothstep(0.0, 0.015, abs(c.y - wl - sin(c.x * 14.0 + t * 2.0) * 0.008))) * 0.35 * step(min(box, lid), 0.0);
+    float4 o = float4(c3 * a, a);
+    if (open > 0.05) {
+        // gold inside, and its light spilling up and out
+        float coins = (length((p - float2(0.02, 0.17)) / float2(0.42, 0.1 * open)) - 1.0) * 0.1;
+        float ca = (1.0 - smoothstep(0.0, 0.012, coins)) * step(0.0, lid);
+        float2 cg = p * float2(10.0, 18.0);
+        float3 coinC = float3(1.0, 0.8, 0.25) * lum * (0.75 + 0.4 * step(0.5, hash21(floor(cg)))) + float3(1.0) * step(0.93, hash21(floor(cg) + 2.0)) * 0.4;
+        o = float4(o.rgb * (1.0 - ca) + coinC * ca, max(o.a, ca));
+        float halo = open * exp(-pow(length((c - float2(0.0, 0.35)) / float2(0.7, 0.5)), 2.0) * 2.5) * (0.3 + 0.5 * glow) * (1.0 - o.a);
+        o += float4(float3(1.0, 0.85, 0.4) * halo, halo * 0.5);
+    }
+    return o;
+}

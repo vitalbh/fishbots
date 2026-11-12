@@ -776,6 +776,7 @@ final class Tank {
 
     /// The bubbler's stream, and now and then something special.
     private func bubbler() {
+        guard Themes.current.floor else { return }                           // no floor, no air stone on it
         // now and then the bubbler lets out something special: a bubble ring, or a big bubble that splits in two
         if shapedAt == 0 { shapedAt = time + Double.random(in: 15...30) * Self.scale }
         if time > shapedAt {

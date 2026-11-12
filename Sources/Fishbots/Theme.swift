@@ -53,7 +53,8 @@ struct Theme {
     /// The jellyfish that drifts around (false: none here).
     var jellyfish = true
     /// Whether there is a floor to lay things on ("floor": false, the open sea: no pearls of the day, no pebbles and
-    /// shells, no list pebbles, no old battery; whatever else rests on the sand should ask this too).
+    /// shells, no list pebbles, no old battery, no sand, no bubbler, no shadows under the fish; whatever else rests on
+    /// the sand should ask this too).
     var floor = true
     /// The blurred seaweed tufts up front, in the corners: their color (nil: none here, "foreground": false).
     var foreground: SIMD3<Float>? = [0.025, 0.085, 0.075]
@@ -122,6 +123,7 @@ struct Theme {
         if let list = json["schools"] as? [[String: Any]] { schools = list.prefix(3).map(School.init(json:)) }
         jellyfish = json["jellyfish"] as? Bool ?? true
         floor = json["floor"] as? Bool ?? true
+        uniforms.pack.z = floor ? 0 : 1                                      // the shader leaves the sand out
         voices = json["voices"] as? [String: String] ?? [:]
         frost = max(0, min(1, (json["frost"] as? NSNumber)?.floatValue ?? 0))
         for (kind, v) in json["swim"] as? [String: Any] ?? [:] {

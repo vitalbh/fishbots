@@ -7,9 +7,9 @@
   "version": "1.0",
   "author": "Fishbots",
   "license": "MIT",
-  "description": "O azul sem fundo: fachos de luz descendo da superfície, cardumes de sardinhas, filhotes de tubarão, o dourado-do-mar, atuns passando em bando, um tubarão-baleia ao longe, peixes-voadores saltando, águas-vivas-da-lua e sargaço boiando, com a desova presa nele.",
+  "description": "O azul sem fundo: fachos de luz descendo da superfície, cardumes de sardinhas, filhotes de tubarão, o dourado-do-mar, atuns passando em bando, um tubarão-baleia ao longe, peixes-voadores saltando, águas-vivas-da-lua e sargaço boiando, com a desova presa nele, e um baú à deriva.",
   "descriptions": {
-    "en": "The blue with nothing under it: shafts of light coming down from the surface, schools of sardines, shark pups, the dorado, tuna passing in a pack, a whale shark far away, flying fish leaping, moon jellies and sargassum adrift, with the clutch of eggs hanging in it."
+    "en": "The blue with nothing under it: shafts of light coming down from the surface, schools of sardines, shark pups, the dorado, tuna passing in a pack, a whale shark far away, flying fish leaping, moon jellies and sargassum adrift, with the clutch of eggs hanging in it, and a chest adrift."
   },
   "themes": [
     {
@@ -35,7 +35,8 @@
       ],
       "scenery": [
         "sargassum",
-        "eggs"
+        "eggs",
+        "chest"
       ],
       "looks": {
         "oval": "shark-pup",
@@ -248,6 +249,27 @@
       ],
       "drift": false,
       "color": "#ff9e40"
+    },
+    {
+      "id": "chest",
+      "name": "baú à deriva",
+      "names": {
+        "en": "chest adrift"
+      },
+      "metal": "ocean.metal",
+      "function": "draw_ocean_chest",
+      "anchor": "surface",
+      "size": 0.075,
+      "extent": [
+        1.0,
+        1.0
+      ],
+      "at": [
+        0.56
+      ],
+      "drift": false,
+      "solid": false,
+      "color": "#b07a48"
     }
   ],
   "fauna": [
