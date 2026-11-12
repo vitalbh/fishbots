@@ -144,17 +144,21 @@ extension Tank {
         }
         // pearls of the day, on the sand
         let pearlLook = looks["pearl"].flatMap { SceneryKinds.index(of: $0) }
+        // each heap's shadow on the floor under it
+        for h in pearls.heaps {
+            out.append(Sprite(pos: h.at, dir: [1, 0], size: h.half, kind: 32, glow: 0.4, phase: 0, color: [0, 0, 0, 1], extra: [1, 0, 0, 0]))
+        }
         for (i, p) in pearls.all.enumerated() {
             let new = pearls.glow(i, now: time)
             if let li = pearlLook {
                 // the theme's pearl: col is the project's color, glow while it's new
                 let k = SceneryKinds.all[li]
-                out.append(Sprite(pos: pearls.pos(i), dir: [1, 0], size: 7, kind: 35, glow: new, phase: Float(time),
+                out.append(Sprite(pos: pearls.pos(i), dir: [1, 0], size: 8.4, kind: 35, glow: new, phase: Float(time),
                                   color: [p.color[0], p.color[1], p.color[2], 1], extra: [1, (Float(i) * 0.618).truncatingRemainder(dividingBy: 1), Float(li), 0],
                                   aux: [k.extent.x, k.extent.y, 0, 0]))
                 continue
             }
-            out.append(Sprite(pos: pearls.pos(i), dir: [1, 0], size: 6, kind: 12, glow: new, phase: Float(i),
+            out.append(Sprite(pos: pearls.pos(i), dir: [1, 0], size: 7.2, kind: 12, glow: new, phase: Float(i),
                               color: [p.color[0], p.color[1], p.color[2], 1], extra: [1, 0, 0, 0]))
         }
         // list pebbles (TodoWrite): the done ones glow in the fish's color

@@ -22,6 +22,8 @@ final class Pearls {
     private var litAt: [Double] = []
     /// Where each one sits on the sand, from the last `layout`.
     private var places: [SIMD2<Float>] = []
+    /// Where each heap rests on the sand and half its width (for its shadow).
+    private(set) var heaps: [(at: SIMD2<Float>, half: Float)] = []
 
     private static let key = "pearls"
     private static func today() -> String {
@@ -102,7 +104,10 @@ final class Pearls {
             if x - lastX < 9, !heaps.isEmpty { heaps[heaps.count - 1].members.append(i) } else { heaps.append((x, [i])) }
             lastX = x
         }
-        let gap: Float = 8
+        // up front on the floor, by the glass: at the back line a heap seemed to hang over the sand, since the floor
+        // runs toward the viewer below it. Nearer, so a little bigger.
+        let gap: Float = 9.5
+        var rests: [(at: SIMD2<Float>, half: Float)] = []
         for h in heaps {
             var b = 1
             while b * (b + 1) / 2 < h.members.count { b += 1 }      // the bottom row of a heap that holds them all
@@ -111,11 +116,14 @@ final class Pearls {
             for row in 0..<b {
                 for col in 0..<(b - row) where k < h.members.count {
                     let x = x0 + (Float(col) + Float(row) * 0.5) * gap
-                    out[h.members[k]] = [x, t.size.y * t.sand(x / max(1, t.size.x)) + 4 + Float(row) * gap * 0.8]
+                    out[h.members[k]] = [x, t.size.y * t.sand(x / max(1, t.size.x)) * 0.42 + 5 + Float(row) * gap * 0.8]
                     k += 1
                 }
             }
+            let mid = x0 + Float(b - 1) * gap / 2
+            rests.append(([mid, t.size.y * t.sand(mid / max(1, t.size.x)) * 0.42 + 1], Float(b) * gap / 2 + 5))
         }
+        self.heaps = rests
         places = out
     }
 }
