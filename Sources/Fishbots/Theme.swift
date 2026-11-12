@@ -53,7 +53,7 @@ struct Theme {
     /// The jellyfish that drifts around (false: none here).
     var jellyfish = true
     /// The blurred seaweed tufts up front, in the corners: their color (nil: none here, "foreground": false).
-    var foreground: SIMD3<Float>? = [0.02, 0.065, 0.065]
+    var foreground: SIMD3<Float>? = [0.025, 0.085, 0.075]
     /// Frost on the glass, growing in from the sides and corners (0: none … 1: a lot).
     var frost: Float = 0
     /// The effects plugins ask for, the theme's way: a default color, or another effect in its place
@@ -140,10 +140,10 @@ struct Theme {
 
     /// The original look.
     static let classicUniforms = ThemeUniforms(
-        deep: [0.012, 0.05, 0.11, 1], shallow: [0.05, 0.30, 0.40, 1], rays: [0.25, 0.45, 0.45, 1],
+        deep: [0.016, 0.07, 0.14, 1], shallow: [0.06, 0.36, 0.47, 1], rays: [0.25, 0.45, 0.45, 1],
         caustics: [0.5, 0.75, 0.75, 1], surface: [0.35, 0.6, 0.65, 1], farWeed: [0.08, 0.2, 0.14, 1],
         weedLow: [0.05, 0.22, 0.12, 1], weedHigh: [0.18, 0.45, 0.22, 1],
-        sandDark: [0.40, 0.33, 0.22, 1], sandLight: [0.62, 0.53, 0.38, 1], murk: [0.17, 0.2, 0.11, 1],
+        sandDark: [0.44, 0.37, 0.25, 1], sandLight: [0.70, 0.60, 0.43, 1], murk: [0.17, 0.2, 0.11, 1],
         params: [12, 12, 0.22, 0.06])
 }
 

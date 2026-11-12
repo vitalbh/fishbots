@@ -67,6 +67,9 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float3 deep = th.deep.rgb;
     float3 shallow = th.shallow.rgb;
     float3 col = mix(deep, shallow, pow(uv.y, 1.3)) * (0.5 + 0.5 * L);
+    // daylight scattered in the upper water: brighter toward the surface and toward the sun's side, by day only
+    float day = L * (1.0 - u.grade.w);
+    col += shallow * (0.22 * pow(uv.y, 2.2) + 0.12 * exp(-pow((uv.x - u.sky.x) * 2.2, 2.0)) * uv.y * uv.y) * day * u.sky.y * 2.6;
 
     float2 q = float2(uv.x * aspect, uv.y);
     // refraction: near the surface the light wobbles, as if through little waves (more with the waves gauge)
@@ -77,6 +80,8 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float r1 = sin((q.x + q.y * 0.35) * 9.0 + t * 0.25) * 0.5 + 0.5;
     float r2 = sin((q.x - q.y * 0.20) * 15.0 - t * 0.17) * 0.5 + 0.5;
     float rays = pow(r1 * r2, 3.0) * smoothstep(0.1, 1.0, uv.y);
+    // some beams strong, some missing, drifting slowly: clouds and waves above never let it through evenly
+    rays *= 0.35 + 1.3 * smoothstep(0.3, 0.75, vnoise(float2((q.x + q.y * 0.3) * 2.3 + t * 0.03, 7.7)));
     // broad, slow beams under the narrow ones (they light up the marine snow too: Tank.rayLight)
     float broad = pow(sin((q.x + q.y * 0.5) * 3.1 + t * 0.05) * 0.5 + 0.5, 6.0) * smoothstep(0.25, 1.0, uv.y);
     rays += broad * 0.45;
@@ -142,13 +147,21 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float pebbles = 0.1 + 0.05 * vnoise(float2(ux * 7.0, 1.3)) + 0.035 * vnoise(float2(ux * 19.0, 4.1));
     if (uv.y < pebbles) col = mix(col, fog * 0.75, 0.55 * (1.0 - smoothstep(pebbles - 0.012, pebbles, uv.y) * 0.4));
     // a distant reef: soft silhouettes of rock and coral far away in the haze, higher in two outcrops (barely any parallax)
-    if (th.pack.y < 0.5 && uv.y < 0.37) {                                // (the reef never goes higher: skip the noise above it)
+    if (th.pack.y < 0.5 && uv.y < 0.45) {                                // (the reef never goes higher: skip the noise above it)
         float rx = uv.x + u.gaze.x * 0.003;
         float ridge = 0.12 + 0.1 * vnoise(float2(rx * 4.0, 2.7)) + 0.05 * vnoise(float2(rx * 13.0, 5.3));
         ridge += 0.09 * smoothstep(0.17, 0.0, abs(rx - 0.24)) + 0.07 * smoothstep(0.2, 0.0, abs(rx - 0.8));
+        // further still: a taller, paler range almost lost in the haze
+        float fx = uv.x + u.gaze.x * 0.0015;
+        float far = 0.2 + 0.12 * vnoise(float2(fx * 2.6, 9.1)) + 0.04 * vnoise(float2(fx * 9.0, 3.3))
+                  + 0.07 * smoothstep(0.22, 0.0, abs(fx - 0.55));
+        if (uv.y < far) {
+            col = mix(col, fog * 0.8, 0.34 * (0.6 + 0.4 * smoothstep(far - 0.14, far, uv.y)));
+            col += fog * 0.1 * (1.0 - smoothstep(0.0, 0.01, far - uv.y)) * L;
+        }
         if (uv.y < ridge) {
-            col = mix(col, fog * 0.52, 0.6 * (0.75 + 0.25 * smoothstep(ridge - 0.1, ridge, uv.y)));
-            col += fog * 0.18 * (1.0 - smoothstep(0.0, 0.006, ridge - uv.y)) * L;     // its top catches a little light
+            col = mix(col, fog * 0.5, 0.66 * (0.75 + 0.25 * smoothstep(ridge - 0.1, ridge, uv.y)));
+            col += fog * 0.22 * (1.0 - smoothstep(0.0, 0.006, ridge - uv.y)) * L;     // its top catches a little light
         }
     }
     // a pack's own background, over the water and behind the seaweed
@@ -277,7 +290,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
         float2 fq = float2(fp.x, fp.y * 0.12);                            // the same, with square cells on screen up front
         // patches of lighter and darker sand, and the color between the theme's two sands
         float g = vnoise(fq * 4.0) * 0.55 + vnoise(fq * 13.0) * 0.3 + vnoise(fq * 40.0) * 0.15;
-        float3 sand = mix(th.sandDark.rgb, th.sandLight.rgb, smoothstep(0.2, 0.85, g)) * (0.4 + 0.6 * L);
+        float3 sand = mix(th.sandDark.rgb, th.sandLight.rgb, smoothstep(0.2, 0.85, g)) * (0.5 + 0.62 * L);
         // ripples shaped by the current: crests across the floor, bent by noise, lit on the side facing the surface;
         // they fade where they'd get finer than a pixel
         float ph = fp.y * 55.0 + fp.x * 6.0 + vnoise(fp * float2(2.5, 1.5)) * 9.0;
@@ -337,7 +350,9 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
         }
         sand += th.sandLight.rgb * lampL * 0.45;                           // a lamp's pool of light on the floor
         // darker toward the glass, hazier toward the back, and the back line catches a little light
-        sand *= mix(0.62, 1.0, smoothstep(0.0, 0.7, depth));
+        sand *= mix(0.78, 1.0, smoothstep(0.0, 0.7, depth));
+        // a pool of light where the sun stands over it
+        sand *= 1.0 + 0.35 * exp(-pow((uv.x - u.sky.x) * 2.6, 2.0)) * u.sky.y * 2.6 * L * (1.0 - u.grade.w);
         sand = mix(sand, fog * 0.9, depth * depth * 0.35);
         sand += th.sandLight.rgb * (1.0 - smoothstep(0.0, 0.006, sandH - uv.y)) * 0.12 * L;
         float edge = smoothstep(sandH - 0.004, sandH, uv.y);
@@ -348,9 +363,9 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     col = mix(col, th.murk.rgb * (0.45 + 0.55 * L), u.turbidity * 0.7);
 
     // glass: vignette, reflection and alert at the edges
-    float2 d = (uv - 0.5) * float2(1.1, 1.3);
+    float2 d = (uv - 0.5) * float2(1.1, uv.y < 0.5 ? 0.95 : 1.3);
     float vig = clamp(1.0 - dot(d, d) * 1.1, 0.0, 1.0);
-    col *= 0.35 + 0.65 * vig;
+    col *= 0.42 + 0.58 * vig;
     col += (1.0 - smoothstep(0.0, 0.03, abs((uv.x * 0.6 + uv.y) - 1.25))) * 0.035;
     col += float3(0.6, 0.06, 0.05) * u.alert * (1.0 - vig) * 0.9;
     // lightning: a cold flash, stronger near the surface

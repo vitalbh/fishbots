@@ -504,7 +504,9 @@ float4 draw_frost(float2 c, float t, float amount, float aspect) {
     float grains = smoothstep(0.75, 0.95, vnoise(px * 60.0));
     float2 dir = normalize(float2(-sign(c.x), 0.3 * (vnoise(px * 4.0) - 0.5)));
     float needle = abs(sin(dot(px, float2(dir.y, -dir.x)) * 160.0 + vnoise(px * 8.0) * 5.0));
-    float feathers = (1.0 - smoothstep(0.0, 0.18, needle)) * smoothstep(0.02, -0.03, edgeD) * 0.5;
+    // (broken up by noise: unbroken, the needles read as contour lines on a map)
+    float feathers = (1.0 - smoothstep(0.0, 0.18, needle)) * smoothstep(0.02, -0.03, edgeD) * 0.42
+                   * smoothstep(0.35, 0.7, vnoise(px * 15.0 + 3.0));
     float rim = (1.0 - smoothstep(0.0, 0.025, abs(edgeD))) * 0.35;               // the growing edge is brighter
     float a = grow * (haze * 0.35 + grains * 0.3 + feathers + rim);
     float3 col = mix(float3(0.78, 0.9, 1.0), float3(1.0), grains + feathers + rim);

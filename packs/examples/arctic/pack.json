@@ -105,8 +105,8 @@
         ]
       },
       "sand": {
-        "dark": "#2a3036",
-        "light": "#6a7178"
+        "dark": "#46525e",
+        "light": "#a3b0bc"
       },
       "schools": [
         {
@@ -157,7 +157,7 @@
         "kalimba": "glass",
         "soft": "bell"
       },
-      "frost": 0.6,
+      "frost": 0.4,
       "effects": {
         "lightning": "#9affc8",
         "fireworks": "#a8f0ff",

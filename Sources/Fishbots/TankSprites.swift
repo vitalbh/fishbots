@@ -41,8 +41,9 @@ extension Tank {
             let s = size.y * 0.5
             out.append(Sprite(pos: [size.y * 0.3, size.y * 0.5], dir: [1, 0], size: s, kind: 43, glow: 0, phase: Float(time),
                               color: SIMD4(water, 1), extra: [1, 0, 0, 0], aux: [0.7, 1.0, 0, 0]))
-            // a smaller clump on the other side, mirrored
-            out.append(Sprite(pos: [size.x - size.y * 0.24, size.y * 0.5], dir: [-1, 0], size: s * 0.85, kind: 43, glow: 0, phase: Float(time),
+            // another clump on the other side, mirrored and further out (the quad must span the tank's height: the roots
+            // start above the surface)
+            out.append(Sprite(pos: [size.x - size.y * 0.16, size.y * 0.5], dir: [-1, 0], size: s, kind: 43, glow: 0, phase: Float(time),
                               color: SIMD4(water, 1), extra: [-1, 0, 0, 0], aux: [0.7, 1.0, 0, 0]))
         }
         // a sunken ship far away (a theme that lists "wreck" in its scenery), then the whale in the distance
@@ -79,9 +80,15 @@ extension Tank {
         let lit = 0.45 + 0.55 * light
         let water: SIMD3<Float> = SIMD3<Float>(0.12, 0.3, 0.4) * (0.5 + 0.5 * light)
         let night = max(0, min(1, (0.8 - light) / 0.6))
+        // the rocks are the theme's own stone: tinted by its sand (brown in the river, blue-grey under the ice, near
+        // black in the trench) and each theme with its own shapes
+        let theme = Themes.current
+        let stone = (theme.uniforms.sandDark + theme.uniforms.sandLight) * 0.5
+        let stoneSeed = theme.id == "classic" ? 0 : Float(theme.id.unicodeScalars.reduce(0) { $0 + Int($1.value) } % 89) * 0.37
         for s in scenery.items {
             let (c, sz) = scenery.place(self, s)
-            let color = mix(s.color * lit, water, t: 0.15)
+            var color = mix(s.color * lit, water, t: 0.15)
+            if s.id == "rock" { color = mix(mix(s.color, SIMD3(stone.x, stone.y, stone.z) * 0.95, t: 0.5) * lit, water, t: 0.12) }
             if let i = s.pack {
                 // a pack's piece: its own drawing (kind 35, its index in extra.z), the quad from its extent. A chest
                 // drawn by a pack gets how open it is in extra.y (instead of the seed) and glows while it's open.
@@ -108,7 +115,7 @@ extension Tank {
             let look = Themes.current.looks["chest"].flatMap { Scene.variants[$0] }
             let safe: Float = s.id == "chest" && FishKinds.dressByTheme && look?.of == "chest" ? look!.n : 0
             out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 + scenery.chestLid * 0.6 : 0,
-                              phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed, color: SIMD4(color, 1),
+                              phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed + (s.id == "rock" ? stoneSeed : 0), color: SIMD4(color, 1),
                               extra: [1, s.id == "chest" ? min(1, scenery.chestLid) : s.id == "shell" ? 1 : 0, safe, 0],
                               aux: s.kind > 40.5 ? [1, 1, 0, 0] : .zero))
         }
@@ -345,9 +352,9 @@ extension Tank {
         if let fg = Themes.current.foreground {
             let shift = gaze * -14
             let tuft = size.y * 0.32
-            out.append(Sprite(pos: [size.x * 0.03 + shift.x, tuft * 0.62 + shift.y * 0.3], dir: [1, 0], size: tuft, kind: 20, glow: 0.92,
+            out.append(Sprite(pos: [size.x * 0.03 + shift.x, tuft * 0.62 + shift.y * 0.3], dir: [1, 0], size: tuft, kind: 20, glow: 0.86,
                               phase: Float(time), color: SIMD4(fg * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
-            out.append(Sprite(pos: [size.x * 0.97 + shift.x, tuft * 0.5 + shift.y * 0.3], dir: [1, 0], size: tuft * 0.85, kind: 20, glow: 0.92,
+            out.append(Sprite(pos: [size.x * 0.97 + shift.x, tuft * 0.5 + shift.y * 0.3], dir: [1, 0], size: tuft * 0.85, kind: 20, glow: 0.86,
                               phase: Float(time) + 3, color: SIMD4(fg * 1.1 * (0.6 + 0.4 * light), 1), extra: [1, 0, 0, 0]))
         }
 

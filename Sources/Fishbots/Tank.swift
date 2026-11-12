@@ -785,8 +785,10 @@ final class Tank {
         }
         // bubbler bubbles
         if time > bubblerAt {
-            bubble(at: [bubblerX + Float.random(in: -4...4), 50], size: Float.random(in: 1.5...3.5))
-            bubblerAt = time + Double.random(in: 0.08...0.25)
+            // in puffs: a few close together, a pause, mostly small ones with a big one now and then
+            let big = Float.random(in: 0...1) < 0.12
+            bubble(at: [bubblerX + Float.random(in: -5...5), 50], size: big ? Float.random(in: 3.6...5) : Float.random(in: 1.1...2.8))
+            bubblerAt = time + (Float.random(in: 0...1) < 0.2 ? Double.random(in: 0.5...1.3) : Double.random(in: 0.06...0.22))
         }
     }
 
@@ -994,6 +996,8 @@ final class Tank {
             }
             p.pos += p.vel * dt
             if p.kind == 1 || p.kind == 10 { p.pos.x += current * dt * 0.6 }
+            // bubbles wobble as they rise, the big ones wider, and the stream spreads on its way up
+            if p.kind == 1 { p.pos.x += sinf(p.life * (2.2 + p.size * 0.3) + p.size * 17) * (5 + p.size * 2.5) * min(1, p.life * 0.5) * dt }
             p.size += p.grow * dt
             particles[i] = p
         }

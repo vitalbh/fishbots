@@ -538,7 +538,7 @@ float4 draw_mangrove(float2 c, float t, float4 col) {
         for (int i = 1; i <= 8; i++) {
             float u = float(i) / 8.0;
             float2 q = mix(mix(a, m, u), mix(m, b, u), u);
-            float w = mix(0.04, 0.022, u) * (1.0 - 0.2 * fr / 6.0);
+            float w = mix(0.05, 0.016, u * u * 0.4 + u * 0.6) * (1.0 - 0.3 * fract(fr * 0.618));
             float2 pa = p - prev, ba = q - prev;
             float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
             float dd = length(pa - ba * h) - w;
@@ -550,20 +550,20 @@ float4 draw_mangrove(float2 c, float t, float4 col) {
     float a = 1.0 - smoothstep(-aa, aa, d);
     if (a <= 0.001) return float4(0.0);
     // bark: grey-brown, ridged along the root, lit from above, rounder in the middle
-    float3 bark = float3(0.36, 0.3, 0.24) * (0.8 + 0.25 * vnoise(float2(along * 40.0, which * 7.0)));
-    bark *= 0.75 + 0.35 * smoothstep(0.0, -0.03, d);
+    float3 bark = float3(0.34, 0.27, 0.2) * (0.75 + 0.3 * vnoise(float2(along * 40.0, which * 7.0)));
+    bark *= 0.55 + 0.6 * smoothstep(0.0, -0.035, d);                     // round: dark at the edges
     // oysters and barnacles crusting the roots around the waterline; green fuzz below it
     float band = smoothstep(0.7, 0.82, p.y) * (1.0 - smoothstep(0.9, 0.95, p.y));
     float2 cg = p * 60.0 + float2(vnoise(p * 9.0), vnoise(p * 9.0 + 4.0)) * 2.0;
     float2 cj = float2(hash21(floor(cg)), hash21(floor(cg) + 3.7)) * 0.4 + 0.3;
     float crust = (1.0 - smoothstep(0.2, 0.35, length(fract(cg) - cj))) * step(0.45, hash21(floor(cg) + which));
-    bark = mix(bark, float3(0.6, 0.58, 0.52), band * crust * 0.7);
+    bark = mix(bark, float3(0.6, 0.58, 0.52), band * crust * 0.55);
     float fuzz = smoothstep(0.7, 0.2, p.y) * smoothstep(0.4, 0.7, vnoise(p * 50.0 + 3.0));
     bark = mix(bark, float3(0.22, 0.36, 0.16), fuzz * 0.5);
     // further back than the fish: the water in between takes its color, more the deeper
     float under = smoothstep(0.93, 0.4, p.y);
-    bark = mix(bark, col.rgb, 0.2 + under * 0.4);
-    float aw = a * mix(0.95, 0.75, under);
+    bark = mix(bark, col.rgb * 0.7, 0.12 + under * 0.3);
+    float aw = a * mix(1.0, 0.93, under);
     return float4(bark * aw, aw);
 }
 

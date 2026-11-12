@@ -227,6 +227,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         }
         a *= 1.0 - smoothstep(0.75, 1.0, abs(p.x));
         float3 tint = in.color.rgb * (0.6 + 0.4 * (p.y + 1.0) * 0.5);
+        // the light behind them shows through their soft edges and their tips
+        tint += in.color.rgb * (2.2 * a * (1.0 - a) * 4.0 * (0.3 + 0.7 * (p.y + 1.0) * 0.5));
         outc = float4(tint * a, a) * in.glow;
     } else if (k > 18.5) {             // whale in the distance
         outc = draw_whale(c, in.phase, in.color);
@@ -368,7 +370,9 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
             // wavy vertical curtain with streaks
             float wave = sin(c.y * 2.2 + in.phase * 0.5) * 0.25 + sin(c.y * 5.0 - in.phase * 0.8) * 0.07;
             float band = exp(-pow((c.x - wave) * 2.3, 2.0));
-            float streak = 0.55 + 0.45 * sin(c.x * 38.0 + in.phase * 1.7 + c.y * 3.0);
+            // uneven rays, wider here and thinner there, drifting: an even comb of them reads as a bar code
+            float streak = 0.68 + 0.22 * sin(c.x * 21.0 + in.phase * 1.1 + c.y * 2.0 + sin(c.x * 5.3 + in.phase * 0.3) * 2.6)
+                              + 0.1 * sin(c.x * 57.0 - in.phase * 0.8 + c.y * 4.0 + sin(c.x * 9.0) * 2.0);
             float vfade = smoothstep(-1.0, -0.15, c.y) * (1.0 - smoothstep(0.45, 1.0, c.y));
             float hfade = 1.0 - smoothstep(0.7, 1.0, abs(c.x));
             a = band * streak * vfade * hfade * in.glow * 0.85;

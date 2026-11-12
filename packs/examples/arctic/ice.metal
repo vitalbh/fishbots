@@ -5,7 +5,10 @@ float4 draw_arctic_background(float2 uv, float t, float light, float2 gaze, floa
     float4 out = float4(0.0);
     // ice cliffs along the bottom: tall, flat-topped, with vertical faces
     float h = extra.z + 0.04 + 0.08 * smoothstep(0.25, 0.75, vnoise(float2(x * 2.5, 1.1)));
-    h += 0.025 * vnoise(float2(x * 40.0, 3.3)) + 0.015 * abs(sin(x * 70.0));            // a jagged, broken top
+    // a broken top: flat-topped blocks of different widths and heights, a little rough
+    float bx = x * 9.0 + vnoise(float2(x * 3.0, 8.0)) * 2.0;
+    h += 0.045 * mix(hash21(float2(floor(bx), 4.4)), hash21(float2(floor(bx) + 1.0, 4.4)), smoothstep(0.9, 1.0, fract(bx)))
+       + 0.012 * vnoise(float2(x * 40.0, 3.3));
     if (uv.y < h) {
         // vertical striations of old ice, lighter toward the top, fading into the water
         float stria = 0.5 + 0.5 * sin(x * extra.x * 140.0 + vnoise(float2(x * 30.0, uv.y * 6.0)) * 4.0);
@@ -30,7 +33,10 @@ float4 draw_arctic_background(float2 uv, float t, float light, float2 gaze, floa
     }
     // light shafts coming down through the cracks, soft
     if (uv.y < under) {
-        float s = pow(max(0.0, sin((x + uv.y * 0.12) * 37.0) * sin((x - uv.y * 0.05) * 13.0)), 6.0);
+        // a few wide shafts leaning with the light, each its own strength, instead of an even curtain
+        float sx = x + uv.y * 0.22;
+        float s = pow(max(0.0, sin(sx * 9.0 + vnoise(float2(sx * 2.0, 1.0)) * 3.0)), 5.0)
+                * smoothstep(0.35, 0.8, vnoise(float2(sx * 3.3 + t * 0.02, 6.0))) * 1.6;
         float fade = smoothstep(0.2, under, uv.y);
         float3 shaft = float3(0.75, 0.9, 1.0) * s * fade * 0.12 * light;
         out = float4(out.rgb + shaft * (1.0 - out.a), out.a + length(shaft) * 0.3 * (1.0 - out.a));
