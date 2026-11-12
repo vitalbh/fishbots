@@ -359,7 +359,8 @@ final class Cards: NSObject, NSPopoverDelegate {
         return waiting + active + others
     }
 
-    private func pick(_ f: Fish) {
+    /// The keyboard picks a fish: its card opens, ready to answer.
+    func pick(_ f: Fish) {
         keyboardPick = f.id
         hoverId = nil
         show(f, keyboard: true)

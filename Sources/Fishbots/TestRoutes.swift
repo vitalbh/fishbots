@@ -121,7 +121,10 @@ extension AppDelegate {
             }
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/widget":
-            self.toggleWidget()
+            // ?open=1 / ?open=0: opens or closes the notch (in notch mode) instead of switching the widget
+            if path.contains("open=1") { self.windowModes.setNotchOpen(true, hold: 30) }
+            else if path.contains("open=0") { self.windowModes.setNotchOpen(false) }
+            else { self.toggleWidget() }
             return (200, Data(#"{"ok":true}"#.utf8))
         default:
             return nil

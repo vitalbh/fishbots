@@ -23,9 +23,15 @@ Keys and shortcuts:
 - **Global shortcuts** (any app, set in Preferências → Geral): **⌃⌥F** go to whoever has waited longest, **⌃⌥R** hear their question, **⌃⌥M** reply by voice.
 - **Click a pearl:** what was done around that time. The day's pearls are a timeline on the sand, from the morning (left) to now (right).
 - **Drag a fish:** it's pulled along a little and swims back when you let go. **Drag through the water:** a short current (snow, seaweed and fish go with it). **Double-click the water:** a knock on the glass, and the idle fish and the schools come to look. **Scroll over the water:** sprinkles food.
-- **D** demo · **M** sound · **S** focus mode · **T** float above windows · **F** food · **W** widget mode: a little frameless window in the corner of the screen, always on top and on every Space, showing only who needs you (drag the water to move it; W again to come back).
+- **D** demo · **M** sound · **S** focus mode · **T** float above windows · **F** food · **W** widget mode (see below). W again to come back.
 - **L** cycles the labels: **minimal** (default: the short title, or the name, plus a second line only when it matters: whenever it needs you, and for a few seconds when something happens), **full** or **none**. Everything else is in the hover card.
 - Closing the window doesn't quit: the aquarium stays in the **menu bar** (🐠, with whoever is waiting for you).
+
+**Widget mode (W):** the aquarium moves into the Mac's notch, or into a notch drawn at the top of another monitor (hidden while an app is full screen there), always on top and on every Space; the app comes back in it after a restart.
+- **Closed:** on the left, a fish per working session (up to three, in each one's color) and how many work, or the album's cover while music plays and nobody works; a thin light runs along the bottom while anyone works. On the right, who needs you (✋, or ✕ for an error) and for how long, with **Allow / Deny** or a short question's answers right there; for a few seconds, ✓ who just finished; otherwise, dim, who has been working longest. On the Mac's own notch the right side only shows the count until the mouse is over it, so it stays off the menu bar's icons. Someone new needing you makes the strip pulse.
+- **Click the name** to go to that session's terminal. **Mouse over** (or a click, in Preferences) opens a small tank below the notch showing only who needs you; clicking the strip also takes the keyboard (**Tab** through who's waiting, **Enter** to their terminal, **Esc** closes and gives the keyboard back).
+- **Right-click** the strip: focus mode, silence for an hour, animations on/off (off by default with macOS's Reduce motion), where the widget goes, back to the window.
+- Preferences → Appearance → Widget: the monitor (or the old little window in the corner, where dragging the water moves it), opening with the mouse or a click, and the open size.
 
 To avoid the automation permission prompt on every build, create a self-signed **Code Signing** certificate named `Fishbots Dev` in Keychain Access (Certificate Assistant → Create a Certificate). `scripts/app.sh` will use it.
 

@@ -17,6 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private(set) var demo: Demo!
     private var musicTimer: Timer?
     let labelLayers = Labels()
+    private(set) var windowModes: WindowModes!
+    /// "Silenciar por 1 hora": brings the sound back when it's up.
+    var unmuteTimer: Timer?
+    lazy var widgetPlaceMenu = WidgetPlaceMenu { [weak self] in self?.windowModes }
     /// What terminals say by themselves, through Rex and Herdr: what a session is doing, titles and places, and
     /// programs without hooks as fish (TerminalPrograms, RexFish, HerdrFish).
     lazy var terminalPrograms = TerminalPrograms(tank: tank)
@@ -136,6 +140,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         labels.wantsLayer = true
         window.contentView!.addSubview(labels)
         labelLayers.attach(to: labels, scale: window.backingScaleFactor)
+        windowModes = WindowModes(window: window, view: view, labels: labels, tank: tank)
+        windowModes.cardOpen = { [unowned self] in self.cards.isOpen || self.newSessionCard?.isShown == true }
+        windowModes.onDrawingChanged = { [unowned self] in self.visibilityChanged() }
+        windowModes.onGo = { [unowned self] id in
+            if let f = self.tank.fish.first(where: { $0.id == id }) { Whereabouts.go(f) }
+        }
+        windowModes.answers = { [unowned self] f in self.notchAnswers(f) }
+        windowModes.onAnswer = { [unowned self] id, action in self.cards.decide(id, action) }
+        windowModes.cover = { [unowned self] in
+            NowPlaying.playing ? self.tank.fish(source: NowPlaying.source, entity: NowPlaying.entity)?.art : nil
+        }
+        windowModes.onMenu = { [unowned self] e, v in self.notchMenu(e, v) }
 
         renderer.frame = { [unowned self] dt in self.frame(dt) }
         renderer.onGPUFrame = { [unowned self] ms, failed in self.packGuard.gpu(ms: ms, failed: failed) }
@@ -175,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             return self.cards.key(key) ? nil : e
         }
         view.onClick = { [unowned self] p in self.click(p) }
-        view.dragMovesWindow = { [unowned self] in self.tank.compact }
+        view.dragMovesWindow = { [unowned self] in self.windowModes.draggable }
         // drag a fish to nudge it, or the water to make a current; double click knocks; scrolling sprinkles food
         view.onDrag = { [unowned self] from, to in
             self.tank.drag(from: [Float(from.x), Float(from.y)], to: [Float(to.x), Float(to.y)])
@@ -286,7 +302,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         journal.returned = { [unowned self] in self.showOutsideButton() }
         notifier.decide = { [unowned self] request, action in self.cards.decide(request, action) }
         notifier.go = { [unowned self] id in
-            if let f = self.tank.fish.first(where: { $0.id == id }) { Whereabouts.go(f) }
+            guard let f = self.tank.fish.first(where: { $0.id == id }) else { return }
+            // its terminal; when it has none, in the notch: it opens on that session's card
+            if !Whereabouts.go(f) && self.windowModes.mode == .notch {
+                self.show()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.cards.pick(f) }
+            }
         }
 
         demo = Demo(tank: tank)
@@ -301,9 +322,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         registerHotkey()
         if UserDefaults.standard.bool(forKey: "menuBarOnly") { NSApp.setActivationPolicy(.accessory) }
 
-        window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(view)
-        NSApp.activate(ignoringOtherApps: true)
+        // quit in the widget: it comes back in it (without taking the keyboard)
+        if WindowModes.startsInWidget {
+            windowModes.toggle()
+        } else {
+            window.makeKeyAndOrderFront(nil)
+            window.makeFirstResponder(view)
+            NSApp.activate(ignoringOtherApps: true)
+        }
 
         if Env.value("DEMO") == "1" { demo.turnOn() }
     }
@@ -375,6 +401,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     }
 
     @objc func show() {
+        if windowModes.mode == .notch {
+            windowModes.setNotchOpen(true, hold: 4)
+            windowModes.takeKeyboard()
+            return
+        }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -382,7 +413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     func applicationDidBecomeActive(_ notification: Notification) { Attention.reload(); notifier.readPermission() }
     func applicationWillTerminate(_ notification: Notification) {
         // quitting in widget mode: back to the normal window first, so it isn't remembered as the window's size
-        if widgetFrom != nil { toggleWidget() }
+        windowModes.quit()
         SessionMemory.save(tank)
         rexFish.events.stop()
         herdrFish.stop()
@@ -394,7 +425,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     private let openedAt = Date()
 
-    /// The window is on screen (not closed, minimized or fully covered).
+    /// The window is on screen (not closed, minimized or fully covered, nor shut in the notch).
     private var onScreen = true
     private var backgroundTick: Timer?
 
@@ -402,7 +433,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// once a second, so its timers still run (a lingering error, sleeping, the whale…); sound and notices don't
     /// depend on drawing. Back on screen, it draws again.
     private func visibilityChanged() {
-        let visible = window.occlusionState.contains(.visible)
+        let visible = window.occlusionState.contains(.visible) && !windowModes.holdsDrawing
         guard visible != onScreen else { return }
         onScreen = visible
         view.isPaused = !visible
@@ -680,6 +711,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     func key(_ k: String) {
         if cards.key(k) { return }
+        if k == "⎋" && windowModes.escape() { return }
         switch k {
         case "d": toggleDemo()
         case "m": toggleMute()
@@ -723,6 +755,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         applyLanguage: { L10n.setting = $0 },
         reloadAgents: { [unowned self] in self.reloadAgents() },
         refreshFish: { [unowned self] in for f in self.tank.fish where !f.decor { Providers.refresh(f) } },
+        chooseWidgetPlace: { [unowned self] in self.windowModes.choose($0) },
+        widgetSizeChanged: { [unowned self] in self.windowModes.sizeChanged() },
         plugins: { [unowned self] in
             let files = ((try? FileManager.default.contentsOfDirectory(atPath: Plugins.folder.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
             let fmt = RelativeDateTimeFormatter(); fmt.locale = L10n.locale
@@ -737,54 +771,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     @objc func toggleDemo() { demo.toggle() }
     @objc func toggleMute() { synth.muted.store(!synth.muted.load(ordering: .relaxed), ordering: .relaxed) }
-    // MARK: - widget mode
+    // MARK: - widget mode (WindowModes)
 
-    private var widgetFrom: NSRect?
-    private var levelBeforeWidget: NSWindow.Level = .normal
-
-    /// Widget mode: a small, frameless, rounded window in a corner, always on top and on every Space, showing only
-    /// who needs you (the rest keeps swimming, hidden). W, the menu or the right-click menu switch it.
-    @objc func toggleWidget() {
-        guard let content = window.contentView else { return }
-        content.wantsLayer = true
-        if let from = widgetFrom {
-            UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: "widgetFrame")
-            tank.compact = false
-            widgetFrom = nil
-            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.level = levelBeforeWidget
-            window.collectionBehavior = window.level == .floating ? [.canJoinAllSpaces, .fullScreenAuxiliary] : []
-            window.isOpaque = true
-            window.backgroundColor = .black
-            content.layer?.cornerRadius = 0
-            window.setFrame(from, display: true, animate: true)
-            window.setFrameAutosaveName("Fishbots")        // remember the normal window's size again
-        } else {
-            widgetFrom = window.frame
-            window.setFrameAutosaveName("")                // the widget's size isn't the window's size
-            levelBeforeWidget = window.level
-            tank.compact = true
-            window.styleMask = [.borderless, .resizable]
-            window.level = .floating
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            window.hasShadow = true
-            content.layer?.cornerRadius = 16
-            content.layer?.masksToBounds = true
-            let vf = (window.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-            var frame = NSRect(x: vf.maxX - 436, y: vf.minY + 16, width: 420, height: 260)
-            if let s = UserDefaults.standard.string(forKey: "widgetFrame") {
-                let r = NSRectFromString(s)
-                if r.width > 200 && vf.intersects(r) { frame = r }
-            }
-            window.setFrame(frame, display: true, animate: true)
-            show()
-        }
-        window.invalidateShadow()
-    }
+    @objc func toggleWidget() { windowModes.toggle() }
 
     @objc func toggleFloat() {
         window.level = window.level == .floating ? .normal : .floating

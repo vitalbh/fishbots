@@ -24,6 +24,8 @@ final class Prefs: ObservableObject {
         var reloadAgents: () -> Void
         /// The fish take their kind again (after choosing an agent's fish).
         var refreshFish: () -> Void
+        var chooseWidgetPlace: (String) -> Void
+        var widgetSizeChanged: () -> Void
         var plugins: () -> [(name: String, ok: Bool, detail: String)]
     }
     let a: Actions
@@ -226,6 +228,28 @@ private struct LookTab: View {
                     .help(tr("Enquanto o Spotify ou o Música tocam, as duas cores mais marcantes da capa tingem os raios de luz, as cáusticas e a aurora."))
                 Toggle(tr("Neve marinha"), isOn: prefs.flag("marineSnow", default: true))
                 Toggle(tr("Poeira dourada nos raios de sol"), isOn: prefs.flag("goldenDust", default: true))
+            }
+            Section(tr("Widget (W)")) {
+                Picker(tr("Onde fica o widget"), selection: prefs.bind({ WindowModes.place }, { a.chooseWidgetPlace($0) })) {
+                    ForEach(NSScreen.screens, id: \.self) { s in
+                        Text(s.safeAreaInsets.top > 0 ? tr("No notch de %@", s.localizedName) : tr("No topo de %@", s.localizedName))
+                            .tag("screen:\(WindowModes.number(s))")
+                    }
+                    Text(tr("Janelinha no canto")).tag("corner")
+                }
+                Picker(tr("Abre"), selection: prefs.bind({ WindowModes.opensOnClick }, { WindowModes.opensOnClick = $0 })) {
+                    Text(tr("Ao passar o mouse")).tag(false)
+                    Text(tr("Com um clique")).tag(true)
+                }
+                .disabled(WindowModes.place == "corner")
+                Toggle(tr("Animações no notch"), isOn: prefs.bind({ WindowModes.animated }, { WindowModes.animated = $0 }))
+                    .disabled(WindowModes.place == "corner")
+                Picker(tr("Tamanho aberto"), selection: prefs.bind({ WindowModes.size }, { WindowModes.size = $0; a.widgetSizeChanged() })) {
+                    ForEach(WindowModes.sizes, id: \.id) { Text(tr($0.name)).tag($0.id) }
+                }
+                .disabled(WindowModes.place == "corner")
+                Text(tr("No notch, clicar no nome de quem espera leva ao terminal dele. Sem animações, os peixinhos ficam parados (o padrão segue o Reduzir movimento do macOS)."))
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section(tr("Visualizador")) {
                 Picker(tr("Visualizador"), selection: prefs.bind({ UserDefaults.standard.string(forKey: "visual") ?? "auto" },
