@@ -658,6 +658,12 @@ final class Tank {
                                   maxLife: 30, size: s, grow: 0, kind: 1, color: [0.8, 0.95, 1, 1]))
     }
 
+    /// A little cloud of sand lifted off the floor (something rooting in it).
+    func sandPuff(at p: SIMD2<Float>) {
+        particles.append(Particle(pos: p, vel: [Float.random(in: -10...10), Float.random(in: 4...12)], life: 0,
+                                  maxLife: 2, size: 7, grow: 8, kind: 10, color: [0.5, 0.43, 0.3, 1]))
+    }
+
     func burst(at p: SIMD2<Float>, n: Int) {
         for _ in 0..<n { bubble(at: p + SIMD2(Float.random(in: -14...14), Float.random(in: -8...8)), size: Float.random(in: 2.5...6)) }
     }

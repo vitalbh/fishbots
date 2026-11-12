@@ -253,10 +253,10 @@ struct School {
         if let k = s["kind"] as? String { kind = k }
     }
 
-    /// The usual ones: blue neons in the middle, orange tetras up high, silversides deep in the back.
+    /// The usual ones: neon tetras in the middle, harlequin rasboras up high, silversides deep in the back.
     static let usual: [School] = [
-        School(count: 10, size: 9.5...11, color: [0.35, 0.75, 1.0], pattern: 1, depth: 0.2...0.6, kind: "oval"),
-        School(count: 8, size: 8...9.5, color: [1.0, 0.62, 0.25], pattern: 3, depth: 0.25...0.5, kind: "oval"),
+        School(count: 12, size: 9...10.5, color: [0.3, 0.8, 1.0], pattern: 0, depth: 0.2...0.6, kind: "neon"),
+        School(count: 8, size: 8.5...10, color: [1.0, 0.58, 0.4], pattern: 0, depth: 0.25...0.5, kind: "rasbora"),
         School(count: 6, size: 14...17, color: [0.72, 0.8, 0.88], pattern: 0, depth: 0.6...0.8, kind: "slender"),
     ]
 }

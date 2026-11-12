@@ -45,6 +45,7 @@ final class Fauna {
         ("crab", { Crabs() }), ("starfish", { Starfish() }), ("turtle", { TurtleSwimmer() }),
         ("snail", { Snail() }), ("lanternfish", { Lanterns() }), ("whale", { WhaleSwimmer() }), ("grouper", { Grouper() }),
         ("anglerfish", { Anglerfish() }), ("sunfish", { Sunfish() }), ("manatee", { Manatee() }), ("seahorses", { Seahorses() }),
+        ("corydoras", { Corydoras() }),
     ]
 
     static func register(_ id: String, _ make: @escaping () -> Creature) {
@@ -54,7 +55,7 @@ final class Fauna {
     static func unregister(_ id: String) { kinds.removeAll { $0.id == id } }
 
     /// The built-in creatures (what a theme without a list gets; a pack's creatures only live where a theme lists them).
-    private static let builtIn: Set<String> = ["crab", "starfish", "turtle", "snail", "lanternfish", "whale", "grouper"]
+    private static let builtIn: Set<String> = ["crab", "starfish", "turtle", "snail", "lanternfish", "whale", "grouper", "corydoras"]
 
     private(set) var creatures: [Creature] = Fauna.kinds.filter { Fauna.builtIn.contains($0.id) }.map { $0.make() }
     /// The whale showed up: the app plays its song.
@@ -381,6 +382,88 @@ final class WhaleSwimmer: Creature {
         guard layer == .background, let b = whale else { return [] }
         return [Sprite(pos: [b.x, b.y], dir: [b.dir, 0], size: t.size.y * 0.16, kind: 19, glow: 0, phase: Float(t.time),
                        color: [0.05, 0.12, 0.2, 1], extra: [b.dir, 0, 0, 0])]
+    }
+}
+
+/// Corydoras: three little armored catfish that keep to the floor up front, pottering along it, stopping to feel the
+/// sand with their barbels (a puff of it now and then), and once in a while darting up to the surface for a gulp of
+/// air, as they do, and straight back down.
+final class Corydoras: Creature {
+    let id = "corydoras"
+    private struct Cory {
+        var x: Float
+        var dir: Float
+        var row: Float                  // how far up front on the floor (as the scenery's rows)
+        var size: Float
+        var phase: Float = 0
+        var rest: Float = 0
+        var gulp: Float = -1            // 0…1 through a trip to the surface and back (-1: on the floor)
+        var gulped = false
+        var nextGulp: Double
+        var tint: SIMD3<Float>
+    }
+    private var all: [Cory] = []
+
+    func update(_ t: Tank, dt: Float) {
+        let w = t.size.x, h = t.size.y
+        guard w > 10 else { return }
+        if all.isEmpty {
+            let tints: [SIMD3<Float>] = [[0.62, 0.52, 0.36], [0.5, 0.5, 0.46], [0.72, 0.56, 0.38]]
+            all = (0..<3).map { i in
+                Cory(x: w * Float.random(in: 0.3...0.9), dir: Bool.random() ? 1 : -1, row: 1.1 + 0.45 * Float(i), size: 21 + 2 * Float(i),
+                     phase: Float(i) * 2.1, nextGulp: t.time + Double.random(in: 20...90) * Tank.scale, tint: tints[i])
+            }
+        }
+        for i in all.indices {
+            var c = all[i]
+            c.phase += dt
+            if c.gulp >= 0 {
+                c.gulp += dt / 3.4
+                if c.gulp > 0.5 && !c.gulped {
+                    c.gulped = true
+                    t.bubble(at: [c.x, t.surfaceY(c.x) - 10], size: Float.random(in: 1.6...2.6))
+                }
+                if c.gulp >= 1 { c.gulp = -1; c.gulped = false; c.rest = 1.2 }
+            } else if t.time > c.nextGulp {
+                c.gulp = 0
+                c.nextGulp = t.time + Double.random(in: 50...130) * Tank.scale
+            } else if c.rest > 0 {
+                c.rest -= dt
+                // feeling the sand: a little puff of it
+                if Float.random(in: 0...1) < dt * 0.5 { t.sandPuff(at: [c.x + c.dir * c.size * 0.8, floorY(t, c) - 3]) }
+            } else {
+                c.x += c.dir * 24 * dt
+                if Float.random(in: 0...1) < dt * 0.3 { c.rest = Float.random(in: 1.5...4.5) }
+                if Float.random(in: 0...1) < dt * 0.07 { c.dir = -c.dir }
+            }
+            if c.x < w * 0.14 { c.dir = 1 } else if c.x > w * 0.93 { c.dir = -1 }
+            _ = h
+            all[i] = c
+        }
+    }
+
+    private func floorY(_ t: Tank, _ c: Cory) -> Float { t.size.y * t.sand(c.x / max(1, t.size.x)) * (1 - 0.2 * c.row) + c.size * 0.3 }
+
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
+        guard layer == .middle else { return [] }
+        let kind = Float(FishKinds.index(of: "corydoras"))
+        return all.sorted { $0.row < $1.row }.map { c in
+            var pos: SIMD2<Float> = [c.x, floorY(t, c)]
+            var dir: SIMD2<Float> = [c.dir, 0]
+            var beat: Float = c.rest > 0 ? 0.6 : 3
+            if c.gulp >= 0 {
+                // up fast, a touch at the surface, down as fast: its body points the way it goes
+                let k = sinf(c.gulp * .pi)
+                let top = t.surfaceY(c.x) - 12
+                pos.y += (top - pos.y) * powf(k, 0.7)
+                let rising: Float = c.gulp < 0.5 ? 1 : -1
+                dir = simd_normalize([c.dir * 0.35, rising * (0.25 + 0.75 * (1 - powf(k, 3)))])
+                beat = 7
+            }
+            let col = c.tint * (0.5 + 0.5 * t.light)
+            return Sprite(pos: pos, dir: dir, size: c.size * (1 + 0.07 * c.row), kind: 0, glow: 0, phase: c.phase * beat,
+                          color: SIMD4(col, 1), extra: [c.dir, 0, kind, 0], aux: [0, 0, 0, 0])
+        }
     }
 }
 

@@ -591,6 +591,132 @@ float4 draw_needlefish(float2 c, float phase, float glow, float4 col, float4 ext
     return float4((c3 * a + col.rgb * halo * 0.9) * col.a, min(a + halo * 0.55, 1.0) * col.a);
 }
 
+// Neon tetra (the aquarium's schools): a sliver with an olive back and a silver belly, a line of light from the eye
+// to the back fin in the color it's given, and red from the middle of the belly to the tail. extra.w > 1.5: asleep.
+float4 draw_neon(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    p.y -= sin(phase - p.x * 2.6) * 0.05 * smoothstep(0.3, -1.0, p.x);
+    float thin = mix(0.32, 1.0, smoothstep(-0.85, -0.05, p.x));
+    float ry = 0.22 * thin;
+    float body = (length((p - float2(0.12, 0.0)) / float2(0.78, ry)) - 1.0) * ry;
+    float2 tq = p - float2(-0.6, sin(phase - 1.2) * 0.05);
+    float tail = max(sd_tri(tq, float2(0.08, 0.0), float2(-0.4, 0.28), float2(-0.4, -0.28)),
+                     -(length((tq - float2(-0.47, 0.0)) / float2(0.2, 0.1)) - 1.0) * 0.1) - 0.01;
+    float dors = sd_tri(p, float2(0.1, 0.19), float2(-0.2, 0.17), float2(-0.14, 0.36)) - 0.012;
+    float anal = sd_tri(p, float2(-0.08, -0.18), float2(-0.46, -0.09), float2(-0.36, -0.3)) - 0.012;
+    float fins = min(tail, min(dors, anal));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 neon = mix(col.rgb, float3(0.35, 0.95, 1.0), 0.3) * 1.3, red = float3(0.93, 0.13, 0.12);
+    float yn = p.y / max(ry, 0.04);
+    float3 c3 = mix(float3(0.9, 0.93, 0.92), float3(0.3, 0.34, 0.2), smoothstep(0.1, 0.65, yn));     // silver belly, olive back
+    c3 = mix(c3, red, smoothstep(0.1, -0.25, yn) * smoothstep(0.22, -0.02, p.x));                     // red, back half only
+    c3 = fish_round(c3 * 1.08, float2((p.x - 0.12) / 0.78, yn), body);
+    float line = (1.0 - smoothstep(0.1, 0.26, abs(yn - 0.28))) * smoothstep(-0.52, -0.38, p.x) * step(body, 0.0);
+    c3 = mix(c3, neon, line);
+    float al = a;
+    if (body > 0.0) { c3 = tail < min(dors, anal) ? mix(float3(0.9, 0.85, 0.8), red, smoothstep(-0.25, 0.0, tq.x) * 0.8) : float3(0.85, 0.88, 0.85); al *= 0.45; }
+    c3 = fish_eye(c3, p, float2(0.66, 0.045), 0.07, neon, extra.w > 1.5 ? 1.0 : 0.0);
+    c3 += col.rgb * glow * 0.45;
+    float fade = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = (exp(-max(d, 0.0) * 12.0) * glow + line * 0.0) * (1.0 - a) * fade;
+    return float4((c3 * al + col.rgb * halo * 0.9) * col.a, min(al + halo * 0.55, 1.0) * col.a);
+}
+
+// Harlequin rasbora (the aquarium's schools): a deeper little body in copper and pink (the color it's given), with a
+// black wedge over its back half narrowing to the tail, and a forked, orange-tipped tail. extra.w > 1.5: asleep.
+float4 draw_rasbora(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    p.y -= sin(phase - p.x * 2.5) * 0.05 * smoothstep(0.3, -1.0, p.x);
+    float thin = mix(0.3, 1.0, smoothstep(-0.8, 0.0, p.x));
+    float ry = 0.32 * thin;
+    float body = (length((p - float2(0.14, 0.0)) / float2(0.7, ry)) - 1.0) * ry;
+    float2 tq = p - float2(-0.5, sin(phase - 1.2) * 0.05);
+    float tail = max(sd_tri(tq, float2(0.08, 0.0), float2(-0.46, 0.36), float2(-0.46, -0.36)),
+                     -sd_tri(tq, float2(-0.2, 0.0), float2(-0.55, 0.2), float2(-0.55, -0.2))) - 0.012;
+    float dors = sd_tri(p, float2(0.12, 0.26), float2(-0.22, 0.22), float2(-0.12, 0.5)) - 0.014;
+    float anal = sd_tri(p, float2(-0.02, -0.26), float2(-0.38, -0.14), float2(-0.3, -0.42)) - 0.014;
+    float vent = sd_tri(p, float2(0.22, -0.28), float2(0.06, -0.27), float2(0.08, -0.42)) - 0.01;
+    float fins = min(min(tail, vent), min(dors, anal));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 copper = mix(float3(0.95, 0.55, 0.38), col.rgb, 0.45);
+    float yn = p.y / max(ry, 0.05);
+    float3 c3 = mix(copper * 1.1 + 0.08, copper * 0.8, smoothstep(-0.2, 0.6, yn));
+    float2 sc = p * float2(15.0, 18.0);
+    c3 *= 0.95 + 0.07 * smoothstep(0.25, 0.5, length(fract(sc + float2(floor(sc.y) * 0.5, 0.0)) - 0.5));       // scales
+    // the wedge: tall under the dorsal fin, running back to a point at the tail stock
+    float wk = clamp((0.16 - p.x) / 0.72, 0.0, 1.0);
+    float wedge = abs(p.y + 0.02) - mix(0.2, 0.012, wk);
+    c3 = mix(c3, float3(0.04, 0.04, 0.07), (1.0 - smoothstep(-0.01, 0.015, wedge)) * smoothstep(0.2, 0.14, p.x) * step(body, 0.0));
+    c3 = fish_round(c3 * 1.08, float2((p.x - 0.14) / 0.7, yn), body);
+    float al = a;
+    if (body > 0.0) {
+        float3 fin = mix(copper, float3(1.0, 0.5, 0.15), 0.6);
+        c3 = fin * (0.85 + 0.15 * cos(atan2(p.y, -(p.x + 0.4)) * 30.0)) * (tail < min(min(dors, anal), vent) ? 0.75 + 0.5 * smoothstep(-0.1, -0.4, tq.x) : 1.0);
+        al *= 0.7;
+    }
+    c3 = fish_eye(c3, p, float2(0.62, 0.07), 0.075, float3(0.95, 0.6, 0.3), extra.w > 1.5 ? 1.0 : 0.0);
+    c3 += col.rgb * glow * 0.45;
+    float fade = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = exp(-max(d, 0.0) * 12.0) * glow * (1.0 - a) * fade;
+    return float4((c3 * al + col.rgb * halo * 0.9) * col.a, min(al + halo * 0.55, 1.0) * col.a);
+}
+
+// Corydoras (the aquarium's floor): a small armored catfish, arched back and flat belly, two rows of plates down its
+// side, a high dorsal fin, barbels feeling the sand, a big eye; speckled. extra.w > 1.5: asleep.
+float4 draw_corydoras(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    p.y -= sin(phase - p.x * 2.4) * 0.03 * smoothstep(0.2, -1.0, p.x);
+    // arched above, flat below: the belly is cut level
+    float thin = mix(0.34, 1.0, smoothstep(-0.8, 0.1, p.x));
+    float ry = 0.36 * thin;
+    float body = (length((p - float2(0.14, -0.06)) / float2(0.7, ry)) - 1.0) * ry;
+    body = max(body, -(p.y + 0.3));
+    float2 tq = p - float2(-0.5, -0.06 + sin(phase - 1.2) * 0.04);
+    float tail = max(sd_tri(tq, float2(0.08, 0.0), float2(-0.44, 0.34), float2(-0.44, -0.34)),
+                     -sd_tri(tq, float2(-0.24, 0.0), float2(-0.52, 0.17), float2(-0.52, -0.17))) - 0.012;
+    float dors = sd_tri(p, float2(0.2, 0.22), float2(-0.14, 0.2), float2(-0.02, 0.58)) - 0.016;          // tall, like a sail
+    float adip = sd_tri(p, float2(-0.3, 0.12), float2(-0.44, 0.06), float2(-0.42, 0.2)) - 0.01;
+    float pang = -0.3 + sin(phase * 1.6) * 0.3;
+    float2 pq = p - float2(0.34, -0.26);
+    pq = float2(pq.x * cos(pang) - pq.y * sin(pang), pq.x * sin(pang) + pq.y * cos(pang));
+    float pect = (length((pq - float2(-0.13, 0.0)) / float2(0.16, 0.05)) - 1.0) * 0.05;
+    float vent = sd_tri(p, float2(0.0, -0.29), float2(-0.2, -0.28), float2(-0.2, -0.42)) - 0.012;
+    // barbels: two short whiskers under the snout, feeling ahead
+    float bw = sin(phase * 2.2) * 0.03;
+    float barb = min(sd_seg(p, float2(0.74, -0.2), float2(0.84 + bw, -0.34)), sd_seg(p, float2(0.7, -0.24), float2(0.76 - bw, -0.38))) - 0.012;
+    float fins = min(min(tail, dors), min(min(adip, vent), min(pect, barb)));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 bronze = mix(float3(0.62, 0.52, 0.36), col.rgb, 0.35);
+    float yn = (p.y + 0.06) / max(ry, 0.05);
+    float3 c3 = mix(float3(0.92, 0.86, 0.74), bronze, smoothstep(-0.55, 0.0, yn));                          // a pale belly
+    // the armor: two rows of plates meeting along the side, like roof tiles
+    float plates = abs(fract(p.x * 9.0 + abs(yn) * 0.9) - 0.5);
+    c3 *= 1.0 - (1.0 - smoothstep(0.03, 0.09, plates)) * 0.22 * step(p.x, 0.42);
+    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.03, abs(yn + 0.05))) * 0.2 * step(p.x, 0.42);
+    // dark speckles, and a green sheen on the gill cover
+    float2 sg = p * 22.0;
+    c3 = mix(c3, bronze * 0.35, (1.0 - smoothstep(0.2, 0.34, length(fract(sg) - 0.5))) * step(0.55, hash21(floor(sg))) * smoothstep(-0.4, 0.1, yn) * 0.7);
+    c3 = mix(c3, float3(0.25, 0.6, 0.5), (1.0 - smoothstep(0.6, 1.0, length((p - float2(0.46, -0.06)) / float2(0.1, 0.13)))) * 0.45);
+    c3 = fish_round(c3 * 1.08, float2((p.x - 0.14) / 0.7, yn), body);
+    float al = a;
+    if (body > 0.0) {
+        c3 = barb < min(min(tail, dors), min(min(adip, vent), pect)) ? bronze * 0.75
+           : (bronze * 0.9 + 0.12) * (0.85 + 0.15 * cos(atan2(p.y - 0.1, -(p.x + 0.1)) * 34.0));
+        al *= barb < 0.0 ? 1.0 : 0.72;
+    }
+    c3 = fish_eye(c3, p, float2(0.6, 0.06), 0.078, float3(0.95, 0.75, 0.3), extra.w > 1.5 ? 1.0 : 0.0);
+    c3 += col.rgb * glow * 0.45;
+    float fade = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = exp(-max(d, 0.0) * 12.0) * glow * (1.0 - a) * fade;
+    return float4((c3 * al + col.rgb * halo * 0.9) * col.a, min(al + halo * 0.55, 1.0) * col.a);
+}
+
 // Bristlemouth (the deep sea's schools): a small dark fish, all jaw, with a row of little lights along its belly
 // in the color it's given. extra.w > 1.5: asleep (the lights go dim).
 float4 draw_bristlemouth(float2 c, float phase, float glow, float4 col, float4 extra) {

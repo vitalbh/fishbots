@@ -97,6 +97,10 @@ enum FishKinds {
         // the lagoon's and the deep sea's own school fish (a session can be one too)
         FishKind(id: "needlefish", name: "peixe-agulha", source: nil, call: "draw_needlefish(c, phase, glow, col, extra)"),
         FishKind(id: "bristlemouth", name: "peixe-luz", source: nil, call: "draw_bristlemouth(c, phase, glow, col, extra)"),
+        // the aquarium's own: neons and rasboras in schools, corydoras on the floor
+        FishKind(id: "neon", name: "néon", source: nil, call: "draw_neon(c, phase, glow, col, extra)"),
+        FishKind(id: "rasbora", name: "rasbora-arlequim", source: nil, call: "draw_rasbora(c, phase, glow, col, extra)"),
+        FishKind(id: "corydoras", name: "coridora", source: nil, call: "draw_corydoras(c, phase, glow, col, extra)"),
     ]
 
     /// Kinds added after the shader was compiled only show up on the next launch.
