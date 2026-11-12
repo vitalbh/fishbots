@@ -33,8 +33,18 @@ final class WindowModes {
     var song: () -> (id: String, name: String)? = { nil }
     /// Right click on the notch.
     var onMenu: (NSEvent, NSView) -> Void = { _, _ in }
-    /// What who needs you asked (the question, the command it wants to run…), shown under the name on hover.
-    var peek: (String) -> String? = { _ in nil }
+    /// What to show under a name on hover: what it asked (the question, the command it wants to run…) and its
+    /// latest steps, drawn (StepTrail).
+    struct Peek {
+        var text: String?
+        var steps: [StepTrail.Step] = []
+        var busy = false
+        var tint: NSColor = .white
+    }
+    var peek: (String) -> Peek? = { _ in nil }
+    /// A session takes a reply (the 🎙 shows), and the 🎙 was clicked: its card opens listening.
+    var canVoice: (Fish) -> Bool = { _ in false }
+    var onVoice: (String) -> Void = { _ in }
     /// The "+" on the strip: a new session.
     var onNewSession: () -> Void = {}
     /// Files or text dropped on the strip: to which session (a menu at that point of the view).
@@ -359,6 +369,9 @@ final class WindowModes {
         watch = nil
         ears?.removeFromSuperview()
         ears = nil
+        band?.removeFromSuperview()
+        band = nil
+        bandKey = nil
         notch = nil
         notchOpen = false
         mouseSince = nil
@@ -385,6 +398,8 @@ final class WindowModes {
             view.frame = tankRect
             labels.frame = tankRect
         }
+        bandKey = nil
+        updateBand(open: open, frame: frame)
         view.isHidden = !open
         labels.isHidden = !open
         ears?.open = open
@@ -486,10 +501,12 @@ final class WindowModes {
         switch hit {
         case .action(let id, let a): onAnswer(id, a); return
         case .plus: onNewSession(); return
+        case .mic: if let id = ears?.content.whoId { onVoice(id) }; return
         case .name:
             if let id = ears?.content.whoId { onGo(id); return }
             if ears?.content.away != nil { onAway(); return }
             if let id = ears?.content.songId { onGo(id); return }
+            if let id = ears?.content.workingId { onGo(id); return }
         case .strip: break
         }
         if !notchOpen { setNotchOpen(true); takeKeyboard() } else if Self.opensOnClick { setNotchOpen(false) }
@@ -523,7 +540,9 @@ final class WindowModes {
             c.art = cover()
             if c.art != nil, let s = song() { c.song = s.name; c.songId = s.id }
         }
-        if let longest = busy.min(by: { $0.since < $1.since }) { c.workingName = longest.displayTitle ?? longest.label }
+        // who has been working longest, among those whose steps can be shown when there are
+        let withSteps = busy.filter { !$0.history.isEmpty }
+        if let longest = (withSteps.isEmpty ? busy : withSteps).min(by: { $0.since < $1.since }) { c.workingName = longest.displayTitle ?? longest.label; c.workingId = longest.id }
         if let n = needs.first {
             c.who = n.name
             c.whoId = n.id
@@ -531,6 +550,7 @@ final class WindowModes {
             c.more = needs.count - 1
             c.waited = Int((tank.time - n.since) / Tank.scale / 60)
             if n.state == .waiting, let f = n.fish, let (req, actions) = answers(f) { c.request = req; c.actions = actions }
+            if n.state == .waiting, let f = n.fish, c.request == nil, canVoice(f) { c.voice = true }
         }
         // who went from working to done: "✓ name" for a few seconds
         for f in live where lastStates[f.id] == .busy && f.state == .done {
@@ -542,6 +562,7 @@ final class WindowModes {
 
         let before = ears.content
         ears.update(c)
+        if notchOpen { updateBand(open: true, frame: window.frame) }
         let grew = NotchEars.leftWidth(c, plus: ears.hovering) != NotchEars.leftWidth(before, plus: ears.hovering)
             || NotchEars.rightWidth(c, compact: ears.compact) != NotchEars.rightWidth(before, compact: ears.compact)
         if grew && (!notchOpen || openFrame.width != window.frame.width) { layoutNotch(open: notchOpen, animate: true) }
@@ -554,57 +575,113 @@ final class WindowModes {
         needIds = ids
     }
 
+    // MARK: - the band
+
+    /// Open, a thin band under the strip: whose steps (who needs you, else who has been working longest), drawn live.
+    private var band: NSView?
+    private var bandKey: (id: String, steps: Int, busy: Bool, width: CGFloat)?
+
+    private func updateBand(open: Bool, frame: NSRect) {
+        guard let n = notch, let content = window.contentView else { return }
+        let c = ears?.content ?? .init()
+        let id = c.whoId.flatMap { $0.hasPrefix("presence:") ? nil : $0 } ?? c.workingId
+        guard open, let id, let what = peek(id), !what.steps.isEmpty else {
+            band?.removeFromSuperview(); band = nil; bandKey = nil
+            return
+        }
+        if let k = bandKey, k.id == id, k.steps == what.steps.count, k.busy == what.busy, k.width == frame.width { return }
+        bandKey = (id, what.steps.count, what.busy, frame.width)
+        band?.removeFromSuperview()
+        let h: CGFloat = 26
+        let b = NSView(frame: NSRect(x: 0, y: frame.height - n.rect.height - h, width: frame.width, height: h))
+        b.wantsLayer = true
+        b.layer?.backgroundColor = NSColor(white: 0, alpha: 0.38).cgColor
+        b.autoresizingMask = [.width, .minYMargin]           // stays under the strip while the notch opens
+        let name = (c.whoId == id ? c.who : c.workingName) ?? ""
+        let label = NSTextField(labelWithString: name)
+        label.font = .systemFont(ofSize: 10.5, weight: .medium)
+        label.textColor = NSColor(white: 1, alpha: 0.6)
+        label.lineBreakMode = .byTruncatingTail
+        let nameW = min(130, ceil(label.fittingSize.width))
+        label.frame = NSRect(x: 12, y: (h - 14) / 2, width: nameW, height: 14)
+        b.addSubview(label)
+        let trailW = frame.width - nameW - 34
+        let trail = StepTrail(steps: what.steps, busy: what.busy, tint: what.tint, width: trailW, mini: true, animated: Self.animated)
+        trail.translatesAutoresizingMaskIntoConstraints = true
+        trail.frame = NSRect(x: nameW + 22, y: (h - StepTrail.miniHeight) / 2, width: trailW, height: StepTrail.miniHeight)
+        b.addSubview(trail)
+        // over the tank and its labels, under the strip
+        if let ears { content.addSubview(b, positioned: .below, relativeTo: ears) } else { content.addSubview(b) }
+        band = b
+    }
+
     // MARK: - peek
 
     private var peekPanel: NSPanel?
-    private var peekLabel: NSTextField?
     private var peekSince: Date?
-    private var peekShown: String?
+    /// What the peek shows now: whose, and how many steps (a new step redraws it).
+    private var peekShown: (id: String, steps: Int, busy: Bool)?
 
-    /// The mouse rests on the name of who needs you: what it asked shows under the strip.
+    /// The mouse rests on a name (who needs you, or who's working): what it asked and its steps show under the strip.
     private func updatePeek(_ m: NSPoint) {
         guard let ears, let r = ears.nameOnScreen, r.insetBy(dx: -4, dy: -6).contains(m),
-              let id = ears.content.whoId, let text = peek(id), !text.isEmpty else { hidePeek(); return }
-        if peekShown == id { return }
+              let id = ears.content.whoId ?? (ears.compact ? nil : ears.content.workingId),
+              let what = peek(id), what.text?.isEmpty == false || !what.steps.isEmpty else { hidePeek(); return }
+        if let s = peekShown, s.id == id, s.steps == what.steps.count, s.busy == what.busy { return }
         let since = peekSince ?? Date()
         peekSince = since
-        guard Date().timeIntervalSince(since) > 0.3, let n = notch else { return }
-        showPeek(text, at: r.minX - 10, below: n.rect.minY - 6, on: n.screen)
-        peekShown = id
+        guard peekShown?.id == id || Date().timeIntervalSince(since) > 0.3, let n = notch else { return }
+        showPeek(what, at: r.minX - 10, below: n.rect.minY - 6, on: n.screen)
+        peekShown = (id, what.steps.count, what.busy)
     }
 
-    private func showPeek(_ text: String, at x: CGFloat, below top: CGFloat, on screen: NSScreen) {
+    private func showPeek(_ what: Peek, at x: CGFloat, below top: CGFloat, on screen: NSScreen) {
         let panel = peekPanel ?? {
             let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             p.isOpaque = false
             p.backgroundColor = .clear
             p.hasShadow = true
             p.level = .statusBar
-            p.ignoresMouseEvents = true
             p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
-            let box = NSView()
-            box.wantsLayer = true
-            box.layer?.backgroundColor = NSColor(white: 0.06, alpha: 0.96).cgColor
-            box.layer?.cornerRadius = 10
-            let l = NSTextField(wrappingLabelWithString: "")
-            l.font = .systemFont(ofSize: 12)
-            l.textColor = NSColor(white: 1, alpha: 0.9)
-            box.addSubview(l)
-            p.contentView = box
             peekPanel = p
-            peekLabel = l
             return p
         }()
-        guard let l = peekLabel else { return }
-        let shown = text.count > 400 ? String(text.prefix(399)) + "…" : text
-        l.stringValue = shown
-        l.preferredMaxLayoutWidth = 360
-        let fit = l.fittingSize
-        let size = NSSize(width: min(380, fit.width) + 24, height: fit.height + 16)
-        l.frame = NSRect(x: 12, y: 8, width: size.width - 24, height: fit.height)
+        let box = NSView()
+        box.wantsLayer = true
+        box.layer?.backgroundColor = NSColor(white: 0.06, alpha: 0.96).cgColor
+        box.layer?.cornerRadius = 10
+        let inner: CGFloat = 360
+        var y: CGFloat = 10, height: CGFloat = 10
+        var label: NSTextField?
+        if let text = what.text, !text.isEmpty {
+            let l = NSTextField(wrappingLabelWithString: text.count > 400 ? String(text.prefix(399)) + "…" : text)
+            l.font = .systemFont(ofSize: 12)
+            l.textColor = NSColor(white: 1, alpha: 0.9)
+            l.preferredMaxLayoutWidth = inner
+            label = l
+            height += l.fittingSize.height
+        }
+        let trail = what.steps.isEmpty ? nil
+            : StepTrail(steps: what.steps, busy: what.busy, tint: what.tint, width: inner, animated: Self.animated)
+        if trail != nil { height += StepTrail.height + (label != nil ? 8 : 0) }
+        height += 10
+        let width = trail != nil ? inner + 24 : min(inner, label?.fittingSize.width ?? inner) + 24
+        // top to bottom: the text, then the trail
+        if let trail {
+            trail.translatesAutoresizingMaskIntoConstraints = true
+            trail.frame = NSRect(x: 12, y: y, width: inner, height: StepTrail.height)
+            box.addSubview(trail)
+            y += StepTrail.height + 8
+        }
+        if let l = label {
+            let h = l.fittingSize.height
+            l.frame = NSRect(x: 12, y: y, width: width - 24, height: h)
+            box.addSubview(l)
+        }
+        panel.contentView = box
         let vf = screen.frame
-        let left = max(vf.minX + 8, min(x, vf.maxX - size.width - 8))
-        panel.setFrame(NSRect(x: left, y: top - size.height, width: size.width, height: size.height), display: true)
+        let left = max(vf.minX + 8, min(x, vf.maxX - width - 8))
+        panel.setFrame(NSRect(x: left, y: top - height, width: width, height: height), display: true)
         panel.orderFrontRegardless()
     }
 

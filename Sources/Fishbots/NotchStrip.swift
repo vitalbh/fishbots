@@ -24,6 +24,8 @@ final class NotchEars: NSView {
         var more = 0
         /// How long who needs you has been waiting, in minutes.
         var waited = 0
+        /// Who needs you takes a reply: a 🎙 next to its name answers by voice.
+        var voice = false
         /// The permission request of who needs you, answered by `actions`.
         var request: Int?
         var actions: [Action] = []
@@ -31,13 +33,14 @@ final class NotchEars: NSView {
         var finished: String?
         /// Who has been working the longest (shown, dim, when there's nothing else to say).
         var workingName: String?
+        var workingId: String?
         /// Back after a while away: what happened meanwhile (a click opens the summary).
         var away: String?
         /// The song playing, while its cover shows ("♪ title — artist"; a click brings the player forward).
         var song: String?
         var songId: String?
     }
-    enum Hit { case strip, name, plus, action(Int, String) }
+    enum Hit { case strip, name, plus, mic, action(Int, String) }
 
     /// Where the notch is in this view (it moves when the strip grows to the right).
     var notchX: CGFloat = 50 { didSet { needsDisplay = true } }
@@ -147,7 +150,7 @@ final class NotchEars: NSView {
             let nameW = min(t.size().width, c.actions.isEmpty ? maxRight - 22 : 150)
             var r = Right(width: 0, text: t, name: NSRect(x: 10, y: -t.size().height / 2, width: nameW, height: t.size().height))
             var x = r.name.maxX + 8
-            for a in c.actions {
+            for a in (c.voice ? [Action(label: "🎙", action: "mic")] : []) + c.actions {
                 let w = buttonText(a).size().width + 14
                 r.buttons.append((NSRect(x: x, y: -9, width: w, height: 18), a))
                 x += w + 5
@@ -201,7 +204,8 @@ final class NotchEars: NSView {
     /// Where the name (or the summary) is, on screen: the peek opens under it.
     var nameOnScreen: NSRect? {
         let c = content
-        guard c.who != nil || c.away != nil || (Self.showsArt(c) && c.song != nil), let w = window else { return nil }
+        guard c.who != nil || c.away != nil || (Self.showsArt(c) && c.song != nil) || (!compact && c.workingName != nil),
+              let w = window else { return nil }
         let r = placed(Self.right(c, compact: compact).name)
         return w.convertToScreen(convert(r, to: nil))
     }
@@ -217,10 +221,11 @@ final class NotchEars: NSView {
     override func mouseDown(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         let r = Self.right(content, compact: compact)
-        if let req = content.request, !compact, let b = r.buttons.first(where: { placed($0.0).insetBy(dx: -2, dy: -4).contains(p) }) {
-            onClick(.action(req, b.1.action)); return
+        if !compact, let b = r.buttons.first(where: { placed($0.0).insetBy(dx: -2, dy: -4).contains(p) }) {
+            if b.1.action == "mic" { onClick(.mic); return }
+            if let req = content.request { onClick(.action(req, b.1.action)); return }
         }
-        if content.who != nil || content.away != nil || r.text != nil && Self.showsArt(content) && content.song != nil,
+        if content.who != nil || content.away != nil || r.text != nil && (Self.showsArt(content) && content.song != nil || content.workingName != nil),
            placed(r.name).insetBy(dx: -4, dy: -8).contains(p) { onClick(.name); return }
         if hovering, plusRect.insetBy(dx: -3, dy: -6).contains(p) { onClick(.plus); return }
         onClick(.strip)

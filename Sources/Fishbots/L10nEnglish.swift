@@ -313,6 +313,7 @@ let english: [String: String] = [
     "Animações no notch": "Animations in the notch",
     "%d min": "%d min",
     "nenhuma sessão recebe isso agora": "no session takes that right now",
+    "você disse": "you said",
     "Mandar para…": "Send to…",
     "1 terminou": "1 finished",
     "%d terminaram": "%d finished",

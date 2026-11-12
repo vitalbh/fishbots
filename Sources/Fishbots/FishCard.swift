@@ -404,10 +404,12 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         }
         guard !lines.isEmpty || !today.isEmpty else { return lastError() }
         v.append(divider())
+        // its steps drawn (live while it works), then the latest one in words; "ver o histórico" lists them all
+        if !f.history.isEmpty { v.append(StepTrail(steps: StepTrail.steps(of: f), busy: f.state == .busy, tint: tint, width: width)) }
         let more = open.contains("tools"), all = open.contains("tasks")
         let fmt = DateFormatter(); fmt.timeStyle = .short; fmt.dateStyle = .none
         let bubbles = ["◯", "○", "∘"]
-        for (i, l) in lines.prefix(more ? lines.count : 3).enumerated() {
+        for (i, l) in lines.prefix(more ? lines.count : 1).enumerated() {
             let line = NSMutableAttributedString(string: (i < bubbles.count ? bubbles[i] : "·") + "  ", attributes: [
                 .font: NSFont.systemFont(ofSize: 10.5), .foregroundColor: tintText.withAlphaComponent(i == 0 ? 0.95 : 0.6)])
             line.append(NSAttributedString(string: fmt.string(from: l.when) + "  ", attributes: [
@@ -433,7 +435,7 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             v.append(row)
         }
         var links: [NSView] = []
-        if lines.count > 3 {
+        if lines.count > 1 {
             links.append(link((more ? "▾ " : "▸ ") + tr(more ? "recolher" : "ver o histórico"), 10.5, color: .tertiaryLabelColor) { [weak self] in self?.toggle("tools") })
         }
         if !today.isEmpty {

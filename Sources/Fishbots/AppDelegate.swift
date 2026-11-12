@@ -162,6 +162,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         }
         windowModes.peek = { [unowned self] id in self.notchPeek(id) }
         windowModes.onNewSession = { [unowned self] in self.newSession() }
+        windowModes.canVoice = { [unowned self] f in self.cards.canReply(f) }
+        windowModes.onVoice = { [unowned self] id in
+            guard let f = self.tank.fish.first(where: { $0.id == id }) else { return }
+            self.show()
+            // after the notch has opened: the card hangs from the tank
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.cards.open(f)
+                self.cards.card?.startDictation()
+            }
+        }
         windowModes.onDrop = { [unowned self] text, v, at in self.notchDrop(text, v, at) }
         windowModes.away = { [unowned self] in self.notchAway() }
         windowModes.onAway = { [unowned self] in self.windowModes.openLarge(); self.openAwaySummary() }

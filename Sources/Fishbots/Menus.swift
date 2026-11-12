@@ -452,15 +452,19 @@ extension AppDelegate {
         synth.muted.store(false, ordering: .relaxed)
     }
 
-    /// What who needs you asked, for the peek under the notch: the permission's command, the question with its
-    /// answers, what it last said; a presence's detail.
-    func notchPeek(_ id: String) -> String? {
+    /// For the peek under the notch: what a session asked (the permission's command, the question with its answers,
+    /// what it last said, while waiting) and its latest steps; a presence's detail.
+    func notchPeek(_ id: String) -> WindowModes.Peek? {
         if let f = tank.fish.first(where: { $0.id == id }) {
-            if let r = permissions.request(ofFish: f.id) { return r.question?.asText ?? r.tool + ": " + r.summary }
-            return f.asked ?? f.lastReply
+            var p = WindowModes.Peek(steps: StepTrail.steps(of: f), busy: f.state == .busy,
+                                     tint: NSColor(red: CGFloat(f.color.x), green: CGFloat(f.color.y), blue: CGFloat(f.color.z), alpha: 1))
+            if let r = permissions.request(ofFish: f.id) { p.text = r.question?.asText ?? r.tool + ": " + r.summary }
+            else if f.state == .busy { p.text = f.doing }
+            else { p.text = f.asked ?? f.lastReply }
+            return p
         }
-        guard let p = tank.scene.presences.first(where: { "presence:" + $0.id == id }) else { return nil }
-        return p.detail.map { p.label + "\n" + $0 }
+        guard let pr = tank.scene.presences.first(where: { "presence:" + $0.id == id }) else { return nil }
+        return WindowModes.Peek(text: pr.detail.map { pr.label + "\n" + $0 } ?? pr.label)
     }
 
     /// Files or text dropped on the notch: a menu of the sessions that take a reply (who's waiting first), and it
