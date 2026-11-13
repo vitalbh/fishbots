@@ -146,7 +146,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             }
             for k in SceneryKinds.all {
                 do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }
-                catch { Renderer.packSceneryFailed?(k, "\(error)"); SceneryKinds.drop(k.id) }
+                catch { Renderer.packSceneryFailed?(k, "\(error)"); SceneryKinds.drop(k) }
             }
             for k in FaunaKinds.all {
                 do { _ = try device.makeLibrary(source: FishKinds.shaderSource(testing: k), options: nil) }

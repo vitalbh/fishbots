@@ -1076,7 +1076,8 @@ final class Tank {
         var pops: [SIMD2<Float>] = []
         particles.removeAll { p in
             guard p.kind == 1, p.pos.y > surfaceY(p.pos.x) - 2 else { return p.life > p.maxLife }
-            if p.size > 2.2 && pops.count < 6 && Float.random(in: 0...1) < 0.6 { pops.append([p.pos.x, surfaceY(p.pos.x)]) }
+            // (a theme with no water's surface, a sky: the bubble just goes, no ring)
+            if p.size > 2.2 && pops.count < 6 && Themes.current.surface && Float.random(in: 0...1) < 0.6 { pops.append([p.pos.x, surfaceY(p.pos.x)]) }
             return true
         }
         for p in pops {

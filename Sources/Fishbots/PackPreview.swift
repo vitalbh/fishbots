@@ -73,7 +73,7 @@ enum PackPreview {
         for k in FishKinds.all where k.pack != nil {
             if !check("fish", k.id, k.source ?? "", FishKinds.shaderSource(testing: k)) { Packs.fishFailed(k, ""); FishKinds.drop(k.id) }
         }
-        for k in SceneryKinds.all where !check("scenery", k.id, k.source, FishKinds.shaderSource(testing: k)) { Packs.sceneryFailed(k, ""); SceneryKinds.drop(k.id) }
+        for k in SceneryKinds.all where !check("scenery", k.id, k.source, FishKinds.shaderSource(testing: k)) { Packs.sceneryFailed(k, ""); SceneryKinds.drop(k) }
         for k in FaunaKinds.all where !check("creature", k.id, k.source, FishKinds.shaderSource(testing: k)) { Packs.faunaFailed(k, ""); FaunaKinds.drop(k.id) }
         for k in PackBackgrounds.all where !check("background of", k.id, k.source, FishKinds.shaderSource(testing: k)) {
             Packs.backgroundFailed(k, ""); PackBackgrounds.blank(k.id)
@@ -146,7 +146,7 @@ enum PackPreview {
     private static func themeCell(_ t: Theme) -> Cell {
         let u = t.uniforms
         func v(_ c: SIMD4<Float>) -> String { "float3(\(c.x), \(c.y), \(c.z))" }
-        let call = "pv_theme(c, \(v(u.deep)), \(v(u.shallow)), \(v(u.rays)), \(v(u.surface)), \(v(u.weedLow)), \(v(u.weedHigh)), \(v(u.sandDark)), \(v(u.sandLight)), \(v(u.farWeed)), \(u.params.z), \(Int(u.pack.x + 0.5) - 1), \(u.params.x + u.params.y > 0.5 ? 1.0 : 0.0), \(t.floor ? 1.0 : 0.0))"
+        let call = "pv_theme(c, \(v(u.deep)), \(v(u.shallow)), \(v(u.rays)), \(v(u.surface)), \(v(u.weedLow)), \(v(u.weedHigh)), \(v(u.sandDark)), \(v(u.sandLight)), \(v(u.farWeed)), \(u.params.z), \(Int(u.pack.x + 0.5) - 1), \(u.params.x + u.params.y > 0.5 ? 1.0 : 0.0), \(t.floor ? 1.0 : 0.0), \(t.surface ? 1.0 : 0.0))"
         return Cell(call: call, aspect: 1.5, label: "theme \(t.name)", sand: false)
     }
 
@@ -281,13 +281,13 @@ enum PackPreview {
         let src = (base ?? FishKinds.shaderSource()) + """
 
         float4 pv_theme(float2 c, float3 deep, float3 shallow, float3 rays, float3 surf, float3 wl, float3 wh,
-                        float3 sd, float3 sl, float3 far, float raysK, int bg, float weeds, float floorOn) {
+                        float3 sd, float3 sl, float3 far, float raysK, int bg, float weeds, float floorOn, float surfOn) {
             float2 uv = clamp(c * 0.5 + 0.5, 0.0, 1.0);
             float3 col = mix(deep, shallow, pow(uv.y, 1.3));
             float r = pow(sin((uv.x + uv.y * 0.35) * 9.0) * 0.5 + 0.5, 3.0) * smoothstep(0.1, 1.0, uv.y);
             col += rays * r * raysK * 1.5;
-            col = mix(col, surf, (1.0 - smoothstep(0.0, 0.015, abs(uv.y - 0.94 - 0.01 * sin(uv.x * 30.0)))) * 0.8);
-            col = mix(col, deep * 0.9, step(0.95, uv.y) * 0.5);
+            col = mix(col, surf, (1.0 - smoothstep(0.0, 0.015, abs(uv.y - 0.94 - 0.01 * sin(uv.x * 30.0)))) * 0.8 * surfOn);
+            col = mix(col, deep * 0.9, step(0.95, uv.y) * 0.5 * surfOn);                                       // (a sky: no surface)
             if (bg >= 0) {
                 float sandLine = 0.17 + 0.02 * sin(uv.x * 7.0);
                 float4 b = draw_background_pack(bg, uv, 2.0, 1.0, float2(0.0), col, float4(1.5, 0.0, sandLine, 0.0));

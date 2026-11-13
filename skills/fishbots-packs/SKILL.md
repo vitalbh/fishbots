@@ -147,6 +147,9 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
   pebbles, shells, list pebbles, the bubbler); pair it with a background that takes the water down to the bottom of
   the window, and a clutch and a chest of its own (scenery pieces called `eggs` and `chest`, listed in
   the theme's `scenery`) anchored somewhere else.
+- **No surface:** `"surface": false` (a sky, not water) leaves out the water line, the sky band above it, the sun or
+  moon seen through it and the rings where bubbles reach the top; pair it with a background that paints the whole window
+  and `raysStrength`/`causticsStrength` 0. A presence with `"motion": "sit"` can dress the assistant (`"moray"`).
 - **Frost:** `"frost": 0.6` (0…1) grows ice on the glass from the sides and corners.
 - **Effects:** `"effects": {"fireworks": "#ff9ec8", "lightning": {"as": "sparkle", "color": "#a0ffd0"}}`: default
   colors for the effects plugins send, or another effect in its place.

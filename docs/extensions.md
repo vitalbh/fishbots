@@ -241,7 +241,10 @@ sessions started from the aquarium hatch and a click starts one, is in every the
 piece of its own called `eggs`, which then is its clutch: the open sea hangs it in the sargassum; the same goes for a pack piece called `chest`, which is
 then the theme's chest wherever the pack anchors it, lid and summary included; only in that pack's own themes). A theme with `"floor": false` has no floor to lay things on (the open sea): no pearls of the day
 (they're kept, and come back with a theme that has one), no sand, no pebbles and shells, no list pebbles, no old battery, no bubbler, no shadows under the fish; its
-background should take the water down to the bottom of the window; a pack's
+background should take the water down to the bottom of the window. A theme with `"surface": false` has no water's
+surface (a sky, the constellations): no water line, no sky band over it, no sun or moon seen through it, no glints, no rings
+where bubbles reach the top; its background paints the whole window (set `raysStrength` and `causticsStrength` to 0 too).
+Two packs can each have their own `eggs` and `chest`; a pack's
 pieces only show up in a theme that lists them. A function that doesn't compile is dropped and reported in the menu,
 like a fish.
 

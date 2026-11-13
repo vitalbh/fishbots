@@ -332,9 +332,12 @@ enum PackPresences {
 enum SceneryKinds {
     static var all: [SceneryKind] = []
 
+    /// A piece named like a built-in one ("eggs", "chest": a theme's own clutch and chest) belongs to its pack: two
+    /// packs can each have theirs. Any other id is one piece, the last pack's.
     static func register(_ k: SceneryKind) {
-        if let i = all.firstIndex(where: { $0.id == k.id }) { all[i] = k } else { all.append(k) }
+        let perPack = Scenery.all.contains { $0.id == k.id }
+        if let i = all.firstIndex(where: { $0.id == k.id && (!perPack || $0.pack == k.pack) }) { all[i] = k } else { all.append(k) }
     }
-    static func drop(_ id: String) { all.removeAll { $0.id == id } }
+    static func drop(_ k: SceneryKind) { all.removeAll { $0.id == k.id && $0.pack == k.pack } }
     static func index(of id: String) -> Int? { all.firstIndex { $0.id == id } }
 }
