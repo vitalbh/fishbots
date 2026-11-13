@@ -16,11 +16,13 @@ extension AppDelegate {
                 if let p = self.tank.scene.presences.first(where: { $0.kind.motion == .glass && $0.id.hasSuffix(id) }) { self.cards.showSource(of: p) }
                 return (200, Data(#"{"ok":true}"#.utf8))
             }
-            let goal = path.components(separatedBy: "f=").dropFirst().first?.removingPercentEncoding
+            let goal = path.components(separatedBy: "f=").dropFirst().first?.components(separatedBy: "&").first?.removingPercentEncoding
             if let f = self.tank.fish.first(where: { ($0.isAgent || goal != nil) && !$0.leaving && (goal == nil || $0.id.hasSuffix(goal!)) }) {
                 self.cards.open(f)        // as if the mouse were over it, so the card doesn't close
                 // ?all=1&f=…: with the whole reply open, as "ver tudo" would
                 if path.contains("all=1") { self.cards.card?.showAll() }
+                // ?pin=1: as if it had been dragged off its fish (the pinned kind)
+                if path.contains("pin=1") { self.cards.pinHoverCardForTest() }
             }
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/preferences":
@@ -30,7 +32,7 @@ extension AppDelegate {
             return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/permission":
             // what waits for an answer, and ?decide=allow|deny&f=<end of the fish's id>: answers it as the card would
-            let goal = path.components(separatedBy: "f=").dropFirst().first?.removingPercentEncoding?.prefix(while: { $0 != "&" }).description
+            let goal = path.components(separatedBy: "f=").dropFirst().first?.components(separatedBy: "&").first?.removingPercentEncoding?.prefix(while: { $0 != "&" }).description
             if let d = path.components(separatedBy: "decide=").dropFirst().first?.prefix(while: { $0 != "&" }),
                let p = self.permissions.pending.last(where: { goal == nil || $0.fishId.hasSuffix(goal!) }) {
                 self.cards.decide(p.id, String(d))
