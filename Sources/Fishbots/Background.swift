@@ -126,13 +126,14 @@ enum Background {
 /// background. It needs a task to start with (there's no prompt to wait at), and an agent with a brain.
 final class BackgroundLauncher: SessionLauncher {
     let id = "background"
+    var name: String { tr("Segundo plano (sem terminal)") }
     var available: Bool { true }
 
     func hosts(_ o: [String: String]) -> Bool { o["background"] != nil }
 
     func launch(_ r: LaunchRequest, done: @escaping (Result<[String: String], LaunchError>) -> Void) {
         guard let prompt = r.prompt, !prompt.isEmpty else {
-            done(.failure(LaunchError(message: "a session with no terminal needs a task to start with (and none of Rex, Herdr or tmux is here to open one in)"))); return
+            done(.failure(LaunchError(message: "a session with no terminal needs a task to start with (and none of Rex, Herdr, iTerm or tmux is here to open one in)"))); return
         }
         switch Background.start(agent: r.agent, cwd: r.cwd, prompt: prompt, model: r.model, environment: r.env) {
         case .failure(let e): done(.failure(e))

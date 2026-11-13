@@ -9,6 +9,9 @@ import AppKit
 enum Whereabouts {
     static func update(_ f: Fish, with o: [String: String]) {
         guard !o.isEmpty else { return }
+        var o = o
+        // iTerm's session by its unique id alone ("w0t1p0:" is where it was when it started), as its launcher knows it
+        if let i = o["iterm"] { o["iterm"] = ITermLauncher.session(i) }
         // if the event says where it came from (terminal, app, Rex…), that replaces what was there (the session may have moved);
         // otherwise, it only adds (e.g. the cwd)
         let provenance = ["term", "app", "rex_session", "rex_block", "herdr", "tty", "pid", "iterm", "tmux", "entrypoint"]
@@ -113,6 +116,8 @@ enum Whereabouts {
 
     /// A session remembered from before the app restarted: where it was, including a Rex pane found by lookup.
     static func restore(_ f: Fish, _ o: [String: String]) {
+        var o = o
+        if let i = o["iterm"] { o["iterm"] = ITermLauncher.session(i) }
         f.whereabouts = o
         if o["rex_lookup"] == "done", let s = o["rex_session"], let b = o["rex_block"] { foundInRex[f.id] = (s, b) }
         Providers.refresh(f)
@@ -229,7 +234,7 @@ enum Whereabouts {
         return true
     }
 
-    /// What `go` reaches for a session: its own pane (Rex, Herdr, tmux), or just the terminal or app it runs in.
+    /// What `go` reaches for a session: its own pane (Rex, Herdr, iTerm, tmux), or just the terminal or app it runs in.
     /// Nil: nowhere, or the fish is a link (that opens instead).
     enum Reach { case pane, session }
     static func reach(_ f: Fish) -> Reach? {
@@ -238,12 +243,14 @@ enum Whereabouts {
         if o["rex_session"] != nil, o["rex_block"] != nil, rexBin(o) != nil { return .pane }
         if o["herdr"] != nil, herdrApp != nil { return .pane }
         if o["tmux"]?.isEmpty == false { return .pane }
+        if o["term"] == "iTerm.app", o["iterm"]?.isEmpty == false { return .pane }
         if o["entrypoint"] == "claude-desktop" || o["term"] != nil || o["app"] != nil || o["cwd"] != nil { return .session }
         return nil
     }
 
     /// To a pane by its whereabouts alone (one just opened: it has no fish yet).
     static func go(to o: [String: String]) {
+        if o["term"] == "iTerm.app", o["iterm"] != nil { DispatchQueue.global(qos: .userInitiated).async { runScript(o) }; return }
         guard let s = o["rex_session"], let b = o["rex_block"], let bin = rexBin(o) else { return }
         DispatchQueue.global(qos: .userInitiated).async { goRex(bin: bin, session: s, block: b, whereabouts: o) }
     }
@@ -294,7 +301,7 @@ enum Whereabouts {
                     if failure == nil { failure = osa(ghosttyScript("send key \"enter\" to t"), [tty]) }
                 }
             case .iterm(let id):
-                failure = osa(itermScript(id: id, action: "write text item 2 of argv newline NO"), [id, line])
+                failure = osa(itermScript(id: id, action: "write text (item 2 of argv) newline NO"), [id, line])
                 Thread.sleep(forTimeInterval: 0.5)
                 if failure == nil { failure = osa(itermScript(id: id, action: "write text \"\""), [id]) }
             case .tmux(let pane):

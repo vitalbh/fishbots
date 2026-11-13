@@ -246,7 +246,7 @@ final class SessionControl: EventSink {
         return (UserDefaults.standard.dictionary(forKey: "launchAccount") as? [String: [String: String]])?[agent] ?? [:]
     }
 
-    /// Can the aquarium close this session's pane? (It runs where a launcher can reach: Rex, Herdr, tmux.)
+    /// Can the aquarium close this session's pane? (It runs where a launcher can reach: Rex, Herdr, iTerm, tmux.)
     static func canEnd(_ f: Fish) -> Bool {
         f.isAgent && !f.decor && Launchers.all.contains { $0.available && $0.hosts(f.whereabouts) }
     }
@@ -388,7 +388,8 @@ final class SessionControl: EventSink {
     /// The agent session the request came from, by where it runs.
     private func caller(_ headers: [String: String]) -> Fish? {
         for key in Launchers.placeKeys {
-            guard let v = headers["x-where-" + key.replacingOccurrences(of: "_", with: "-")] else { continue }
+            guard var v = headers["x-where-" + key.replacingOccurrences(of: "_", with: "-")], !v.isEmpty else { continue }
+            if key == "iterm" { v = ITermLauncher.session(v) }
             if let f = tank.fish.first(where: { $0.isAgent && !$0.decor && !$0.leaving && $0.whereabouts[key] == v }) { return f }
         }
         return nil

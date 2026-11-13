@@ -57,9 +57,10 @@ extension AppDelegate {
             return (200, (try? JSONSerialization.data(withJSONObject: now, options: [.prettyPrinted, .sortedKeys])) ?? Data())
         case "/test/new-session":
             // the "Nova sessão…" sheet, without the menu; ?cwd=<folder>&task=<text>: as if it had been filled in and
-            // sent (Claude Code, not leading)
+            // sent (Claude Code, or &agent=<id>; not leading)
             let asked = URLComponents(string: path)?.queryItems ?? []
-            if let dir = asked.first(where: { $0.name == "cwd" })?.value, let claude = Providers.of("claude-code") {
+            if let dir = asked.first(where: { $0.name == "cwd" })?.value,
+               let claude = Providers.of(asked.first { $0.name == "agent" }?.value ?? "claude-code") {
                 self.open(claude, in: dir, task: asked.first { $0.name == "task" }?.value ?? "", model: nil, leading: false)
             } else {
                 self.newSession()

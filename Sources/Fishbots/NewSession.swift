@@ -15,7 +15,7 @@ extension AppDelegate {
         guard !agents.isEmpty, Launchers.pick(nil, near: nil) != nil else {
             let a = NSAlert()
             a.messageText = tr("Não há onde abrir uma sessão")
-            a.informativeText = tr("O aquário abre sessões no Rex, no Herdr ou no tmux, e nenhum deles está instalado.")
+            a.informativeText = tr("O aquário abre sessões no Rex, no Herdr, no iTerm ou no tmux, e nenhum deles está instalado.")
             show()
             a.beginSheetModal(for: window)
             return

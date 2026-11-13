@@ -360,8 +360,9 @@ Not a code extension point but the same idea: the on-screen text moves into stri
 bring translations.
 
 ### 11. Session control and launchers
-Status: implemented (`SessionControl.swift`, `Launchers.swift`), with launchers for Rex, Herdr, tmux and the
-background; each has run a whole cycle (spawn, wait, reply, stop, close) with real Claude Code and Codex sessions.
+Status: implemented (`SessionControl.swift`, `Launchers.swift`), with launchers for Rex, Herdr, iTerm, tmux and the
+background; each has run a whole cycle (spawn, wait, reply, stop, close) with real sessions (iTerm's with Claude
+Code and a fake agent; the others with Claude Code and Codex).
 
 The aquarium already sees every agent in every client and can type into most of them. Letting a session use that
 makes it an orchestrator: **the orchestrator is not a feature of the app, it's an ordinary agent session** that
@@ -430,7 +431,7 @@ wait`; the `fishbots-orchestrator` skill (`fishbots skill install`) teaches a co
   from the session's own terminal process (a codex with a tty in the hook's folder); with two of them in one folder
   it can't tell, and reports no pane.
 
-**Launchers**: where a session is born. Creating one belongs to the host (Rex, Herdr, tmux), not to a
+**Launchers**: where a session is born. Creating one belongs to the host (Rex, Herdr, iTerm, tmux), not to a
 fish, so it's a registry next to the providers:
 
 ```swift
@@ -445,7 +446,8 @@ struct LaunchRequest {
 }
 
 protocol SessionLauncher: AnyObject {
-    var id: String { get }         // "rex", "herdr", "tmux"
+    var id: String { get }         // "rex", "herdr", "iterm", "tmux"
+    var name: String { get }       // as the person knows it (Preferences); the id by default
     var available: Bool { get }
     func hosts(_ whereabouts: [String: String]) -> Bool   // is this where that session runs?
     /// The new pane's whereabouts (rex_session, rex_block…), or an error.
@@ -457,17 +459,31 @@ protocol SessionLauncher: AnyObject {
 A provider says how its agent starts (`launchCommand(prompt:model:) -> [String]?`, nil: it can't be launched; Claude Code
 and Codex can); a manifest's `launch` array with `{prompt}` and `{model}` does it for agents without Swift. A session's children
 open in the host it runs in (`hosts`); `launcher` in the request picks another, and without an asker in any of
-them it's the first one installed. None takes the focus:
+them it's the one chosen in Preferences (General → Sessions → "Open new sessions in", the `launcher` default), or
+else the first one installed, in the order Rex, Herdr, iTerm, tmux, background (iTerm before tmux: an installed
+tmux needs a server running and often runs inside iTerm; an installed iTerm is a window the person sees). None takes
+the focus:
 
 - **Rex:** `rex run --split right -b <the asker's block>`, then `--split below` a sibling (`Launchers.anchor`: the
   column stays about even); with `tab`, `rex run -s <the asker's session>`, a new window.
 - **Herdr:** `herdr-core run --bg`, a terminal that stays alive with no one attached; it's the asker's child in
   Herdr too (`--parent`, outliving it, and without Herdr's own notes typed into the parent).
+- **iTerm:** AppleScript (it works with iTerm as it comes; the Python API would have to be turned on):
+  `split vertically` the asker's session (by its unique id, the part of `ITERM_SESSION_ID` after the colon), then
+  `split horizontally` a sibling; with `tab`, `create tab` in the asker's window; what had the focus there gets it
+  back. iTerm runs a command without a shell, so the command is a small script in the user's temporary folder that
+  removes itself, takes out the variables that say where a session runs or whose child it is (a new iTerm session
+  has the environment iTerm was started with: started by an Apple Event from a Rex pane, it would carry that pane's
+  `REX_BLOCK`), goes to the folder and runs the agent through the login shell. `close` hangs up what runs on the
+  session's tty, then closes it (iTerm would otherwise ask). Needs the Automation permission for whoever sends the
+  events (the app; macOS asks once). The pane's whereabouts are `{"term": "iTerm.app", "iterm": <unique id>}`; the
+  hooks' `X-Where-Iterm` (the whole `ITERM_SESSION_ID`) is cut to the same id when it arrives.
 - **tmux:** `split-window -d -h -t <the asker's pane>`, then `-v` under a sibling; with `tab`, `new-window -d -a`.
 - **background:** no terminal at all (point 12): the last resort, and what a parentless spawn falls back to.
 
 A spawn that no session in a pane asked for (the menu, the assistant, a plain shell) has nothing to open beside:
-in Rex it gets a session of its own, named after its task.
+in Rex it gets a session of its own, named after its task; in iTerm, a tab in its current window (a window, if
+there's none); in tmux, a window in the most recent session.
 
 A new host is a `SessionLauncher` registered in `Launchers`.
 
