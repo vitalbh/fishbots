@@ -51,7 +51,7 @@ final class SessionControl: EventSink {
         var name: String? = nil
         /// The git worktree and branch made for it (`fishbots spawn --worktree`), told back to whoever launched it.
         var worktree: [String: String] = [:]
-        let reply: (Int, Data) -> Void
+        var reply: (Int, Data) -> Void
     }
 
     private let tank: Tank
@@ -321,8 +321,13 @@ final class SessionControl: EventSink {
                     }
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + patience) { [weak self] in
-                    self?.deliver(b.id, 504, ["error": "the pane opened, but no \(provider.id) session reported from it in \(Int(patience)) s (is its hook installed? is it asking something first?)",
-                                              "where": place])
+                    guard let self, let i = self.births.firstIndex(where: { $0.id == b.id }) else { return }
+                    self.births[i].reply(504, Self.json(["error": "the pane opened, but no \(provider.id) session reported from it in \(Int(patience)) s (is its hook installed? is it asking something first?)",
+                                                         "where": place]))
+                    // its fish may still come, once the agent's first question is answered (trusting the folder…):
+                    // for a while it's still looked for, to be named and made the asker's child
+                    self.births[i].reply = { _, _ in }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 600) { [weak self] in self?.deliver(b.id, 0, [:]) }
                 }
                 self.watch()
             }
