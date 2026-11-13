@@ -126,7 +126,13 @@ enum AgentCLIs {
     /// The environment for an agent the aquarium runs itself: the app's, with the shell's PATH, without what a
     /// Claude Code session leaves behind for its children (the app may have been opened from one), plus `extra`.
     static func processEnvironment(_ agent: String, extra: [String: String] = [:]) -> [String: String] {
-        var env = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("CLAUDE_CODE_") && $0.key != "CLAUDECODE" }
+        // not where the app itself was started from (a terminal's pane, a session it's the child of): the session's
+        // hook would say it runs there. Its own leader, if it has one, comes back in `extra`
+        let elsewhere: Set<String> = ["REX_SESSION", "REX_BLOCK", "HC_TERMINAL_ID", "TMUX", "TMUX_PANE", "ITERM_SESSION_ID",
+                                      "WEZTERM_PANE", "KITTY_WINDOW_ID", "TERM_PROGRAM", "FISHBOTS_PARENT"]
+        var env = ProcessInfo.processInfo.environment.filter {
+            !$0.key.hasPrefix("CLAUDE_CODE_") && $0.key != "CLAUDECODE" && !elsewhere.contains($0.key)
+        }
         env["PATH"] = shellPath
         env.merge(extra) { $1 }
         env.merge(environment(agent)) { $1 }
