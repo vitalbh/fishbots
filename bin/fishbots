@@ -14,7 +14,7 @@
 #
 #   fishbots spawn [--agent id] [--model m] [--cwd dir] [--label text] [--worktree] [--tab] [--env NAME]… [prompt]
 #                                            (--worktree: in a git worktree and branch of its own)   start a session in
-#                                            a pane next to this one, in the terminal this runs in (Rex, Herdr, tmux;
+#                                            a pane next to this one, in the terminal this runs in (Rex, Herdr, iTerm, tmux;
 #                                            --tab: a tab of its own; --launcher picks another), as a child of this
 #                                            session; prints its fish once it's born. It gets this shell's
 #                                            CLAUDE_CONFIG_DIR and CODEX_HOME (the same account), and any --env
@@ -231,7 +231,7 @@ token() {
 ask() {
   res=$(printf 'Authorization: Bearer %s\n' "$(token)" | curl -s -m "$2" -w '\n%{http_code}' -H @- -H 'Expect:' -H 'Content-Type: application/json' \
     -H "X-Where-Rex-Block: ${REX_BLOCK:-}" -H "X-Where-Herdr: ${HC_TERMINAL_ID:-}" -H "X-Where-Tmux: ${TMUX_PANE:-}" \
-    --data-binary "$3" "$URL/control/$1") || return 1
+    -H "X-Where-Iterm: ${ITERM_SESSION_ID:-}" --data-binary "$3" "$URL/control/$1") || return 1
   code=$(printf '%s\n' "$res" | tail -n 1); out=$(printf '%s\n' "$res" | sed '$d')
   [ "$code" = 000 ] && return 1
   if [ "$code" = 401 ] && [ -n "${FISHBOTS_TOKEN:-}" ] && [ -z "$stale" ]; then stale=1; ask "$@"; return; fi

@@ -212,7 +212,7 @@ General), which is what an orchestrating agent needs ([docs/extensions.md](docs/
 `fishbots skill install` teaches your agent the cycle):
 
 ```sh
-fishbots spawn --cwd ../api "implement X; when done, sum it up"   # a new session in a pane beside this one (Rex, Herdr, tmux), as its child
+fishbots spawn --cwd ../api "implement X; when done, sum it up"   # a new session in a pane beside this one (Rex, Herdr, iTerm, tmux), as its child
 fishbots wait claude-code:1f3a codex:9b2c     # until one stops working: which, how, and its last reply
 fishbots reply claude-code:1f3a "use the new table"
 fishbots stop claude-code:1f3a
@@ -371,10 +371,12 @@ A moray lives in a burrow on the sand: the aquarium's own assistant. Click it (o
 - **What it may do:** looking at the aquarium and writing its own notes need no asking. Anything else its agent would ask about shows on the card (**Permitir**, **Sempre**, **Negar**), and the moray comes out of its burrow and waits; what you mark as *Sempre* is listed in Preferences, where it can be removed. The permissions the agent already has in its own settings still apply. It acts on sessions through the `fishbots` command, like any session that leads others (it needs "Sessions can command other sessions"). Codex has no one to ask in the background: it works inside its sandbox.
 - **"Always", as wide as you want:** for a shell command the card offers the command (`rex send …`) or the whole program (`rex`); for a connector's tool, the tool or the whole connector. Preferences → Assistente lists the rules, removes them and takes one written by hand. A command with pipes or redirections is asked every time.
 - **It tells you later:** ask it to let you know when a session finishes or what it answers, and it watches that session (`fishbots watch <fish> [what you want to know]`); when the session stops, the app wakes the assistant with its reply, and the moray comes out of its burrow with the news (read aloud, if you turned that on).
-- **Open in the terminal** (on the card, where Rex, Herdr or tmux can open one) goes on with the same conversation in a pane, to see everything it does.
+- **Open in the terminal** (on the card, where Rex, Herdr, iTerm or tmux can open one) goes on with the same conversation in a pane, to see everything it does.
 - Its sessions don't become fish: it's the creature in the burrow. `moray` is also a kind of presence plugins can use (docs/scene.md), and a theme can dress it.
 
-**Sessions with no terminal:** where none of Rex, Herdr or tmux can open a pane, a session started from the aquarium ("Nova sessão…", `fishbots spawn`, the assistant) runs in the background, with the aquarium as its terminal: it's a fish like the others, what you write on its card goes to the agent, Esc interrupts it, what it asks leave for shows on its card, and a click on the fish opens the card (there's nowhere else to go). `fishbots spawn --launcher background` asks for one anywhere. It needs a task to start with, works with Claude Code and Codex (Codex can't ask leave in this mode: it stays in its sandbox), and lives while the app is open.
+**Where new sessions open:** a session another one starts opens beside it, in its terminal (Rex, Herdr, iTerm or tmux). One you start from the aquarium (the eggs, "Nova sessão…", the assistant) opens where **Preferences → General → Sessions → Open new sessions in** says; Automatic is the first one installed of Rex, Herdr, iTerm and tmux. iTerm is driven by AppleScript, so the first time macOS asks to let Fishbots control iTerm (System Settings → Privacy & Security → Automation).
+
+**Sessions with no terminal:** where none of Rex, Herdr, iTerm or tmux can open a pane, a session started from the aquarium ("Nova sessão…", `fishbots spawn`, the assistant) runs in the background, with the aquarium as its terminal: it's a fish like the others, what you write on its card goes to the agent, Esc interrupts it, what it asks leave for shows on its card, and a click on the fish opens the card (there's nowhere else to go). `fishbots spawn --launcher background` asks for one anywhere. It needs a task to start with, works with Claude Code and Codex (Codex can't ask leave in this mode: it stays in its sandbox), and lives while the app is open.
 
 **Each agent's command line** (Preferências → Geral → Agentes): the binary, extra parameters and variables (`CLAUDE_CONFIG_DIR=~/.claude-work`) the aquarium uses when it starts Claude Code or Codex itself, for a new session in a terminal and for the assistant. A shell alias doesn't reach either, so what the alias did goes there.
 

@@ -377,10 +377,10 @@ final class Assistant {
     }
 
     /// The conversation goes on in a terminal, where the person can see everything and take over (where a launcher
-    /// can open one: Rex, Herdr, tmux). What went wrong, or nil.
+    /// can open one: Rex, Herdr, iTerm, tmux). What went wrong, or nil.
     func openInTerminal(done: @escaping (String?) -> Void) {
         guard let brain, let s = session, let command = brain.terminalCommand(session: s) else { done(tr("ainda não há conversa para abrir")); return }
-        guard let launcher = Launchers.terminal else { done(tr("nenhum terminal onde abrir (Rex, Herdr ou tmux)")); return }
+        guard let launcher = Launchers.terminal else { done(tr("nenhum terminal onde abrir (Rex, Herdr, iTerm ou tmux)")); return }
         stop()
         brain.sleep()
         var env: [String: String] = [:]

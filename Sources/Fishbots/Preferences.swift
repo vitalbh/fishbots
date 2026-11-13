@@ -129,6 +129,14 @@ private struct GeneralTab: View {
                 Toggle(tr("Flutuar sobre as janelas"), isOn: prefs.bind(a.floating, { _ in a.toggleFloat() }))
             }
             Section(tr("Sessões")) {
+                Picker(tr("Abrir sessões novas em"), selection: prefs.bind({ UserDefaults.standard.string(forKey: "launcher") ?? "" },
+                                                                           { UserDefaults.standard.set($0, forKey: "launcher") })) {
+                    Text(tr("Automático")).tag("")
+                    Divider()
+                    ForEach(Launchers.all.filter(\.available), id: \.id) { Text(verbatim: $0.name).tag($0.id) }
+                }
+                Text(tr("Onde abre uma sessão que você começa pelo aquário (os ovos, o menu, o assistente). Uma sessão aberta por outra abre ao lado dela, no terminal dela. Automático: Rex, Herdr, iTerm, tmux, nessa ordem, o primeiro que estiver instalado."))
+                    .font(.footnote).foregroundStyle(.secondary)
                 Toggle(tr("Sessões podem comandar outras (responder, parar, esperar)"), isOn: prefs.flag("sessionControl"))
                 Text(tr("Deixa um agente conduzir os outros pelo aquário (fishbots reply, stop, wait). Pedidos de permissão continuam com você."))
                     .font(.footnote).foregroundStyle(.secondary)

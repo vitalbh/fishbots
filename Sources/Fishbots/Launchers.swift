@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// A session to start: the agent's command (its provider's to say), where, and what the new pane should know.
 struct LaunchRequest {
@@ -29,11 +29,13 @@ struct LaunchError: Error {
     let message: String
 }
 
-/// Where a session is born: a terminal host that can open a pane running a command (Rex, Herdr, tmux). Creating a
+/// Where a session is born: a terminal host that can open a pane running a command (Rex, Herdr, iTerm, tmux). Creating a
 /// session belongs to the host, not to a fish, so this sits next to the providers. See docs/extensions.md, 11.
 protocol SessionLauncher: AnyObject {
-    /// "rex", "herdr", "tmux"…
+    /// "rex", "herdr", "iterm", "tmux"…
     var id: String { get }
+    /// As the person knows it (Preferences).
+    var name: String { get }
     var available: Bool { get }
     /// Is this the host a session with these whereabouts runs in? (A session's children open where it is.)
     func hosts(_ whereabouts: [String: String]) -> Bool
@@ -44,28 +46,43 @@ protocol SessionLauncher: AnyObject {
     func close(_ place: [String: String], done: @escaping (String?) -> Void)
 }
 
+extension SessionLauncher {
+    var name: String { id }
+}
+
 /// The registry of launchers.
 enum Launchers {
-    /// In order of preference: the terminals first, the background when there's none.
-    private(set) static var all: [SessionLauncher] = [RexLauncher(), HerdrLauncher(), TmuxLauncher(), BackgroundLauncher()]
+    /// In order of preference: the terminals first, the background when there's none. iTerm comes before tmux: an
+    /// installed tmux says little (it needs a server running, and it often runs inside iTerm), an installed iTerm is
+    /// a window the person can see.
+    private(set) static var all: [SessionLauncher] = [RexLauncher(), HerdrLauncher(), ITermLauncher(), TmuxLauncher(), BackgroundLauncher()]
+
+    /// The one the person picked in Preferences for sessions nobody's pane asks for ("launcher"), if it can launch now.
+    static var chosen: SessionLauncher? {
+        guard let id = UserDefaults.standard.string(forKey: "launcher"), !id.isEmpty else { return nil }
+        return all.first { $0.id == id && $0.available }
+    }
 
     /// A launcher that opens a terminal the person can see (to take a conversation there).
-    static var terminal: SessionLauncher? { all.first { $0.available && $0.id != "background" } }
+    static var terminal: SessionLauncher? {
+        if let c = chosen, c.id != "background" { return c }
+        return all.first { $0.available && $0.id != "background" }
+    }
 
     static func register(_ l: SessionLauncher) {
         all.removeAll { $0.id == l.id }
         all.append(l)
     }
 
-    /// The one asked for by id; or the host the asker runs in; or the first that can launch now.
+    /// The one asked for by id; or the host the asker runs in; or the person's choice; or the first that can launch now.
     static func pick(_ id: String?, near: [String: String]? = nil) -> SessionLauncher? {
         if let id { return all.first { $0.id == id && $0.available } }
         if let near, let own = all.first(where: { $0.available && $0.hosts(near) }) { return own }
-        return all.first { $0.available }
+        return chosen ?? all.first { $0.available }
     }
 
-    /// The whereabouts keys that say which pane a session is in.
-    static let placeKeys = ["rex_block", "herdr", "tmux", "background"]
+    /// The whereabouts keys that say which pane a session is in (iTerm's after tmux's: a tmux in iTerm has both).
+    static let placeKeys = ["rex_block", "herdr", "tmux", "iterm", "background"]
 
     /// Runs a host's CLI off the main thread and hands what it printed (and what it complained about) back on it.
     static func run(_ bin: String, _ args: [String], done: @escaping (_ out: String, _ err: String) -> Void) {
@@ -111,6 +128,7 @@ enum Launchers {
 /// of its own (`rex new`), where its children's panes will go.
 final class RexLauncher: SessionLauncher {
     let id = "rex"
+    let name = "Rex"
 
     var available: Bool { Whereabouts.rexPath([:]) != nil }
 
@@ -206,6 +224,7 @@ final class RexLauncher: SessionLauncher {
 /// parent: the asker waits through the aquarium). Herdr has no panes to put it beside.
 final class HerdrLauncher: SessionLauncher {
     let id = "herdr"
+    let name = "Herdr"
 
     var available: Bool { Whereabouts.herdrCorePath != nil }
 
@@ -282,5 +301,187 @@ final class TmuxLauncher: SessionLauncher {
     func close(_ place: [String: String], done: @escaping (String?) -> Void) {
         guard let bin, let pane = place["tmux"] else { done("tmux: no pane to close"); return }
         Launchers.run(bin, ["kill-pane", "-t", pane]) { _, err in done(err.isEmpty ? nil : "tmux: " + err) }
+    }
+}
+
+/// iTerm2, through its AppleScript (the Python API would need the person to turn it on): a split of the asker's
+/// session (to its right, then down that column), or a tab of its own in the asker's window; neither takes the focus.
+/// One the person opens themselves gets a tab in iTerm's current window (a window, if it has none). Driving iTerm
+/// needs the Automation permission (System Settings → Privacy & Security → Automation), which macOS asks for the
+/// first time. Sessions are known by their unique id, the part of ITERM_SESSION_ID after the colon.
+final class ITermLauncher: SessionLauncher {
+    let id = "iterm"
+    let name = "iTerm"
+    static let bundle = "com.googlecode.iterm2"
+
+    var available: Bool { NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundle) != nil }
+
+    /// Not a tmux running in iTerm (it has ITERM_SESSION_ID too): that one is tmux's.
+    func hosts(_ o: [String: String]) -> Bool { o["term"] == "iTerm.app" && o["iterm"]?.isEmpty == false }
+
+    /// "w0t1p0:4A7C…" (ITERM_SESSION_ID) → "4A7C…" (the session's unique id).
+    static func session(_ s: String) -> String { String(s.split(separator: ":").last ?? "") }
+
+    func launch(_ r: LaunchRequest, done: @escaping (Result<[String: String], LaunchError>) -> Void) {
+        guard available else { done(.failure(LaunchError(message: "iTerm isn't installed"))); return }
+        let script: String
+        do { script = try Self.script(r) } catch {
+            done(.failure(LaunchError(message: "iTerm: couldn't write the launch script (\(error.localizedDescription))"))); return
+        }
+        let command = "/bin/sh " + script
+        let asker = r.near?["iterm"].map(Self.session)
+        func open(_ mode: String, _ at: String, else next: (() -> Void)?) {
+            Self.osa(Self.openScript, [mode, at, command, r.label ?? ""]) { out, err in
+                let made = out.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !made.isEmpty {
+                    done(.success(["term": "iTerm.app", "iterm": made]))
+                } else if let next {
+                    next()
+                } else {
+                    try? FileManager.default.removeItem(atPath: script)
+                    done(.failure(Launchers.failure("iTerm", err)))
+                }
+            }
+        }
+        guard let asker, !asker.isEmpty else { open("own", "", else: nil); return }
+        guard !r.tab else { open("tab", asker, else: { open("own", "", else: nil) }); return }
+        // the sessions in the asker's tab: the siblings among them are the column
+        Self.osa(Self.tabScript, [asker]) { out, _ in
+            let shared = Set(out.split(whereSeparator: \.isNewline).map(String.init))
+            guard let anchor = Launchers.anchor(r, "iterm", window: shared) else { open("own", "", else: nil); return }
+            // the sibling it would go under may have just been closed: then beside the asker, as the first one
+            let besideAsker = { open("right", asker, else: nil) }
+            open(anchor.below ? "below" : "right", anchor.pane, else: anchor.below ? besideAsker : nil)
+        }
+    }
+
+    /// iTerm runs a command by splitting it into words itself, with no shell: so the command is a script of its own,
+    /// in the user's temporary folder (only they can read it), that removes itself, goes to the folder and runs the
+    /// agent through the user's interactive login shell (agents often get into PATH from ~/.zshrc).
+    /// A new iTerm session has iTerm's own environment, which is whatever launched iTerm had (an Apple Event sent
+    /// from a Rex pane or from a Claude Code session starts it with theirs): what says where a session runs, or whose
+    /// child it is, is taken out first, so its hook reports this pane and nothing else.
+    private static func script(_ r: LaunchRequest) throws -> String {
+        func q(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: #"'\''"#) + "'" }
+        let elsewhere = "unset REX_SESSION REX_BLOCK HC_TERMINAL_ID TMUX TMUX_PANE WEZTERM_PANE KITTY_WINDOW_ID FISHBOTS_PARENT FISHBOTS_TOKEN CLAUDECODE\n"
+            + "for v in $(env | sed -n 's/^\\(CLAUDE_CODE_[A-Za-z0-9_]*\\)=.*/\\1/p'); do unset \"$v\"; done\n"
+        let text = "#!/bin/sh\nrm -f \"$0\"\n" + elsewhere + "cd " + q(r.cwd) + " || exit 1\nexec " + RexLauncher.throughShell(r.argv).map(q).joined(separator: " ") + "\n"
+        let path = NSTemporaryDirectory() + "fishbots-iterm-" + UUID().uuidString + ".sh"
+        guard FileManager.default.createFile(atPath: path, contents: Data(text.utf8), attributes: [.posixPermissions: 0o600]) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        return path
+    }
+
+    /// argv: what (right, below, tab, own), the session it goes by, the command, the label. Prints the new session's
+    /// unique id. What had the focus in that window gets it back.
+    private static let openScript = """
+    on run argv
+      set mode to item 1 of argv
+      set anchorId to item 2 of argv
+      set cmd to item 3 of argv
+      set paneName to item 4 of argv
+      tell application id "com.googlecode.iterm2"
+        set made to missing value
+        if mode is "own" then
+          if (count of windows) is 0 then
+            set w to (create window with default profile command cmd)
+            set made to current session of w
+          else
+            set w to current window
+            set prevSession to current tab of w
+            tell w to set t to (create tab with default profile command cmd)
+            set made to current session of t
+            tell prevSession to select
+          end if
+        else
+          repeat with w in windows
+            repeat with t in tabs of w
+              repeat with s in sessions of t
+                if unique id of s is anchorId then
+                  set prevTab to current tab of w
+                  if mode is "tab" then
+                    tell w to set nt to (create tab with default profile command cmd)
+                    set made to current session of nt
+                  else
+                    set prevSession to current session of t
+                    if mode is "right" then
+                      tell s to set made to (split vertically with default profile command cmd)
+                    else
+                      tell s to set made to (split horizontally with default profile command cmd)
+                    end if
+                    tell prevSession to select
+                  end if
+                  tell prevTab to select
+                  exit repeat
+                end if
+              end repeat
+              if made is not missing value then exit repeat
+            end repeat
+            if made is not missing value then exit repeat
+          end repeat
+        end if
+        if made is missing value then return ""
+        if paneName is not "" then set name of made to paneName
+        return unique id of made
+      end tell
+    end run
+    """
+
+    /// argv: a session's unique id. Prints the unique ids of the sessions in its tab, one per line.
+    private static let tabScript = """
+    on run argv
+      tell application id "com.googlecode.iterm2"
+        repeat with w in windows
+          repeat with t in tabs of w
+            set ids to unique id of sessions of t
+            if ids contains item 1 of argv then
+              set AppleScript's text item delimiters to linefeed
+              return ids as text
+            end if
+          end repeat
+        end repeat
+      end tell
+      return ""
+    end run
+    """
+
+    /// argv: a session's unique id, and what to do with it: "tty" prints its terminal, "close" closes it.
+    private static let sessionScript = """
+    on run argv
+      tell application id "com.googlecode.iterm2"
+        repeat with w in windows
+          repeat with t in tabs of w
+            repeat with s in sessions of t
+              if unique id of s is item 1 of argv then
+                if item 2 of argv is "tty" then return tty of s
+                tell s to close
+                return "closed"
+              end if
+            end repeat
+          end repeat
+        end repeat
+      end tell
+      return ""
+    end run
+    """
+
+    /// What runs in the pane is hung up first (iTerm would otherwise ask whether to close a session with a program
+    /// still running), then the pane closes, if it hasn't already by itself.
+    func close(_ place: [String: String], done: @escaping (String?) -> Void) {
+        guard let s = place["iterm"].map(Self.session), !s.isEmpty else { done("iTerm: no pane to close"); return }
+        Self.osa(Self.sessionScript, [s, "tty"]) { out, err in
+            let tty = out.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard tty.hasPrefix("/dev/") else { done(err.isEmpty ? "iTerm: the pane isn't there anymore" : "iTerm: " + err); return }
+            Launchers.run("/usr/bin/pkill", ["-HUP", "-t", String(tty.dropFirst(5))]) { _, _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    Self.osa(Self.sessionScript, [s, "close"]) { _, err in done(err.isEmpty ? nil : "iTerm: " + err) }
+                }
+            }
+        }
+    }
+
+    private static func osa(_ script: String, _ args: [String], done: @escaping (_ out: String, _ err: String) -> Void) {
+        Launchers.run("/usr/bin/osascript", ["-e", script] + args, done: done)
     }
 }
