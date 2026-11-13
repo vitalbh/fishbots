@@ -204,7 +204,7 @@ float4 draw_fish(float2 c, float phase, float glow, float4 col, float4 extra, fl
     if (sp == 3) pect = 1e3;                                       // the angelfish has its tall fins instead
 
     float d = min(min(min(body, tail), fins), pect);
-    float aa = fwidth(d) * (1.0 + aux.z * 3.5) + 1e-4;                // far away: softer edges (depth of field)
+    float aa = fwidth(d) * (1.0 + aux.z * 1.1) + 1e-4;                // far away: a little softer (more than this and a small fish is a smudge)
     float inside = 1.0 - smoothstep(-aa, aa, d);
 
     float3 base = col.rgb;
