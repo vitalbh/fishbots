@@ -23,7 +23,7 @@ final class NowPlaying {
     /// Listens to the player so the visualizers dance with it (opt-in, SongEars.swift).
     let ears: SongEars
 
-    static let source = "music"
+    static let source = Tank.musicSource
     static let entity = "now-playing"
     private static let players = [("Spotify", "com.spotify.client"), ("Music", "com.apple.Music")]
 

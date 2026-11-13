@@ -560,10 +560,14 @@ final class Tank {
     /// and the music fish stay out of sight too, except while no session needs you: an empty tank is a dead one.
     var compact = false
 
+    /// The music fish's source (the same as NowPlaying.source, spelled here because the screen saver builds the tank
+    /// without NowPlaying).
+    static let musicSource = "music"
+
     func isHidden(_ f: Fish) -> Bool {
         guard compact else { return false }
         // (the music fish is company too, not work: it's there with the schools while nobody needs you)
-        if f.source == NowPlaying.source { return !widgetCalm }
+        if f.source == Self.musicSource { return !widgetCalm }
         // (of the schools, only the first one and nine of its fish: three full schools are a crowd in a tank this small)
         if f.decor { return !widgetCalm || f.phase / 100 != 0 || f.phase % 100 >= 9 }
         // who needs you; the agent sessions at work, and for a couple of minutes after their last sign of life (a
@@ -573,7 +577,7 @@ final class Tank {
         // and of those, only as many as the small tank holds (SmallTank.swift)
         if widgetShownAt != time {
             widgetShownAt = time
-            widgetShownIDs = widgetShown(fish.filter { !$0.decor && $0.source != NowPlaying.source && mayShow($0) }, latest: widgetLatest)
+            widgetShownIDs = widgetShown(fish.filter { !$0.decor && $0.source != Self.musicSource && mayShow($0) }, latest: widgetLatest)
         }
         return !widgetShownIDs.contains(f.id)
     }
