@@ -253,7 +253,7 @@ final class Scene {
         case .drift, .hover:
             if fresh { p.pos = [w * p.u, h * mixf(p.kind.band, p.lane)] }
         case .float:
-            if fresh { p.pos = [w * p.u, h * 0.955] }
+            if fresh { p.pos = [w * p.u, Themes.current.surface ? h * 0.955 : hangY(p, t, 0.74...0.86)] }
         case .glass:
             break       // layoutGlass gives it its place, and it glides there
         case .walk, .sit:
@@ -303,13 +303,21 @@ final class Scene {
         }
     }
 
+    /// A height within a band (0…1 from the bottom) picked from its id: where it hangs when there's nothing to rest on.
+    private func hangY(_ p: Presence, _ t: Tank, _ band: ClosedRange<Float>) -> Float {
+        t.size.y * mixf(band, Float(fnv(p.id + "hang") % 1000) / 1000)
+    }
+
     private func ground(_ p: Presence, _ t: Tank) -> Float {
         let u = p.pos.x / max(1, t.size.x)
         let lift: Float = p.kind.sprite == 6 ? 2 : p.kind.motion == .walk ? 8 : 1
         // where there's no floor (the open sea) it rides at the surface as flotsam does, bobbing with the waves
-        if !Themes.current.floor {
+        if !Themes.current.floor && Themes.current.surface {
             return t.surfaceY(p.pos.x) - p.kind.size * (p.kind.motion == .walk ? 0.5 : 1.1) + sinf(p.phase * 1.3) * 2
         }
+        // no floor and no surface (a sky): nothing to rest on or float at, so it hangs in the open, low, each at its
+        // own height so their labels don't line up in a row, breathing up and down a little
+        if !Themes.current.floor { return hangY(p, t, 0.12...0.3) + sinf(p.phase * 0.5) * 3 }
         // one that walks keeps to a lane up front on the floor, before the scenery: it passes in front of the rocks
         // and the chest, never over them
         return t.size.y * t.sand(u) * (p.kind.motion == .walk ? 1 - 0.2 * 2.8 : 1) + lift
@@ -408,8 +416,11 @@ final class Scene {
             case .float:
                 // bobs with the waves and drifts a little around its spot; in error it sinks halfway
                 let sunk: Float = p.state == .error ? 0.03 : 0
-                // rides the actual surface (waves included), a little under it
-                p.pos.y += (t.surfaceY(p.pos.x) - h * (0.01 + sunk) + sinf(p.phase * 1.3) * 2 - p.pos.y) * min(1, dt * 4)
+                // rides the actual surface (waves included), a little under it; with no surface (a sky) it drifts
+                // high up instead, slowly rising and falling, and sinks a little in error as it would in water
+                let top = Themes.current.surface ? t.surfaceY(p.pos.x) - h * 0.01 + sinf(p.phase * 1.3) * 2
+                    : hangY(p, t, 0.74...0.86) + sinf(p.phase * 0.45) * 5
+                p.pos.y += (top - h * sunk * (Themes.current.surface ? 1 : 2.5) - p.pos.y) * min(1, dt * (Themes.current.surface ? 4 : 1.2))
                 p.pos.x += ((w * p.u + sinf(p.phase * 0.11) * 30) - p.pos.x) * min(1, dt * 0.6)
             case .walk:
                 let home = w * p.u
@@ -453,8 +464,8 @@ final class Scene {
                     if p.pos.y <= ground(p, t) {
                         p.landed = true
                         p.pos.y = ground(p, t)
-                        // lands: a puff of sand
-                        for _ in 0..<5 {
+                        // lands: a puff of sand (where there's sand)
+                        for _ in 0..<(Themes.current.floor ? 5 : 0) {
                             t.addParticle(Particle(pos: p.pos + [Float.random(in: -10...10), 2], vel: [Float.random(in: -18...18), Float.random(in: 6...16)],
                                                    life: 0, maxLife: 2, size: 10, grow: 9, kind: 10, color: [0.5, 0.43, 0.3, 1]))
                         }

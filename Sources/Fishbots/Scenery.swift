@@ -81,6 +81,13 @@ final class Scenery {
 
     /// The ones on the sand (what crabs, pearls and pebbles keep clear of).
     private var onSand: [Item] { items.filter { $0.anchor == .sand } }
+    /// What the things set down in the tank keep clear of: the pieces on the sand; and in a sky (no floor and no
+    /// surface), where the presences that would sit on the sand hang in the open instead, the big pieces floating there
+    /// too (a nursery of stars, an asteroid).
+    private var inTheWay: [Item] {
+        Themes.current.floor || Themes.current.surface ? onSand
+            : items.filter { $0.anchor == .sand || ($0.anchor == .float && $0.scale >= 0.04) }
+    }
 
     /// Where an item sits and how much room the fish give it.
     func place(_ t: Tank, _ s: Item) -> (center: SIMD2<Float>, size: Float) {
@@ -105,12 +112,12 @@ final class Scenery {
 
     /// The stretch of sand an item takes (for the crabs, who turn around instead of walking over it).
     func blocks(_ t: Tank, _ x: Float) -> Bool {
-        onSand.contains { s in let (c, sz) = place(t, s); return abs(x - c.x) < sz * 1.25 }
+        inTheWay.contains { s in let (c, sz) = place(t, s); return abs(x - c.x) < sz * 1.25 }
     }
 
     /// A spot on the sand moved out of the scenery's way (pearls and pebbles would float in front of a rock or the chest).
     func clear(_ t: Tank, _ x: Float) -> Float {
-        let spans = onSand.map { s -> (c: Float, sz: Float) in let (c, sz) = place(t, s); return (c.x, sz) }
+        let spans = inTheWay.map { s -> (c: Float, sz: Float) in let (c, sz) = place(t, s); return (c.x, sz) }
         guard let first = spans.first(where: { abs(x - $0.c) < $0.sz * 1.35 + 8 }) else { return x }
         let half = first.sz * 1.35 + 8
         let near = first.c + (x < first.c ? -half : half), other = first.c + (x < first.c ? half : -half)

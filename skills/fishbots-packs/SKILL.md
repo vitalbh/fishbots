@@ -150,6 +150,8 @@ The built-in aquarium is soft, rounded, lit from the surface, and reads at 30–
 - **No surface:** `"surface": false` (a sky, not water) leaves out the water line, the sky band above it, the sun or
   moon seen through it and the rings where bubbles reach the top; pair it with a background that paints the whole window
   and `raysStrength`/`causticsStrength` 0. A presence with `"motion": "sit"` can dress the assistant (`"moray"`).
+  With neither floor nor surface, presences that sit or walk hang in the open low in the window, and `float` ones drift
+  high up: dress them so they make sense hanging there (see the constellations pack's `looks`).
 - **Frost:** `"frost": 0.6` (0…1) grows ice on the glass from the sides and corners.
 - **Effects:** `"effects": {"fireworks": "#ff9ec8", "lightning": {"as": "sparkle", "color": "#a0ffd0"}}`: default
   colors for the effects plugins send, or another effect in its place.

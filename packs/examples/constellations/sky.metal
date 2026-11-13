@@ -232,3 +232,23 @@ float4 draw_constellations_sparkle(float2 c, float t, float glow, float4 col, fl
     l *= 1.0 - smoothstep(0.7, 1.0, max(abs(c.x), abs(c.y)));
     return float4(mix(col.rgb, float3(1.0), 0.4) * l, min(1.0, l));
 }
+
+// The chest presence (a goal, a reward): the same geode asteroid, small, shut with a seam of light while it waits for
+// its moment, split open and shining when it's done or wants you; the seam takes the state's color in alert or error.
+float4 draw_constellations_geode(float2 c, float phase, float glow, float4 col, float4 extra) {
+    int st = int(extra.w + 0.5);
+    float open = (st == 6 || st == 2) ? 1.0 : 0.0;
+    float g = st == 0 ? 0.0 : st == 1 ? 0.5 + 0.3 * sin(phase * 2.0) : max(glow, 0.3);
+    float4 o = draw_constellations_chest(c * 1.08, phase, g, col, float4(0.0, open, 0.0, 0.0));
+    if (st == 4 || st == 5) {
+        // its light turns amber or red: tint what shines (the bright parts) toward the state
+        float3 tint = st == 5 ? float3(1.0, 0.38, 0.32) : float3(1.0, 0.72, 0.25);
+        float bright = smoothstep(0.5, 1.0, max(o.r, max(o.g, o.b)) / max(o.a, 1e-3));
+        o.rgb = mix(o.rgb, tint * max(o.r, max(o.g, o.b)), bright * 0.7);
+    }
+    float halo = glow * exp(-max(length(c) - 0.45, 0.0) * 7.0) * (1.0 - smoothstep(0.7, 1.0, max(abs(c.x), abs(c.y))));
+    float3 hc = st == 5 ? float3(1.0, 0.38, 0.32) : st == 4 ? float3(1.0, 0.72, 0.25) : float3(1.0, 0.85, 0.45);
+    o.rgb += hc * halo * (1.0 - o.a);
+    o.a += halo * (1.0 - o.a) * 0.55;
+    return o * col.a;
+}

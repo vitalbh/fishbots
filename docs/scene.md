@@ -98,6 +98,12 @@ Packs can add kinds of their own (a drawing in Metal plus how it moves): see `pr
 the pack is installed (`{"kind": "floating-lantern", "fallback": "bottle", …}`). If a pack is removed or paused, its
 presences are drawn by a built-in kind that moves the same way until it comes back.
 
+Where there's no floor (the open sea), the objects that sit on the sand ride the surface instead, as flotsam does.
+Where there's neither floor nor surface (a sky), they hang in the open, low in the window, each at its own height and
+clear of the big pieces floating there, and an `anchor` comes down from the top to its place; what floats at the
+surface (`bottle`) drifts high up instead, sinking a little in `error`. A theme without them dresses those kinds so they
+make sense there (Constellations: a balloon, a flag on a little moon, a probe on a tether).
+
 A theme can dress the built-in kinds its own way (in the Japanese pond a `bottle` floats as a paper lantern): the
 meaning stays, only the drawing changes. Send `"override_theme": true` when your drawing matters (the shark for
 production down): it's shown as sent in every theme.
