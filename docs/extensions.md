@@ -357,8 +357,8 @@ Not a code extension point but the same idea: the on-screen text moves into stri
 bring translations.
 
 ### 11. Session control and launchers
-Status: implemented (`SessionControl.swift`, `Launchers.swift`), with launchers for Rex, Herdr and tmux (the tmux
-one was written from tmux's manual and hasn't run against a real tmux yet).
+Status: implemented (`SessionControl.swift`, `Launchers.swift`), with launchers for Rex, Herdr, tmux and the
+background; each has run a whole cycle (spawn, wait, reply, stop, close) with real Claude Code and Codex sessions.
 
 The aquarium already sees every agent in every client and can type into most of them. Letting a session use that
 makes it an orchestrator: **the orchestrator is not a feature of the app, it's an ordinary agent session** that
@@ -397,7 +397,12 @@ wait`; the `fishbots-orchestrator` skill (`fishbots skill install`) teaches a co
   `fishbots spawn` sends its own `CLAUDE_CONFIG_DIR` and `CODEX_HOME`, and whatever `--env` names.
 - A session interrupted with `stop` (or with Esc by hand) has no hook event for it. In Rex and Herdr its terminal
   says the program went idle, and a fish still busy two seconds after that becomes idle (`TerminalPrograms`), which
-  `wait` takes as stopped. In other terminals it stays "busy" until it's sent something.
+  `wait` takes as stopped. In other terminals (tmux, iTerm, Ghostty) a session sent Esc through the aquarium becomes
+  idle once nothing more is heard from it for a few seconds (`TerminalPrograms.interrupted`).
+- Codex runs its hooks in its app-server daemon when one is running, with the daemon's environment (the terminal it
+  was started from, long ago). Its hook (`plugins/codex/session-env.sh`) then takes the pane, the port and the leader
+  from the session's own terminal process (a codex with a tty in the hook's folder); with two of them in one folder
+  it can't tell, and reports no pane.
 
 **Launchers**: where a session is born. Creating one belongs to the host (Rex, Herdr, tmux), not to a
 fish, so it's a registry next to the providers:
