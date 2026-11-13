@@ -9,7 +9,7 @@ enum AlbumArt {
     private static var token = 0
 
     static var enabled: Bool {
-        get { UserDefaults.standard.object(forKey: "albumColors") as? Bool ?? true }
+        get { UserDefaults.standard.flag("albumColors") }
         set { UserDefaults.standard.set(newValue, forKey: "albumColors") }
     }
 

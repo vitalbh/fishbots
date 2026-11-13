@@ -202,7 +202,7 @@ final class NewSessionCard: NSViewController, NSTextFieldDelegate, NSPopoverDele
 
         let l = NSButton(checkboxWithTitle: tr("Pode lançar outras sessões e comandá-las (orquestrar)"), target: nil, action: nil)
         l.font = rounded(11.5)
-        l.state = SessionControl.enabled && UserDefaults.standard.object(forKey: "newSessionLeads") as? Bool ?? true ? .on : .off
+        l.state = SessionControl.enabled && UserDefaults.standard.flag("newSessionLeads") ? .on : .off
         l.isEnabled = SessionControl.enabled
         if !SessionControl.enabled { l.toolTip = tr("Ligue \"Sessões podem comandar outras\" em Preferências → Geral") }
         leads = l

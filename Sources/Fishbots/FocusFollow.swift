@@ -6,7 +6,7 @@ import Foundation
 /// file can't be read (macOS may keep it private), nothing happens. Preferências → Atenção, on by default.
 final class FocusFollow {
     static var enabled: Bool {
-        get { UserDefaults.standard.object(forKey: "followMacFocus") as? Bool ?? true }
+        get { UserDefaults.standard.flag("followMacFocus") }
         set { UserDefaults.standard.set(newValue, forKey: "followMacFocus") }
     }
 

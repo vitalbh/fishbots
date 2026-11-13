@@ -162,7 +162,7 @@ enum FishKinds {
 
     /// Dressing by the theme (Preferences): its "looks" may draw a kind as another ("oval": "koi"). A kind picked by
     /// hand in the fish menu stays as picked.
-    static var dressByTheme: Bool { UserDefaults.standard.object(forKey: "dressByTheme") as? Bool ?? true }
+    static var dressByTheme: Bool { UserDefaults.standard.flag("dressByTheme") }
     static func dressed(_ id: String, picked: Bool) -> String {
         guard !picked, dressByTheme, let look = Themes.current.looks[id], all.contains(where: { $0.id == look }) else { return id }
         return look

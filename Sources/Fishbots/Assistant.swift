@@ -26,7 +26,7 @@ final class Assistant {
     // MARK: - settings (Preferences → Assistant)
 
     static var on: Bool {
-        get { UserDefaults.standard.object(forKey: "assistant") as? Bool ?? true }
+        get { UserDefaults.standard.flag("assistant") }
         set { UserDefaults.standard.set(newValue, forKey: "assistant") }
     }
     static var brainID: String {

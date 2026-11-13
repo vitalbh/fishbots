@@ -683,9 +683,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // look settings (Preferências → Aparência); FISHBOTS_BLOOM wins
         let d = UserDefaults.standard
         renderer.bloom = Env.value("BLOOM").flatMap(Float.init) ?? Float(d.object(forKey: "bloom") as? Double ?? 1.1)
-        tank.motes.show = d.object(forKey: "marineSnow") as? Bool ?? true
-        tank.dust.show = d.object(forKey: "goldenDust") as? Bool ?? true
-        let hourColors = d.object(forKey: "hourColors") as? Bool ?? true
+        tank.motes.show = d.flag("marineSnow")
+        tank.dust.show = d.flag("goldenDust")
+        let hourColors = d.flag("hourColors")
         // the quake also moves the background (the sprites move in Tank.sprites)
         var u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
                          gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? (Themes.current.sky ?? Sky()).grade(hour: hourNow()) : [1, 1, 1, 0],
