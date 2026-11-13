@@ -46,6 +46,7 @@ final class ThemeKeeper {
         tank.scenery.pack = Packs.themePack[t.id]
         tank.scenery.looks = t.looks
         tank.scenery.kinds = t.scenery
+        tank.scene.resettle(tank)
         // the theme's looks for presences and fish kinds (Preferences: "Vestir presenças e peixes com o tema")
         tank.scene.themeLooks = t.looks
         if appliedSchools != t.id { appliedSchools = t.id; tank.setSchools(t.schools ?? School.usual) }

@@ -188,6 +188,14 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
         }
     }
 
+    // the water between: a haze lying low over the floor, thickest at the horizon and gone a third of the way up. It
+    // covers the far ranges and the far seaweed and not what stands in front, so the near things step forward
+    if (th.pack.z < 0.5) {
+        float hz = 0.075 + 0.018 * sin(uv.x * 7.0 + 1.3) + 0.008 * sin(uv.x * 23.0);
+        float mist = exp(-max(0.0, uv.y - hz) * 7.0) * (0.75 + 0.25 * vnoise(float2(uv.x * 3.0 + t * 0.01, uv.y * 9.0)));
+        col = mix(col, mix(fog, shallow * (0.5 + 0.5 * L), 0.35) * 1.08, mist * 0.26);
+    }
+
     // seaweed
     int weedCount = int(th.params.x + 0.5);
     for (int k = 0; k < weedCount; k++) {

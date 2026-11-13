@@ -157,7 +157,7 @@ A pack theme can draw its own far background and give the built-in pieces anothe
     safe) and `"chest": "fish-trap"` (a woven fishermen's trap), for the chest piece and the chest presence. Built-in
     scenery only for themes that list it: `helmet` (an old diving helmet on the sand), `wreck` (a sunken ship far away)
     and `mangrove` (prop roots coming down at the sides). Built-in creatures for a theme's `fauna`: `anglerfish`,
-    `sunfish`, `manatee`, `seahorses`, `pufferling` (a little puffer that blows up when the mouse comes near), `gulper` (a gulper eel, a rare visitor).
+    `sunfish`, `manatee`, `seahorses`, `pufferling` (a little puffer that blows up when the mouse comes near), `gulper` (a gulper eel, a rare visitor), `seasparkle` (plankton that lights up at night behind whoever swims fast).
   - a **fish kind** (`"oval": "koi"`): the fish of that kind are drawn as the pack's fish. A kind someone picked by hand
     in the fish menu stays as picked. `"betta"` is the music fish (it keeps dancing and letting out notes);
     `"lanternfish"` the night lanternfish;

@@ -168,7 +168,7 @@ A **theme** in `pack.json`:
   `causticsStrength` (0…0.2, light patterns), `surface` (the water line), `murk` (the color of murky water).
 - `weeds`: `count` (0…16 blades in front), `farCount` (blades far behind), `far`, `low` (base color), `high` (tip
   color). `sand`: `dark`, `light`.
-- `fauna`: built-ins `crab starfish turtle snail lanternfish whale grouper anglerfish sunfish manatee seahorses corydoras pufferling gulper` and the pack's creature ids.
+- `fauna`: built-ins `crab starfish turtle snail lanternfish whale grouper anglerfish sunfish manatee seahorses corydoras pufferling gulper seasparkle` and the pack's creature ids.
   `scenery`: built-ins `rock shell chest coral` and the pack's scenery ids. Leave a list out for all built-ins.
 - `visualizer`: `plankton`, `aurora`, `surface`, `score`, `constellation` or `fireworks`. `music`: a style id.
 - `names`: `{"en": "…"}`, the name in other languages. Colors are `"#rrggbb"` or `[r, g, b]` (0…1).

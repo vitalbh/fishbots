@@ -61,6 +61,9 @@ final class Presence {
     let born: Double
     /// Home position (0…1 of the width).
     var u: Float
+    /// Where it was asked to be (or the spot picked for it), before the scenery moved it aside: a theme change puts
+    /// it back from here, so it doesn't keep the place another theme's rocks left it.
+    var askedU: Float = -1
     var pos: SIMD2<Float>
     var vel: SIMD2<Float> = .zero
     var dir: Float = 1

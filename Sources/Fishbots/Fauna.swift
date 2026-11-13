@@ -46,7 +46,7 @@ final class Fauna {
         ("snail", { Snail() }), ("lanternfish", { Lanterns() }), ("whale", { WhaleSwimmer() }), ("grouper", { Grouper() }),
         ("anglerfish", { Anglerfish() }), ("sunfish", { Sunfish() }), ("manatee", { Manatee() }), ("seahorses", { Seahorses() }),
         ("corydoras", { Corydoras() }),
-        ("pufferling", { Pufferling() }), ("gulper", { GulperEel() }),
+        ("pufferling", { Pufferling() }), ("gulper", { GulperEel() }), ("seasparkle", { SeaSparkle() }),
     ]
 
     static func register(_ id: String, _ make: @escaping () -> Creature) {
@@ -88,7 +88,7 @@ final class Fauna {
     func middle(_ t: Tank) -> [Sprite] { creatures.flatMap { $0.sprites(t, layer: .middle) } }
     func front(_ t: Tank) -> [Sprite] { creatures.flatMap { $0.sprites(t, layer: .front) } }
     /// Every light the creatures carry.
-    func lamps(_ t: Tank) -> [Lamp] { creatures.flatMap { $0.lamps(t) } }
+    func lamps(_ t: Tank) -> [Lamp] { creatures.flatMap { $0.lamps(t) } + t.scenery.lamps(t) }
 }
 
 // MARK: - built-in creatures
@@ -106,6 +106,8 @@ final class Crabs: Creature {
         /// Its lane on the floor (as the scenery's rows): up front, on the bare sand before the rocks and the chest,
         /// so it walks in front of them and never over them.
         var row: Float = 2.6
+        /// Where its feet last marked the sand, and when.
+        var prints: [(at: SIMD2<Float>, when: Double)] = []
     }
     private var crabs: [Crab] = []
 
@@ -185,11 +187,29 @@ final class Crabs: Creature {
             }
             crabs[i] = c
         }
+        // footprints: little marks in the sand behind a crab that walks, gone in a few seconds
+        for i in crabs.indices {
+            var c = crabs[i]
+            c.prints.removeAll { t.time - $0.when > 7 }
+            let feet: SIMD2<Float> = [c.x, floorY(t, c) + 1]
+            if c.buried < 0.5, simd_distance(c.prints.last?.at ?? [-99, 0], feet) > 7 { c.prints.append((feet, t.time)) }
+            crabs[i] = c
+        }
     }
 
     func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
         guard layer == .middle else { return [] }
-        return crabs.flatMap { c -> [Sprite] in
+        let marks = crabs.flatMap { c in
+            c.prints.dropLast().flatMap { p -> [Sprite] in
+                let fade = Float(max(0, 1 - (t.time - p.when) / 7))
+                // two rows of dots, one for each side's feet
+                return [-1, 1].map { side in
+                    Sprite(pos: p.at + [0, Float(side) * 2.2], dir: [1, 0], size: 3.6, kind: 32, glow: 0.75 * fade * (0.45 + 0.55 * t.light),
+                           phase: 0, color: [0, 0, 0, 1], extra: [1, 0, 0, 0])
+                }
+            }
+        }
+        return marks + crabs.flatMap { c -> [Sprite] in
             let near = 1 + 0.07 * c.row                                    // nearer the glass: a little bigger
             let y = floorY(t, c) + (8 - c.buried * 7) * near
             var out = [Sprite(pos: [c.x, y], dir: [1, 0], size: 20 * near, kind: 14,
@@ -218,6 +238,9 @@ final class Starfish: Creature {
             // lying on the bare sand up front, not on the clutch and the coral that stand at the back line
             Sprite(pos: [t.size.x * u, t.size.y * t.sand(u) * (u < 0.5 ? 0.5 : 0.62) + 4], dir: [1, 0], size: 17, kind: 17, glow: 0, phase: phase,
                    color: SIMD4(color * (0.55 + 0.45 * t.light), 1), extra: [1, 0, 0, 0])
+        }.flatMap { s in
+            // its shadow on the sand under it
+            [Sprite(pos: s.pos + [1.5, -5], dir: [1, 0], size: 15, kind: 32, glow: 0.3 * (0.45 + 0.55 * t.light), phase: 0, color: [0, 0, 0, 1], extra: [1, 0, 0, 0]), s]
         }
     }
 }
@@ -455,7 +478,7 @@ final class Corydoras: Creature {
     func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
         guard layer == .middle else { return [] }
         let kind = Float(FishKinds.index(of: "corydoras"))
-        return all.sorted { $0.row < $1.row }.map { c in
+        return all.sorted { $0.row < $1.row }.flatMap { c -> [Sprite] in
             var pos: SIMD2<Float> = [c.x, floorY(t, c)]
             var dir: SIMD2<Float> = [c.dir, 0]
             var beat: Float = c.rest > 0 ? 0.6 : 3
@@ -469,8 +492,11 @@ final class Corydoras: Creature {
                 beat = 7
             }
             let col = c.tint * (0.5 + 0.5 * t.light)
-            return Sprite(pos: pos, dir: dir, size: c.size * (1 + 0.07 * c.row), kind: 0, glow: 0, phase: c.phase * beat,
-                          color: SIMD4(col, 1), extra: [c.dir, 0, kind, 0], aux: [0, 0, 0, 0])
+            // on the floor, its shadow right under it (none while it's up for air)
+            let shade = c.gulp >= 0 ? [] : [Sprite(pos: [c.x, floorY(t, c) - c.size * 0.3 + 1], dir: [1, 0], size: c.size * 0.95, kind: 32,
+                                                   glow: 0.3 * (0.45 + 0.55 * t.light), phase: 0, color: [0, 0, 0, 1], extra: [1, 0, 0, 0])]
+            return shade + [Sprite(pos: pos, dir: dir, size: c.size * (1 + 0.07 * c.row), kind: 0, glow: 0, phase: c.phase * beat,
+                                   color: SIMD4(col, 1), extra: [c.dir, 0, kind, 0], aux: [0, 0, 0, 0])]
         }
     }
 }
@@ -837,4 +863,24 @@ final class GulperEel: Creature {
         guard let p = pos else { return [] }
         return [Lamp(pos: tailTip(p), radius: 70, color: [1.0, 0.45, 0.6], strength: 0.5)]
     }
+}
+
+/// Sea sparkle (the lagoon at night): the plankton lights up where the water is stirred, so whoever swims fast
+/// leaves a trail of blue-green sparks that die out behind it. By day there's nothing to see.
+final class SeaSparkle: Creature {
+    let id = "seasparkle"
+    func update(_ t: Tank, dt: Float) {
+        let night = max(0, Scenery.night(t) * 2 - 1)            // only once it's properly dark
+        guard night > 0.05 else { return }
+        for f in t.fish where !f.leaving {
+            let speed = simd_length(f.vel)
+            guard speed > 22, Float.random(in: 0...1) < dt * min(9, speed / 14) * night * (f.decor ? 0.35 : 1) else { continue }
+            let back = -simd_normalize(f.vel) * f.size * 0.5
+            t.addParticle(Particle(pos: f.pos + back + [Float.random(in: -4...4), Float.random(in: -4...4)],
+                                   vel: [Float.random(in: -5...5), Float.random(in: -3...6)], life: 0, maxLife: Float.random(in: 0.7...1.6),
+                                   size: Float.random(in: 2.2...4.2) * (1 - 0.4 * f.depth), grow: 0.5, kind: 4,
+                                   color: [0.35, 1.0, 0.82, 0.8 * night]))
+        }
+    }
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] { [] }
 }

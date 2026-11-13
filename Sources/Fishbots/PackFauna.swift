@@ -317,11 +317,16 @@ final class PackCreature: Creature {
         let far = k.behavior == .pass
         let color = mix(k.color * lit, water, t: far ? 0.55 : 0.1)
         let i = Float(index)
-        return ones.map { o in
+        // one on the floor has its shadow on the sand under it (where there is a floor)
+        let grounded = (k.behavior == .crawl || k.behavior == .rest) && Themes.current.floor
+        return ones.flatMap { o -> [Sprite] in
             let vertical = k.behavior == .glass
-            return Sprite(pos: o.pos, dir: vertical ? [0, o.dir] : [o.dir, 0], size: k.size, kind: 36, glow: 0, phase: o.phase,
-                          color: SIMD4(color, (far ? 0.6 : 1) * shown), extra: [vertical ? 1 : o.dir, o.seed, i, o.moving],
-                          aux: [k.extent.x, k.extent.y, 0, 0])
+            let it = Sprite(pos: o.pos, dir: vertical ? [0, o.dir] : [o.dir, 0], size: k.size, kind: 36, glow: 0, phase: o.phase,
+                            color: SIMD4(color, (far ? 0.6 : 1) * shown), extra: [vertical ? 1 : o.dir, o.seed, i, o.moving],
+                            aux: [k.extent.x, k.extent.y, 0, 0])
+            guard grounded else { return [it] }
+            return [Sprite(pos: [o.pos.x + 1.5, o.pos.y - k.size * k.extent.y * 0.9 + 1], dir: [1, 0], size: k.size * k.extent.x * 0.8, kind: 32,
+                           glow: 0.28 * (0.45 + 0.55 * t.light) * shown, phase: 0, color: [0, 0, 0, 1], extra: [1, 0, 0, 0]), it]
         }
     }
 }
