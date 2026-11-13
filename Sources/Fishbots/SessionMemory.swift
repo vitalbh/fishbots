@@ -76,7 +76,7 @@ enum SessionMemory {
             return processIsAgent(p, names: names)
         }
         // the Rex pane, still with the agent in front
-        if let b = o["rex_block"], let bin = rexBin(o) {
+        if let b = o["rex_block"], let bin = Whereabouts.rexBin(o) {
             guard let pr = json(run(bin, ["--timeout", "3s", "block", "call", "-b", b, "process"])),
                   let fg = pr["foreground"] as? [String: Any] else { return false }
             let all = [fg["path"], fg["argv0"], fg["name"]].compactMap { $0 as? String }.joined(separator: " ")
@@ -95,11 +95,6 @@ enum SessionMemory {
         guard kill(pid, 0) == 0 || errno == EPERM else { return false }
         let out = String(decoding: run("/bin/ps", ["-o", "command=", "-p", String(pid)]), as: UTF8.self)
         return Providers.isAgentProcess(out, names: names)
-    }
-
-    private static func rexBin(_ o: [String: String]) -> String? {
-        let candidates = [o["rex_bin"], NSString("~/.local/bin/rex").expandingTildeInPath, "/opt/homebrew/bin/rex", "/usr/local/bin/rex"]
-        return candidates.compactMap { $0 }.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     private static func run(_ bin: String, _ args: [String]) -> Data {
