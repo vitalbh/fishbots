@@ -27,7 +27,8 @@ extension Tank {
             let kind = FishKinds.index(of: FishKinds.worn(by: f))
             if f.species != kind { f.species = kind }
             // with no one behind it right now, it goes about its own business (a little bigger than the rest)
-            guard !mine.isEmpty else { return Heading(target: target, speed: speed, scale: max(scale, 1.2)) }
+            // (in the small tank, nobody it could lead is shown)
+            guard mine.contains(where: { !isHidden($0) }) else { return Heading(target: target, speed: speed, scale: max(scale, 1.2)) }
             // at the glass when it waits for you, sinking when it's sick, as anyone; otherwise it leads: out in the
             // open water, on a wide winding round of the tank (never down on the sand, where its school would have no
             // room behind it), brisk while any of them works and easy when they all rest, and lit up
@@ -62,7 +63,8 @@ extension Tank {
                                        size.y * (0.56 + 0.2 * sinf(t * 1.37 + 0.8) + 0.05 * cosf(t * 3.1))]
             return Heading(target: round, speed: working ? 105 : 55, scale: max(scale, 1.4))
         }
-        guard let leader = leader(of: f) else { return nil }
+        // (in the small tank, a leader that isn't shown leads nobody: it goes about its own business)
+        guard let leader = leader(of: f), !isHidden(leader) || isHidden(f) else { return nil }
         // dressed as the leader's: the same markings and fin, in its own project's color
         if f.pattern != leader.pattern || f.cut != leader.cut { f.pattern = leader.pattern; f.cut = leader.cut }
         // done: its pearl goes up the thread (2 s) and stays with the leader, one for each piece of work
@@ -81,7 +83,7 @@ extension Tank {
         let i = mates.firstIndex { $0 === f } ?? 0
         let row = Float(i / 2 + 1), side: Float = i % 2 == 0 ? 1 : -1
         let facing: Float = leader.facingX >= 0 ? 1 : -1
-        var gap = leader.size * 0.85 + 22
+        var gap = drawn(leader) * 0.85 + 22 * pace
         // the last one has just finished: they close in around the leader for a moment, as if reporting
         let resting = mates.allSatisfy { [.done, .idle, .ok].contains($0.state) }
         if resting, let last = mates.filter({ $0.state == .done }).map(\.since).max(), time - last < 6 { gap *= 0.55 }

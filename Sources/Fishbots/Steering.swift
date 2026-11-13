@@ -31,8 +31,10 @@ extension Tank {
 
         // its kind's pace and bob
         let sw = swim(f)
-        speed *= sw.speed
-        if sw.bob > 0 { target.y += sinf(Float(time) * 1.3 + Float(f.phase)) * sw.bob * f.size }
+        speed *= sw.speed * pace
+        if sw.bob > 0 { target.y += sinf(Float(time) * 1.3 + Float(f.phase)) * sw.bob * drawn(f) }
+        // the small tank: all of it stays inside the glass (SmallTank.swift)
+        if !f.leaving { target = keptInside(f, target) }
 
         // the scenery: they go around it instead of through it
         if !f.leaving && f.jumpPhase == 0 {
@@ -64,7 +66,7 @@ extension Tank {
         f.pos.x += current * dt * (f.decor ? 0.9 : 0.5)
         if !f.leaving && f.pos.y < h + 40 {
             f.pos.y = max(40 + f.size * 0.3, min(h - 20, f.pos.y))
-            f.pos.x = max(10, min(w - 10, f.pos.x))
+            f.pos.x = max(max(10, drawn(f) * (compact ? 0.4 : 0)), min(w - max(10, drawn(f) * (compact ? 0.4 : 0)), f.pos.x))
         }
         f.scale += (scaleTarget - f.scale) * min(1, dt * 2)
         // the tail beats with speed, and harder while accelerating (a push)
@@ -124,7 +126,7 @@ extension Tank {
             && (f.decor ? f.parent == nil : (f.state == .idle || f.state == .ok || f.state == .done))
         if time < f.fearUntil && !f.leaving {
             let d = f.pos - f.fearFrom
-            target = f.pos + (simd_length(d) > 1 ? simd_normalize(d) : [1, 0]) * 220
+            target = f.pos + (simd_length(d) > 1 ? simd_normalize(d) : [1, 0]) * 220 * reach
             speed = 280
         } else if let b = game, b.chaser == f.id || b.runner == f.id,
                   let other = fish.first(where: { $0.id == (b.chaser == f.id ? b.runner : b.chaser) }) {
@@ -136,10 +138,10 @@ extension Tank {
                 escape = [max(w * 0.08, min(w * 0.92, escape.x)), max(h * 0.15, min(h * 0.85, escape.y))]
                 target = escape; speed = 125
             }
-        } else if let c = cursor, curious, simd_distance(c, f.pos) < 360 {
+        } else if let c = cursor, curious, simd_distance(c, f.pos) < 360 * reach {
             // the curious ones come close to the mouse, around it
             let ang = Float(f.phase) * 1.7 + Float(time) * 0.4
-            target = c + SIMD2(cosf(ang), sinf(ang) * 0.6) * (f.size * 2 + 20)
+            target = c + SIMD2(cosf(ang), sinf(ang) * 0.6) * (drawn(f) * 2 + 20 * reach)
             speed = 60
         } else if let id = f.chattingWith, time < f.chatUntil, let o = fish.first(where: { $0.id == id }) {
             // chat: they meet snout to snout halfway
@@ -150,7 +152,7 @@ extension Tank {
             // parade: comes to the middle, in front, glowing
             target = [w * 0.5, h * 0.5]
             speed = 220
-            scaleTarget = 1.7
+            scaleTarget = compact ? 1.35 : 1.7
             f.glow = max(f.glow, 0.6)
         } else if f.leaving && f.party {
             // party: rises and exits through the surface
@@ -169,19 +171,20 @@ extension Tank {
         } else if f.sings {
             if f.state == .busy {
                 // playing: it dances up high, bobbing to a beat, and lets out notes now and then
-                target = wanderPoint(f, yRange: (h * 0.58, h * 0.8), every: 3...6)
-                target.y += sinf(Float(time) * 4.2) * 14
+                let (lo, hi) = openWater(0.58, 0.8)
+                target = wanderPoint(f, yRange: (h * lo, h * hi), every: 3...6)
+                target.y += sinf(Float(time) * 4.2) * 14 * reach
                 speed = 55
-                scaleTarget = 1.55                     // the special fish: bigger
+                scaleTarget = compact ? 1.2 : 1.55     // the special fish: bigger (not a third of a small tank)
                 if time > f.noteAt {
                     f.noteAt = time + Double.random(in: 0.5...1.1)
                     notes(from: f, n: 1)
                 }
             } else {
                 // paused: it sinks slowly and rests
-                target = [f.pos.x, h * 0.3]
+                target = [f.pos.x, h * (compact ? 0.36 : 0.3)]
                 speed = 12
-                scaleTarget = 1.3
+                scaleTarget = compact ? 1.1 : 1.3
             }
         } else if f.decor {
             return schooling(f, dt: dt)
@@ -203,8 +206,8 @@ extension Tank {
         f.depth += (min(0.92, f.restDepth + crowd * 0.3) - f.depth) * min(1, dt * 0.25)
         if leads && (time > f.wanderAt || simd_distance(f.pos, f.wander) < 30) {
             // each school keeps to its own height: neons in the middle, tetras up high, silversides low in the back
-            let band: ClosedRange<Float> = school == 1 ? 0.55...0.88 : school == 2 ? 0.18...0.48 : 0.3...0.8
-            f.wander = [Float.random(in: w * 0.12...w * 0.88), h * Float.random(in: band)]
+            let (lo, hi) = school == 1 ? openWater(0.55, 0.88) : school == 2 ? openWater(0.18, 0.48) : openWater(0.3, 0.8)
+            f.wander = [Float.random(in: w * 0.12...w * 0.88), h * Float.random(in: lo...hi)]
             f.wanderAt = time + Double.random(in: school == 2 ? 7...14 : 4...9)
         }
         let leader = fish.first { $0.decor && $0.parent == nil && $0.phase == school * 100 } ?? f
@@ -215,15 +218,16 @@ extension Tank {
             var center = SIMD2<Float>.zero, heading = SIMD2<Float>.zero, n: Float = 0
             for o in fish where o.decor && o.parent == nil && o !== f && o.phase / 100 == school { center += o.pos; heading += o.vel; n += 1 }
             if n > 0 { center /= n; heading /= n }
-            let wobble = SIMD2(sinf(Float(time) * 0.7 + Float(f.phase) * 1.9), cosf(Float(time) * 0.5 + Float(f.phase))) * 9
+            let wobble = SIMD2(sinf(Float(time) * 0.7 + Float(f.phase) * 1.9), cosf(Float(time) * 0.5 + Float(f.phase))) * 9 * pace
             target = f.pos + (center - f.pos) * 0.35 + (leader.pos - f.pos) * 0.3 + heading * 0.8 + wobble
         }
         speed = (leads ? 45 : 75) * (school == 2 ? 0.7 : 1)
         // a real school: they part around a big fish passing through and close up again behind it,
         // and keep a little room between each other
         var away: SIMD2<Float> = .zero
-        for o in fish where !o.decor && !o.leaving && o.parent == nil {
-            let d = f.pos - o.pos, r = o.size * 2.4, l = simd_length(d)
+        // (in the small tank, not around a fish that isn't shown)
+        for o in fish where !o.decor && !o.leaving && o.parent == nil && !isHidden(o) {
+            let d = f.pos - o.pos, r = drawn(o) * 2.4, l = simd_length(d)
             if l < r && l > 0.1 { away += d / l * (r - l) / r }
         }
         // a shark (a presence) going by: the school scatters, and comes back together after
@@ -231,12 +235,13 @@ extension Tank {
             let d = f.pos - p.pos, r = p.kind.size * 3.2, l = simd_length(d)
             if l < r && l > 0.1 { away += d / l * (r - l) / r * 2.2 }
         }
-        for o in fish where o.decor && o !== f && o.parent == nil {
+        let room = 16 * pace
+        for o in fish where o.decor && o !== f && o.parent == nil && !isHidden(o) {
             let d = f.pos - o.pos, l = simd_length(d)
-            if l < 16 && l > 0.1 { away += d / l * (16 - l) / 16 * 0.6 }
+            if l < room && l > 0.1 { away += d / l * (room - l) / room * 0.6 }
         }
         if simd_length(away) > 0.01 {
-            target = f.pos + simd_normalize(away) * 90 + (target - f.pos) * 0.3
+            target = f.pos + simd_normalize(away) * 90 * reach + (target - f.pos) * 0.3
             speed = 120
         }
         return Heading(target: target, speed: speed)
@@ -256,26 +261,29 @@ extension Tank {
             // questions fit
             let i = waiting.firstIndex { $0 === f } ?? 0
             let n = max(1, waiting.count)
-            let fits = max(1, Int(w * 0.88 / 130))
+            let fits = max(1, Int(w * 0.88 / (130 * pace)))
             let rows = min(3, (n + fits - 1) / fits)
             let perRow = (n + rows - 1) / rows
             let row = i / perRow, col = i % perRow
             let inRow = min(perRow, n - row * perRow)
             let gap = min(320, w * 0.9 / Float(perRow))
-            let rowGap = rows > 1 ? h * 0.36 / Float(rows - 1) : 0
+            let rowGap = rows > 1 ? h * (compact ? 0.3 : 0.36) / Float(rows - 1) : 0
             let x = w * 0.5 + (Float(col) - Float(inRow - 1) / 2) * gap
-            let y = h * 0.5 + (Float(rows - 1) / 2 - Float(row)) * rowGap
+            let y = h * (compact ? 0.56 : 0.5) + (Float(rows - 1) / 2 - Float(row)) * rowGap
             // it doesn't park: each one swims a slow, lopsided figure eight around its place, out of step with its
             // neighbours, so the queue reads as fish waiting and not as a shelf. Almost half a place each way:
             // neighbours pass in front of each other now and then, but each keeps coming back to its own spot
             let t = Float(time) * 0.3 + Float(f.phase) * 2.1
-            let reach = rows > 1 ? rowGap * 0.42 : h * 0.16
-            let roam: SIMD2<Float> = [sinf(t) * gap * 0.4 + sinf(t * 2.3 + 0.7) * gap * 0.07,
+            // (in the small tank a smaller eight: there, almost half a place is a third of the glass)
+            let reach = rows > 1 ? rowGap * 0.42 : h * (compact ? 0.08 : 0.16)
+            let wide: Float = compact ? 0.22 : 0.4
+            let roam: SIMD2<Float> = [sinf(t) * gap * wide + sinf(t * 2.3 + 0.7) * gap * 0.07,
                                       sinf(t * 1.6 + 1.3) * reach + sinf(t * 0.7 + Float(f.phase)) * reach * 0.3]
             target = [x, y] + roam
             speed = 120
             let crowded = rows > 1
             scaleTarget = (crowded ? 1.3 : 1.55) + min(crowded ? 0.2 : 0.35, Float(time - f.since) / 60 * 0.06)
+            if compact { scaleTarget = 1 + (scaleTarget - 1) * 0.5 }   // bigger, but not a third of a small tank
         case .busy where f.action != nil:
             switch f.action! {
             case .nibble(let goal):
@@ -332,7 +340,7 @@ extension Tank {
                 speed = 24 * burst(f)
                 // a sibling from the same project also idle: they swim side by side (the newer one alongside the older)
                 // (in a crowded tank the project's shoal takes its place: its leader must not chase the others)
-                if crowding.shoals[f.projectKey] == nil, let mate = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && $0.projectKey == f.projectKey
+                if crowding.shoals[f.projectKey] == nil, let mate = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && !isHidden($0) && $0.projectKey == f.projectKey
                                                   && ($0.state == .idle || $0.state == .ok) && $0.variant < f.variant }) {
                     let side: Float = f.variant % 2 == 0 ? 1 : -1
                     target = mate.pos + [-(mate.vel.x >= 0 ? 1 : -1) * mate.size * 1.4, side * mate.size * 1.1]
@@ -342,7 +350,7 @@ extension Tank {
         }
         // those from the same project go take care of the sick one
         if f.state != .error && f.state != .waiting,
-           let sick = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && $0.state == .error && $0.source == f.source && $0.label == f.label }) {
+           let sick = fish.first(where: { $0 !== f && !$0.decor && !$0.leaving && !isHidden($0) && $0.state == .error && $0.source == f.source && $0.label == f.label }) {
             let ang = Float(time) * 0.8 + Float(f.phase)
             target = sick.pos + SIMD2(cosf(ang), sinf(ang) * 0.6) * (sick.size * 2.2)
             speed = 60
@@ -393,7 +401,8 @@ extension Tank {
     /// The heights a free fish roams: its kind's band if it has one, otherwise the usual (fractions of the height).
     private func band(_ f: Fish, _ lo: Float, _ hi: Float) -> (Float, Float) {
         let d = swim(f).depth ?? lo...hi
-        return (size.y * d.lowerBound, size.y * d.upperBound)
+        let (a, b) = openWater(d.lowerBound, d.upperBound)
+        return (size.y * a, size.y * b)
     }
 
     private func wanderPoint(_ f: Fish, yRange: (Float, Float), every: ClosedRange<Double>) -> SIMD2<Float> {
