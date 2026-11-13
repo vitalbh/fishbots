@@ -237,13 +237,13 @@ final class TmuxLauncher: SessionLauncher {
     func launch(_ r: LaunchRequest, done: @escaping (Result<[String: String], LaunchError>) -> Void) {
         guard let bin else { done(.failure(LaunchError(message: "tmux isn't installed"))); return }
         let pane = r.near?["tmux"]
-        func open(_ window: Set<String>) {
+        func open(_ window: Set<String>, after: String? = nil) {
             var args: [String]
             if let anchor = Launchers.anchor(r, "tmux", window: window) {
                 args = ["split-window", "-d", anchor.below ? "-v" : "-h", "-t", anchor.pane]
             } else {
                 args = ["new-window", "-d"]
-                if let pane { args += ["-a", "-t", pane] }
+                if let after { args += ["-a", "-t", after] }
                 if let l = r.label, !l.isEmpty { args += ["-n", l] }
             }
             // several arguments after the options are run as they are, without a shell in between
@@ -254,7 +254,15 @@ final class TmuxLauncher: SessionLauncher {
                 done(.success(["term": "tmux", "tmux": made]))
             }
         }
-        guard !r.tab, let pane else { open([]); return }
+        guard let pane else { open([]); return }
+        guard !r.tab else {
+            // new-window takes a window, not a pane ("can't specify pane here"): the asker's window
+            Launchers.run(bin, ["display-message", "-p", "-t", pane, "#{window_id}"]) { out, _ in
+                let window = out.trimmingCharacters(in: .whitespacesAndNewlines)
+                open([], after: window.hasPrefix("@") ? window : nil)
+            }
+            return
+        }
         // the panes of the asker's window: the siblings among them are the column
         Launchers.run(bin, ["list-panes", "-t", pane, "-F", "#{pane_id}"]) { out, _ in
             open(Set(out.split(separator: "\n").map(String.init)))
