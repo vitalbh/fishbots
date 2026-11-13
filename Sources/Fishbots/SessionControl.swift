@@ -10,9 +10,13 @@ import Foundation
 ///   POST /control/stop   {"fish": "claude-code:abc"}
 ///   POST /control/wait   {"fish": ["…", "…"], "states": ["done", "waiting", "error", "idle"], "timeout": 600}
 ///
+/// Every route needs `Authorization: Bearer <token>` (ControlTokens.swift): a session the aquarium launched has its
+/// own, which says who it is and reaches only the children it launched; the person's (control.token, read by
+/// `fishbots` from any terminal) reaches everything, and its asker is found by where it runs (the X-Where-* headers
+/// `fishbots` sends, the hook's own).
 /// `spawn` opens a pane (Launchers.swift) running the agent with the prompt, and holds the answer until the session
-/// in it shows up as a fish. The one asking is found by where it runs (the X-Where-* headers `fishbots` sends, the
-/// hook's own): the new fish is its child. A child doesn't launch others, and a parent has a limit of them.
+/// in it shows up as a fish: the new fish is the asker's child. A child doesn't launch others, and a parent has a
+/// limit of them.
 /// The new pane doesn't have the asker's environment, so what picks the agent's account or profile comes in `env`
 /// (`fishbots spawn` sends CLAUDE_CONFIG_DIR and CODEX_HOME when it has them).
 /// `wait` holds the answer until one of the fish is in one of the states (by default, until it stops working:
@@ -24,10 +28,22 @@ final class SessionControl: EventSink {
     let id = "session-control"
 
     static var enabled: Bool { UserDefaults.standard.bool(forKey: "sessionControl") }
+    /// Sessions the aquarium didn't launch (only the hook reports them) may command with the person's token, which
+    /// `fishbots` reads from the file. On unless turned off in Preferences.
+    static var outsidersCommand: Bool {
+        UserDefaults.standard.object(forKey: "sessionControlOutside") == nil || UserDefaults.standard.bool(forKey: "sessionControlOutside")
+    }
     static let routes = ["POST /control/spawn", "POST /control/reply", "POST /control/stop", "POST /control/wait",
                          "POST /control/close"]
     /// Sessions one parent can have at work at once (the ones that finished and sit at their prompt don't count).
     static let maxChildren = 6
+
+    /// Who asks: the fish behind the request, if one is (the person in a plain terminal, the menu and the assistant
+    /// are none), and the token of its own when it has one, which limits it to its children.
+    private struct Asker {
+        var fish: Fish?
+        var grant: ControlTokens.Grant?
+    }
 
     private struct Waiter {
         let id: Int
@@ -51,6 +67,8 @@ final class SessionControl: EventSink {
         var name: String? = nil
         /// The git worktree and branch made for it (`fishbots spawn --worktree`), told back to whoever launched it.
         var worktree: [String: String] = [:]
+        /// The token in its pane's environment.
+        let grant: ControlTokens.Grant
         let reply: (Int, Data) -> Void
     }
 
@@ -86,9 +104,30 @@ final class SessionControl: EventSink {
         let route = path.split(separator: "?").first.map(String.init) ?? path
         guard route.hasPrefix("/control/") else { return false }
         guard method == "POST" else { reply(404, Self.error("unknown route")); return true }
+        guard let bearer = ControlTokens.bearer(headers) else {
+            reply(401, Self.error("send \"Authorization: Bearer <token>\": the session's FISHBOTS_TOKEN, or the one in \(ControlTokens.file(port: port()).path) (new every time the app opens)"))
+            return true
+        }
         guard Self.enabled else { reply(403, Self.error("session control is off: turn it on in Preferences → General")); return true }
+        let asker: Asker
+        switch bearer {
+        case .person:
+            // the person's token: whoever sends it may say where it runs. A session the aquarium launched (in this run
+            // or one before: its token died with the app) is let through; another one only if Preferences allow it
+            let f = caller(headers)
+            if let f, f.whereabouts["launched"] == nil, !Self.outsidersCommand {
+                reply(403, Self.error("\(f.id) wasn't launched by the aquarium, and sessions started outside it can't command others here: turn it on in Preferences → General"))
+                return true
+            }
+            asker = Asker(fish: f, grant: nil)
+        case .session(let g):
+            guard let f = fish(of: g) else {
+                reply(403, Self.error("the session this token was given to isn't in the tank (yet, or any more)")); return true
+            }
+            asker = Asker(fish: f, grant: g)
+        }
         let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
-        if route == "/control/spawn" { spawn(m, headers, reply); return true }
+        if route == "/control/spawn" { spawn(m, asker, reply); return true }
 
         let names = (m["fish"] as? [String]) ?? (m["fish"] as? String).map { [$0] } ?? []
         var found: [Fish] = []
@@ -97,6 +136,11 @@ final class SessionControl: EventSink {
             found.append(f)
         }
         guard !found.isEmpty else { reply(400, Self.error(#"send {"fish": "<source>:<entity>"}"#)); return true }
+        // a session's own token reaches only the sessions it launched (waiting on any is only reading)
+        if route != "/control/wait", let g = asker.grant, let f = asker.fish, let other = found.first(where: { !launched($0, by: g) }) {
+            reply(403, Self.error("\(other.id) wasn't launched by \(f.id): a session commands only the ones it launched itself"))
+            return true
+        }
 
         switch route {
         case "/control/reply":
@@ -144,7 +188,8 @@ final class SessionControl: EventSink {
         case "/control/close":
             // only what the asker itself launched: its pane closes, whatever it's doing, and its fish leaves
             let f = found[0]
-            guard let asker = caller(headers), f.whereabouts["parent"] == asker.id else {
+            let own = asker.grant.map { launched(f, by: $0) } ?? (asker.fish.map { f.whereabouts["parent"] == $0.id } ?? false)
+            guard own else {
                 reply(409, Self.error("\(f.id) wasn't launched by the session asking: only its own children can be closed")); return true
             }
             guard let launcher = Launchers.all.first(where: { $0.hosts(f.whereabouts) }) else {
@@ -163,7 +208,7 @@ final class SessionControl: EventSink {
             if let f = found.first(where: { !sent.contains($0.id) && states.contains($0.state.rawValue) && !stillAsking($0) }) {
                 reply(200, Self.json(told(f))); return true
             }
-            let w = Waiter(id: next, fish: found.map(\.id), asker: caller(headers)?.id, states: states, reply: reply)
+            let w = Waiter(id: next, fish: found.map(\.id), asker: asker.fish?.id, states: states, reply: reply)
             next += 1
             waiters.append(w)
             listening()
@@ -227,16 +272,16 @@ final class SessionControl: EventSink {
         // the host's session it gets is named after its task (or its folder)
         let words = (prompt ?? "").split(whereSeparator: { $0.isWhitespace }).prefix(5).joined(separator: " ")
         m["label"] = label ?? (words.isEmpty ? (cwd as NSString).lastPathComponent : String(words.prefix(32)))
-        spawn(m, [:]) { code, data in
+        spawn(m, Asker()) { code, data in
             // 504: by then the terminal came to the front with whatever the agent asks first; nothing to add
             done(code == 200 || code == 504 ? nil : (Whereabouts.json(data)?["error"] as? String ?? "error \(code)"))
         }
     }
 
-    private func spawn(_ m: [String: Any], _ headers: [String: String], _ reply: @escaping (Int, Data) -> Void) {
-        let parent = caller(headers)
+    private func spawn(_ m: [String: Any], _ asker: Asker, _ reply: @escaping (Int, Data) -> Void) {
+        let parent = asker.fish
         if let parent {
-            guard parent.whereabouts["parent"] == nil else {
+            guard parent.whereabouts["parent"] == nil, asker.grant?.parent == nil else {
                 reply(409, Self.error("\(parent.id) was launched by another session: it can't launch its own")); return
             }
             guard children(of: parent.id).filter({ ![.done, .idle, .ok].contains($0.state) }).count < Self.maxChildren else {
@@ -278,6 +323,9 @@ final class SessionControl: EventSink {
         if let parent { env["FISHBOTS_PARENT"] = parent.id }
         // an aquarium on another port (a test instance): the new session's hook reports to this one
         if port() != 7777 { env["FISHBOTS_PORT"] = String(port()) }
+        // its own token, for its own `fishbots` commands: it says who it is, and reaches only what it launches
+        let grant = ControlTokens.issue(source: provider.id, parent: asker.grant)
+        env["FISHBOTS_TOKEN"] = grant.token
         let patience = Self.seconds(m["timeout"], or: 30, upTo: 120)
         // asked by no session in a pane (the menu, the resident assistant, a plain shell): there's nothing to open it
         // beside, so it gets a session of the host made for it, named after its task (or its folder)
@@ -296,20 +344,23 @@ final class SessionControl: EventSink {
             guard let self else { return }
             switch result {
             case .failure(let e):
+                ControlTokens.revoke(grant)
                 // a terminal that's installed but can't open anything now (tmux with no server running): nobody
                 // asked for it by name and there's no pane to stay beside, so the session runs in the background
                 if wanted == nil, parent == nil, launcher.id != "background", prompt != nil {
                     var again = m
                     again["launcher"] = "background"
-                    self.spawn(again, headers, reply)
+                    self.spawn(again, asker, reply)
                     return
                 }
                 reply(409, Self.error(e.message))
             case .success(let place):
+                grant.place = place
                 self.tank.scenery.expect(self.tank, source: provider.id, for: patience + 30)
                 let b = Birth(id: self.next, source: provider.id, place: place, parent: parent?.id, cwd: folder, before: before,
                               name: parent == nil ? nil : (m["label"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(40)) },
-                              worktree: ["worktree": m["worktree"] as? String, "branch": m["branch"] as? String].compactMapValues { $0 }, reply: reply)
+                              worktree: ["worktree": m["worktree"] as? String, "branch": m["branch"] as? String].compactMapValues { $0 },
+                              grant: grant, reply: reply)
                 self.next += 1
                 self.births.append(b)
                 // the person's own, and its fish is taking long to hatch: it's probably asking something first (to
@@ -335,6 +386,22 @@ final class SessionControl: EventSink {
             if let f = tank.fish.first(where: { $0.isAgent && !$0.decor && !$0.leaving && $0.whereabouts[key] == v }) { return f }
         }
         return nil
+    }
+
+    /// The fish a session's token was given to: the one born in the pane it was launched in.
+    private func fish(of g: ControlTokens.Grant) -> Fish? {
+        let alive = tank.fish.filter { $0.isAgent && !$0.decor && !$0.leaving }
+        if let id = g.fish { return alive.first { $0.id == id } }
+        guard let key = Launchers.placeKeys.first(where: { g.place[$0] != nil }),
+              let f = alive.first(where: { $0.source == g.source && $0.whereabouts[key] == g.place[key] }) else { return nil }
+        g.fish = f.id
+        return f
+    }
+
+    /// Did the session holding this token launch that fish? Known by the tokens the app gave out, not by what the
+    /// fish's hook says about its parent.
+    private func launched(_ f: Fish, by g: ControlTokens.Grant) -> Bool {
+        ControlTokens.children(of: g).contains { fish(of: $0)?.id == f.id }
     }
 
     private func children(of id: String) -> [Fish] {
@@ -409,6 +476,9 @@ final class SessionControl: EventSink {
             for b in self.births {
                 guard let f = self.born(b) else { continue }
                 if let p = b.parent, f.whereabouts["parent"] == nil { f.whereabouts["parent"] = p }
+                b.grant.fish = f.id
+                // the aquarium launched it: with the person's token too (after a restart), it may command
+                f.whereabouts["launched"] = "1"
                 // named by its leader (--label): that's what it's called in the tank, so the school reads at a glance
                 if let n = b.name { f.whereabouts["name"] = n }
                 var d = Self.snapshot(f)

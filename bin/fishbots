@@ -28,6 +28,8 @@
 #                                            the person (the note: what they want to know)
 #   fishbots close <fish>…                   close the pane of a session this one launched (its fish leaves)
 #                                            (these five need "Sessions can command other sessions" in Preferences)
+#                                            They send a token: FISHBOTS_TOKEN (a session the aquarium launched has
+#                                            its own), or else the one the app writes to control.token when it opens
 #
 #   fishbots pack new <id> [folder]          start a pack from the template (themes, fish, scenery, creatures)
 #   fishbots pack check <folder>             validate it and compile its drawings (errors at the pack's file:line)
@@ -52,6 +54,10 @@ URL="http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 PACKS="$HOME/Library/Application Support/Fishbots/packs"
 AGENTS="$HOME/Library/Application Support/Fishbots/agents"
+# the token for the control routes that the app writes each time it opens (one of its own for another port)
+port="${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}"
+TOKEN_FILE="$HOME/Library/Application Support/Fishbots/control.token"
+[ "$port" = 7777 ] || TOKEN_FILE="$HOME/Library/Application Support/Fishbots/control-$port.token"
 
 # the app's binary (it also previews and checks packs, without opening the aquarium)
 app_bin() {
@@ -210,12 +216,34 @@ esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 esclines() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{ gsub(/\t/, "\\t"); gsub(/\r/, ""); printf "%s%s", (NR > 1 ? "\\n" : ""), $0 }'; }
 post() { curl -s -m 2 -H 'Expect:' -H 'Content-Type: application/json' --data-binary "$1" "$URL/event" || { echo "fishbots: is the app running?" >&2; exit 1; }; echo; }
 
-# control <verb> <max seconds> <json>: exits 1 when the app refuses (the reason is in the JSON it prints)
-# It says where it runs, as the hooks do: that's how the app knows which session is asking.
-control() {
-  out=$(curl -s -m "$2" -H 'Expect:' -H 'Content-Type: application/json' \
+# The token: this session's own (FISHBOTS_TOKEN, in the panes the aquarium opens), or the person's, from the file.
+# A session's own dies when the app restarts: once refused, the file's is used (read again each time: it's new
+# on every launch).
+stale=""; reread=""
+token() {
+  if [ -n "${FISHBOTS_TOKEN:-}" ] && [ -z "$stale" ]; then printf '%s' "$FISHBOTS_TOKEN"
+  else cat "$TOKEN_FILE" 2>/dev/null | tr -d '\n'; fi
+}
+
+# ask <verb> <max seconds> <json>: POST /control/<verb>, setting $out and $code (non-zero: no answer). It says where
+# it runs, as the hooks do, which is how the app knows who asks with the person's token. The token goes through
+# stdin, not the command line, so other users' `ps` doesn't show it.
+ask() {
+  res=$(printf 'Authorization: Bearer %s\n' "$(token)" | curl -s -m "$2" -w '\n%{http_code}' -H @- -H 'Expect:' -H 'Content-Type: application/json' \
     -H "X-Where-Rex-Block: ${REX_BLOCK:-}" -H "X-Where-Herdr: ${HC_TERMINAL_ID:-}" -H "X-Where-Tmux: ${TMUX_PANE:-}" \
-    --data-binary "$3" "$URL/control/$1") || { echo "fishbots: is the app running?" >&2; exit 1; }
+    --data-binary "$3" "$URL/control/$1") || return 1
+  code=$(printf '%s\n' "$res" | tail -n 1); out=$(printf '%s\n' "$res" | sed '$d')
+  [ "$code" = 000 ] && return 1
+  if [ "$code" = 401 ] && [ -n "${FISHBOTS_TOKEN:-}" ] && [ -z "$stale" ]; then stale=1; ask "$@"; return; fi
+  # the file read just as the app was writing a new one (it's restarting): once more
+  if [ "$code" = 401 ] && [ -z "$reread" ]; then reread=1; sleep 1; ask "$@"; return; fi
+  reread=""
+  return 0
+}
+
+# control <verb> <max seconds> <json>: exits 1 when the app refuses (the reason is in the JSON it prints)
+control() {
+  ask "$@" || { echo "fishbots: is the app running?" >&2; exit 1; }
   printf '%s\n' "$out"
   case "$out" in *'"error"'*) exit 1 ;; esac
 }
@@ -226,9 +254,7 @@ await() {
   until=$(( $(date +%s) + $3 )); back=""
   while :; do
     left=$(( until - $(date +%s) )); [ $left -lt 1 ] && left=1
-    if out=$(curl -s -m $((left + 10)) -H 'Expect:' -H 'Content-Type: application/json' \
-      -H "X-Where-Rex-Block: ${REX_BLOCK:-}" -H "X-Where-Herdr: ${HC_TERMINAL_ID:-}" -H "X-Where-Tmux: ${TMUX_PANE:-}" \
-      --data-binary "{\"fish\":[$1]$2,\"timeout\":$left}" "$URL/control/wait") && [ -n "$out" ]; then
+    if ask wait $((left + 10)) "{\"fish\":[$1]$2,\"timeout\":$left}" && [ -n "$out" ]; then
       # just back: the app may not have its fish again yet
       case "$out" in *'"error"'*'no fish'*) [ -n "$back" ] && [ $(date +%s) -lt "$back" ] && { sleep 2; continue; } ;; esac
       break

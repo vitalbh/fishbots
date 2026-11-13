@@ -190,7 +190,8 @@ final class Assistant {
         let context = self.context()
         lastContextAt = Date()
         let resume = session
-        var env = ["FISHBOTS_ROLE": "assistant"]
+        // the person's token for the control routes: the assistant acts for them (fishbots spawn, reply, stop…)
+        var env = ["FISHBOTS_ROLE": "assistant", "FISHBOTS_TOKEN": ControlTokens.person]
         if port() != 7777 { env["FISHBOTS_PORT"] = String(port()) }
         if let agent = brain.agent, let a = account?(agent) { env.merge(a) { $1 } }
         let id = brain.id, model = Self.model(brain.id)

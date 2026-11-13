@@ -132,6 +132,10 @@ private struct GeneralTab: View {
                 Toggle(tr("Sessões podem comandar outras (responder, parar, esperar)"), isOn: prefs.flag("sessionControl"))
                 Text(tr("Deixa um agente conduzir os outros pelo aquário (fishbots reply, stop, wait). Pedidos de permissão continuam com você."))
                     .font(.footnote).foregroundStyle(.secondary)
+                Toggle(tr("Também as sessões abertas fora do aquário"), isOn: prefs.flag("sessionControlOutside", default: true))
+                    .disabled(!UserDefaults.standard.bool(forKey: "sessionControl"))
+                Text(tr("Uma sessão que o aquário abre recebe uma chave só dela e comanda apenas as que ela mesma abriu. As outras sessões usam a chave do arquivo control.token, a mesma do comando fishbots no seu terminal, que alcança todas. Desligado, essa chave é recusada quando quem pede é uma dessas sessões; seu terminal continua podendo."))
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section(tr("Atalhos")) {
                 ForEach(HotkeyAction.allCases, id: \.self) { ShortcutRecorder(prefs: prefs, action: $0) }

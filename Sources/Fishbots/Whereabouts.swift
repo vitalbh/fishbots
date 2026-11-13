@@ -24,6 +24,8 @@ enum Whereabouts {
         // who launched it (fishbots spawn) isn't something the session moves away from
         if new["parent"] == nil, let p = f.whereabouts["parent"] { new["parent"] = p }
         if let led = f.whereabouts["led"] { new["led"] = led }
+        // launched by the aquarium (SessionControl): the app's to say, never the session's
+        new["launched"] = f.whereabouts["launched"]
         if let name = f.whereabouts["name"] { new["name"] = name }  // what its leader called it      // it has led a school: so it stays (Schools.swift)
         let changed = new != f.whereabouts
         f.whereabouts = new

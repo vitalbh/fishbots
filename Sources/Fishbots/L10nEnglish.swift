@@ -540,6 +540,8 @@ let english: [String: String] = [
     "quem lançou esta sessão": "the session that launched this one",
     "Sessões podem comandar outras (responder, parar, esperar)": "Sessions can command other sessions (reply, stop, wait)",
     "Deixa um agente conduzir os outros pelo aquário (fishbots reply, stop, wait). Pedidos de permissão continuam com você.": "Lets an agent run the others through the aquarium (fishbots reply, stop, wait). Permission requests stay with you.",
+    "Também as sessões abertas fora do aquário": "Sessions started outside the aquarium too",
+    "Uma sessão que o aquário abre recebe uma chave só dela e comanda apenas as que ela mesma abriu. As outras sessões usam a chave do arquivo control.token, a mesma do comando fishbots no seu terminal, que alcança todas. Desligado, essa chave é recusada quando quem pede é uma dessas sessões; seu terminal continua podendo.": "A session the aquarium opens gets a key of its own and commands only the ones it opened itself. Other sessions use the key in the control.token file, the same one the fishbots command uses in your terminal, which reaches them all. Turned off, that key is refused when one of those sessions asks; your terminal still can.",
     "%d trabalhando": "%d working",
     "todos descansando": "all resting",
     // the resident assistant (Assistant.swift, AssistantCard.swift, Brains.swift)

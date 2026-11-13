@@ -100,7 +100,7 @@ final class Server {
     }
 
     private func respond(_ c: NWConnection, _ status: Int, _ body: Data) {
-        let reason = status == 200 ? "OK" : status == 404 ? "Not Found" : status == 400 ? "Bad Request" : status == 403 ? "Forbidden" : "Error"
+        let reason = status == 200 ? "OK" : status == 404 ? "Not Found" : status == 400 ? "Bad Request" : status == 401 ? "Unauthorized" : status == 403 ? "Forbidden" : "Error"
         var out = Data("HTTP/1.1 \(status) \(reason)\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
         out.append(body)
         c.send(content: out, completion: .contentProcessed { _ in c.cancel() })

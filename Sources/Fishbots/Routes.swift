@@ -5,6 +5,8 @@ extension AppDelegate {
     func startServer() {
         ClaudeCodeHook.sessionContinued = { [unowned self] source, session, event in self.permissions.sessionContinued(source: source, session: session, event: event) }
         permissions.changed = { [unowned self] in self.updateDock() }
+        // the control routes' token for this run (ControlTokens.swift), written before anyone can ask
+        ControlTokens.start(port: port)
         do {
             server = try Server(port: port) { [unowned self] method, path, headers, body in
                 self.respond(method, path, headers, body)

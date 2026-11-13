@@ -376,6 +376,29 @@ checks as the card apply, so nothing is typed where the card wouldn't type):
 | `/control/wait` | `fish` (one or many), `states`, `timeout` | held until one of them stops working (done, waiting, error, idle; or the `states` asked for): which, its state, its last reply, what it asks (`asked`, `permission`). A question already told isn't told again: the next `wait` is for what comes after it |
 | `/control/spawn` | `agent`, `model`, `cwd` (`worktree`, `branch`: echoed back; the CLI's `--worktree` makes them), `prompt`, `label`, `launcher`, `tab`, `env` | held until the fish is born: `fish`, `state`, `parent`, `where` |
 
+**Token** (`ControlTokens.swift`): every control route needs `Authorization: Bearer <token>` and answers 401
+without one of this run's. The reading routes (`/state`, `/packs`…) and the hooks' (`/claude-code`, `/agent/<id>`,
+`/event`…) take none. All tokens are new on every launch and none is kept:
+
+- **The person's:** 32 random bytes the app writes as hex to `control.token` in its Application Support folder, next to
+  `fish.json` (0600; `control-<port>.token` for an aquarium on another port, so a test instance doesn't overwrite it).
+  Full reach. `fishbots` reads it from any terminal, and the resident assistant's brain gets it in its environment.
+  With it, the asker is the session the `X-Where-*` headers point at (as below), so the guards stay what they were.
+- **A session's own:** each session the aquarium launches (`spawn`, the menu) gets one in its pane's environment
+  (`FISHBOTS_TOKEN`), tied to the pane it was launched in and so to the fish born there. With it the asker is that
+  fish, whatever the headers say, and `reply`, `stop` and `close` reach only the sessions launched with a token it
+  passed on (known by the tokens the app gave out, not by what a child's hook says about its parent). `wait` reaches
+  any fish: it only reads.
+- **Sessions only the hook reports** (not launched by the aquarium) command through `fishbots`, which reads the
+  person's token from the file. "Também as sessões abertas fora do aquário" in Preferences (on by default) turns
+  that off: the person's token is then refused when the headers point at a session the aquarium didn't launch
+  (`launched` in its whereabouts, set by the app at birth and never taken from a hook). It's a guard rail, not a
+  lock: such a session runs as the person and can read the file and leave the headers out.
+- **After a restart** the sessions' tokens are dead. `fishbots` sends `FISHBOTS_TOKEN` first and, refused with 401,
+  the file's (read again on every call), so a restored session goes on as one the aquarium launched with the
+  person's token, and `fishbots wait`, which keeps waiting across a restart, keeps working. The token reaches curl
+  on its stdin (`-H @-`), not on the command line.
+
 `fish` is `source:entity`, or the start of the entity when only one fish has it. `GET /state` says what each fish
 takes right now (`can`) and who launched it (`parent`). From the command line: `fishbots spawn | reply | stop |
 wait`; the `fishbots-orchestrator` skill (`fishbots skill install`) teaches a coding agent the cycle.
@@ -410,7 +433,7 @@ struct LaunchRequest {
     let near: [String: String]?    // the asker's whereabouts: the new session opens where it is
     let tab: Bool                  // a tab of its own, not a pane next to the asker's
     let siblings: [[String: String]]   // the asker's other children, oldest first: the new pane joins their column
-    let env: [String: String]      // FISHBOTS_PARENT=…, the account's variables
+    let env: [String: String]      // FISHBOTS_PARENT=…, FISHBOTS_TOKEN=…, the account's variables
 }
 
 protocol SessionLauncher: AnyObject {
@@ -443,8 +466,8 @@ A new host is a `SessionLauncher` registered in `Launchers`.
 **Lineage:** the launcher sets `FISHBOTS_PARENT=<source:entity>` in the pane and the shared hook forwards it
 (`X-Where-Parent`), so the child says whose it is from its first event; the app also notes it when the fish is
 born, for hooks that don't. It lives in the fish's whereabouts (`parent`), so it's remembered on reopen. The caller
-of a control route is found by the `X-Where-*` headers the CLI sends, the same ones the hook sends, so an
-orchestrator doesn't need to know its own id. A fish with children is the leader: no "orchestrator" provider.
+of a control route is the fish its token was given to; with the person's token, the one the `X-Where-*` headers the
+CLI sends point at (the same ones the hook sends), so an orchestrator doesn't need to know its own id. A fish with children is the leader: no "orchestrator" provider.
 
 **In the tank** (`Schools.swift`): from its first child until its session ends, the leader is drawn as the theme's `leader` kind (the
 nautilus, with a chamber of its shell lit for each session of its school at work), bigger and lit up, and goes on a wide round of the open
@@ -475,8 +498,8 @@ conversation file is kept).
 
 **Guards:** the Preferences switch; 6 children at work per parent (the ones that finished and sit at their prompt do not count) and depth 1 (a child doesn't launch children);
 permission requests of the children stay with the person; `spawn` takes no extra arguments for the agent, so it
-can't ask for a session that skips permissions. No token: the server already refuses browsers, and a
-local process could type into the terminals by itself.
+can't ask for a session that skips permissions; the token (above): the server already refuses browsers, and
+without one any local process could start a session with any prompt.
 
 ### 12. The resident assistant and its brains
 Status: implemented (`Assistant.swift`, `AssistantCard.swift`, `Brains.swift`, `AgentCLIs.swift`).

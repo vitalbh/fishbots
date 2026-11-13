@@ -13,6 +13,11 @@ children, each in its own pane, and the person watches all of it in the aquarium
 Every command prints JSON and exits 1 with `{"error": …}` when the app refuses. If it says session control is
 off, tell the person where the switch is; don't work around it.
 
+The commands carry a token, and `fishbots` handles it: a session the aquarium started has its own in
+`FISHBOTS_TOKEN`, which lets it command only the children it starts; otherwise the CLI reads the person's from the
+file the app writes when it opens. Don't read, print or pass the token yourself. A refusal saying sessions started
+outside the aquarium can't command here is the person's setting (Settings → General): tell them, don't work around it.
+
 ## The cycle
 
 ```sh
@@ -58,7 +63,8 @@ A fish is named `source:entity`; the start of the entity is enough when it's uni
   worktree and a branch of its own from where the repository is now (the answer has `worktree` and `branch`). Its
   work stays there when it's done: read the branch's diff, merge what's good, then `git worktree remove <worktree>`
   and delete the branch. Children that only read don't need one.
-- `wait` goes on waiting if the aquarium restarts meanwhile; you don't need to call it again.
+- `wait` goes on waiting if the aquarium restarts meanwhile; you don't need to call it again. After a restart your
+  own token is dead and the CLI uses the file's by itself.
 - **`wait` after `reply` is safe**: it waits for what the session says next, not for the reply it already gave.
   `state: "waiting"` comes with `asked`: what the child asks. When `asked` lists numbered answers (the child asked
   with a menu), `reply` with the number or the label picks one, and any other text is an answer in your own words.
