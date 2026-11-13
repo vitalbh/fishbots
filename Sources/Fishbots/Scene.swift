@@ -55,6 +55,8 @@ final class Scene {
     /// What the tank can't draw by itself: fireworks and shooting stars live in the visualizer, the whale's song in
     /// the music. (effect, where, color)
     var onEffect: ((String, SIMD2<Float>, SIMD3<Float>) -> Void)?
+    /// A presence arrived in a state, or changed state (the app's journal keeps what's worth telling).
+    var onPresenceState: ((Presence) -> Void)?
 
     /// Lightning: how bright the water is right now (0…1).
     private(set) var flash: Float = 0
@@ -196,6 +198,7 @@ final class Scene {
         // arrives: its state's call, or a soft hello
         if p.state == .waiting { p.reminder = t.time }
         playSound(p, Self.cue(p.state) ?? .born, t)
+        onPresenceState?(p)
         return nil
     }
 
@@ -299,6 +302,7 @@ final class Scene {
             playSound(p, c, t)
         }
         if s == .born { t.burst(at: p.pos, n: 8) }
+        onPresenceState?(p)
     }
 
     /// What a lamp shows for a state: the helm's hub, a pilot light.

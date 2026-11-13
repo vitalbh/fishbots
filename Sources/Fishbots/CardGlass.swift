@@ -151,10 +151,13 @@ final class GlassView: NSView {
     private var light: CALayer?
     private var bubbles: CALayer?
     private let tint: NSColor
+    private let rising: Bool
     private var laidOutFor = CGSize.zero
 
-    init(backdrop: NSColor, tint: NSColor) {
+    /// `bubbles` off: just the water and its light (a tall panel full of lines, where bubbles along the edge clutter).
+    init(backdrop: NSColor, tint: NSColor, bubbles: Bool = true) {
         self.tint = tint
+        self.rising = bubbles
         super.init(frame: .zero)
         appearance = NSAppearance(named: .darkAqua)
         wantsLayer = true
@@ -180,11 +183,13 @@ final class GlassView: NSView {
         bubbles?.removeFromSuperlayer()
         let l = CardWater.light(in: bounds)
         layer?.insertSublayer(l, above: water)
-        let b = CardWater.bubbles(height: bounds.height, tint: tint)
-        b.frame = bounds
-        layer?.insertSublayer(b, above: l)
         light = l
-        bubbles = b
+        if rising {
+            let b = CardWater.bubbles(height: bounds.height, tint: tint)
+            b.frame = bounds
+            layer?.insertSublayer(b, above: l)
+            bubbles = b
+        }
         CATransaction.commit()
     }
 }
