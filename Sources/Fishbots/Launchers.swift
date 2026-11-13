@@ -180,7 +180,17 @@ final class RexLauncher: SessionLauncher {
         guard let bin = Whereabouts.rexPath(place), let block = place["rex_block"] else { done("rex: no pane to close"); return }
         var args = ["--autostart=false", "--timeout", "10s", "block", "close", block]
         if let session = place["rex_session"] { args += ["-s", session] }
-        Launchers.run(bin, args) { _, err in done(err.isEmpty ? nil : "rex: " + err) }
+        Launchers.run(bin, args) { _, err in
+            guard err.isEmpty else { done("rex: " + err); return }
+            // a session the aquarium made for it (one opened from the menu or the eggs) would stay behind with no
+            // window at all: with the last block closed, it goes too
+            guard let session = place["rex_session"] else { done(nil); return }
+            Launchers.run(bin, ["--autostart=false", "--timeout", "10s", "block", "ls", "-s", session, "--json"]) { out, _ in
+                let blocks = Whereabouts.json(Data(out.utf8))?["blocks"] as? [Any]
+                if blocks?.isEmpty == true { Launchers.run(bin, ["--autostart=false", "--timeout", "10s", "kill", session]) { _, _ in } }
+                done(nil)
+            }
+        }
     }
 
     /// The command run by the user's interactive login shell (zsh or bash; any other shell: the command as it is).
