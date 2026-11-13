@@ -44,7 +44,7 @@ float3 scene_tint(float3 c, float a, constant Uniforms& u) {
 struct Theme {
     float4 deep, shallow, rays, caustics, surface, farWeed, weedLow, weedHigh, sandDark, sandLight, murk;
     float4 params;     // x: seaweed count, y: distant seaweed count, z: rays strength, w: caustics strength
-    float4 pack;       // x: the pack background's index + 1 (0: none), y: it replaces the distant reef
+    float4 pack;       // x: the pack background's index + 1 (0: none), y: it replaces the distant reef, z: no floor, w: no surface
 };
 
 struct Sprite {

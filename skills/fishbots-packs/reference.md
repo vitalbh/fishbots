@@ -560,6 +560,8 @@ A pack theme can draw its own far background and give the built-in pieces anothe
   far), each `{"color", "kind", "count", "size": [lo, hi], "pattern", "depth": [lo, hi]}`; `kind` may be a pack's fish.
   Without it, the usual neons, tetras and silversides.
 - `jellyfish`: `false` leaves out the jellyfish that drifts around.
+- `floor`: `false`, no floor (the open sea): no sand and nothing lying on it. `surface`: `false`, no water's surface (a
+  sky): no water line, no sky band, no sun or moon through it, no rings at the top. `packs/examples/constellations` uses both.
 - `frost`: 0…1, ice creeping in on the glass from the sides and corners, as if the tank were freezing (the arctic uses 0.6).
 - `effects`: the effects plugins ask for, the theme's way: a default color (`{"fireworks": "#ff9ec8"}`), or another
   effect in its place (`{"lightning": {"as": "sparkle", "color": "#a0ffd0"}}`). A color the plugin sends still wins.

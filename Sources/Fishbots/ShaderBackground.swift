@@ -74,7 +74,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     float2 q = float2(uv.x * aspect, uv.y);
     // refraction: near the surface the light wobbles, as if through little waves (more with the waves gauge)
     q += float2(sin(uv.y * 70.0 + t * 2.1 + uv.x * 9.0), cos(uv.x * 55.0 * aspect - t * 1.7))
-         * 0.0035 * (1.0 + 2.0 * u.scene.x) * smoothstep(0.7, 0.96, uv.y);
+         * 0.0035 * (1.0 + 2.0 * u.scene.x) * smoothstep(0.7, 0.96, uv.y) * (1.0 - th.pack.w);
 
     // light rays coming from the surface
     float r1 = sin((q.x + q.y * 0.35) * 9.0 + t * 0.25) * 0.5 + 0.5;
@@ -89,7 +89,9 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
     col += rayC * rays * th.params.z * max(L, u.grade.w * 0.8);
 
     // the sun (or the moon) seen through the surface: a soft bright spot just under it, with a halo
-    {
+    // (pack.w: a theme with no water's surface, a sky: no spot, no surface line, no sky band above it, no glints)
+    bool hasSurface = th.pack.w < 0.5;
+    if (hasSurface) {
         float2 sd = float2((uv.x - u.sky.x) * aspect, (uv.y - 0.93) * 2.2);
         float spot = exp(-dot(sd, sd) * 160.0) + exp(-dot(sd, sd) * 18.0) * 0.35;
         float3 sunC = mix(float3(0.65, 0.78, 1.0), float3(1.0, 0.82, 0.55), u.sky.z);
@@ -102,7 +104,7 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
 
     // water surface
     float waves = u.scene.x;
-    float surf = 0.965 + surface_wave(uv.x, t, waves);
+    float surf = hasSurface ? 0.965 + surface_wave(uv.x, t, waves) : 2.0;
     if (uv.y > surf) {
         col = mix(col, th.surface.rgb * (0.4 + 0.6 * L), 0.55);
         // the sky above the water: orange with a low sun, dark blue with stars at night
@@ -128,15 +130,15 @@ fragment Frag2 bg_fragment(BgOut in [[stage_in]], constant Uniforms& u [[buffer(
         }
     }
     col *= 1.0 - u.scene.y * 0.18;                                       // a rainy day is a darker day
-    float surfLine = (1.0 - smoothstep(0.0, 0.004, abs(uv.y - surf))) * 0.35 * L;
+    float surfLine = (1.0 - smoothstep(0.0, 0.004, abs(uv.y - surf))) * 0.35 * L * float(hasSurface);
     // glints running along the underside of the surface
     float glint = pow(max(0.0, sin(uv.x * 140.0 + t * 1.7) * sin(uv.x * 57.0 - t * 1.1)), 12.0)
-                * (1.0 - smoothstep(0.0, 0.012, surf - uv.y)) * step(uv.y, surf) * L;
+                * (1.0 - smoothstep(0.0, 0.012, surf - uv.y)) * step(uv.y, surf) * L * float(hasSurface);
     surfLine += glint * 0.8;
     col += float3(0.6, 0.85, 0.9) * surfLine;
     // what glows in the background: the sun rays (a little) and the bright line of the surface
     float3 glowBg = rayC * rays * th.params.z * L * 0.5 + float3(0.6, 0.85, 0.9) * surfLine * 0.6;
-    {
+    if (hasSurface) {
         float2 sd = float2((uv.x - u.sky.x) * aspect, (uv.y - 0.93) * 2.2);
         glowBg += mix(float3(0.65, 0.78, 1.0), float3(1.0, 0.82, 0.55), u.sky.z) * exp(-dot(sd, sd) * 160.0) * u.sky.y * 0.8;
     }

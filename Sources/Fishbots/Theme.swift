@@ -16,7 +16,8 @@ struct ThemeUniforms {
     var murk: SIMD4<Float>         // the color of murky water (disk filling up)
     /// x: seaweed count (0…16), y: distant seaweed count (0…16), z: rays strength, w: caustics strength.
     var params: SIMD4<Float>
-    /// x: the pack background's index + 1 (0: none), y: 1 when it replaces the distant reef.
+    /// x: the pack background's index + 1 (0: none), y: 1 when it replaces the distant reef, z: 1 with no floor,
+    /// w: 1 with no water's surface.
     var pack: SIMD4<Float> = .zero
 }
 
@@ -56,6 +57,9 @@ struct Theme {
     /// shells, no list pebbles, no old battery, no sand, no bubbler, no shadows under the fish; whatever else rests on
     /// the sand should ask this too).
     var floor = true
+    /// Whether the scene is under water with a surface above it ("surface": false, a sky: no water line, no sky band
+    /// over it, no sun or moon seen through it, no glints along it).
+    var surface = true
     /// The blurred seaweed tufts up front, in the corners: their color (nil: none here, "foreground": false).
     var foreground: SIMD3<Float>? = [0.025, 0.085, 0.075]
     /// Frost on the glass, growing in from the sides and corners (0: none … 1: a lot).
@@ -124,6 +128,8 @@ struct Theme {
         jellyfish = json["jellyfish"] as? Bool ?? true
         floor = json["floor"] as? Bool ?? true
         uniforms.pack.z = floor ? 0 : 1                                      // the shader leaves the sand out
+        surface = json["surface"] as? Bool ?? true
+        uniforms.pack.w = surface ? 0 : 1                                    // …and the water's surface
         voices = json["voices"] as? [String: String] ?? [:]
         frost = max(0, min(1, (json["frost"] as? NSNumber)?.floatValue ?? 0))
         for (kind, v) in json["swim"] as? [String: Any] ?? [:] {
