@@ -526,7 +526,13 @@ final class Assistant {
         if lastContextAt == nil { lines.append(news.isEmpty ? "today so far: nothing recorded" : "today so far:") }
         else if !news.isEmpty { lines.append("since your last answer:") }
         let words: [Happening.Kind: String] = [.done: "finished", .error: "error", .waiting: "waited for the person", .merge: "PR merged", .event: "event"]
-        for h in news { lines.append("- \(hour.string(from: h.when)) \(words[h.kind] ?? "") \(Self.clip(h.label, 80))") }
+        for h in news {
+            var line = "- \(hour.string(from: h.when)) \(words[h.kind] ?? "") \(Self.clip(h.label, 80))"
+            if let t = h.task { line += " · task \"\(Self.clip(t, 100))\"" }
+            if let t = h.took, t >= 60 { line += " · took \(Journal.duration(t))" }
+            if let s = h.said { line += " · \(h.kind == .waiting ? "asked" : "said") \"\(Self.clip(s, 140))\"" }
+            lines.append(line)
+        }
         lines.append("</aquarium>")
         return lines.joined(separator: "\n")
     }

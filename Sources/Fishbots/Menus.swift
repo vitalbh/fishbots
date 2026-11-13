@@ -352,7 +352,7 @@ extension AppDelegate {
         add(sessions, "Ouvir a pergunta de quem espera", #selector(readLongestWaiting))
         add(sessions, "Responder falando (abre o microfone)", #selector(replyByVoice))
         sessions.addItem(.separator())
-        add(sessions, "Resumo das últimas 2 horas", #selector(recentSummary), "r")
+        add(sessions, "Resumo do aquário", #selector(recentSummary), "r")
         add(sessions, "Modo foco (só o que pede atenção)", #selector(toggleFocus), "s")
         sessions.addItem(.separator())
         add(sessions, "Notificar quando esperarem por você", #selector(toggleNotifyWaiting))

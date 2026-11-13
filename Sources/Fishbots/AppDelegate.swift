@@ -40,6 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     let journal = Journal()
     private var outsideButton: NSButton?
     private(set) var card: SummaryView?
+    /// Which parade of the summary's fish is the current one (a new range or closing stops the old).
+    private var paradeRun = 0
     /// The fish's card, the request bubble and the keyboard's pick (Cards.swift).
     lazy var cards = Cards(tank: tank, permissions: permissions)
     /// The "Nova sessão…" card while it's open (NewSession.swift).
@@ -331,6 +333,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             Outputs.emit(TankEvent(type: "party", fish: f))
         }
         journal.returned = { [unowned self] in self.showOutsideButton() }
+        tank.scene.onPresenceState = { [unowned self] p in
+            if Date().timeIntervalSince(self.openedAt) > 20 { self.journal.record(p) }
+        }
         notifier.decide = { [unowned self] request, action in self.cards.decide(request, action) }
         notifier.go = { [unowned self] id in
             guard let f = self.tank.fish.first(where: { $0.id == id }) else { return }
@@ -521,12 +526,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         if !f.decor && Date().timeIntervalSince(openedAt) > 20 {
             switch f.state {
             case .done:
-                journal.record(.done, f.label, fish: f.id)
+                journal.record(.done, of: f, tank: tank, permission: nil)
                 // productive day (10 tasks): the whale swims by, once a day
                 tank.fauna.maybeWhale(tank, tasksToday: tank.pearls.all.count)
-            case .error: journal.record(.error, f.label, fish: f.id)
+            case .error: journal.record(.error, of: f, tank: tank, permission: nil)
             case .waiting:
-                journal.record(.waiting, f.label, fish: f.id)   // (the question is read after the knocks: music.called)
+                journal.record(.waiting, of: f, tank: tank, permission: permissions.request(ofFish: f.id))   // (the question is read after the knocks: music.called)
             default: break
             }
             Outputs.emit(TankEvent(type: "state", fish: f, previous: before))
@@ -578,11 +583,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         } else if let pearl = tank.pearls.at(q) {
             // a pearl of the day: what was done around that time
             let at = Date(timeIntervalSince1970: pearl.hour)
-            let hour = DateFormatter.localizedString(from: at, dateStyle: .none, timeStyle: .short)
-            summary(since: at.addingTimeInterval(-1800), until: at.addingTimeInterval(1800), title: tr("Por volta das %@", hour))
+            summary(.around(at))
         } else if tank.scenery.chestHit(tank, at: q) {
             // the treasure chest keeps the last hours; clicking it again closes them
-            if let c = card { c.close?() } else { recentSummary() }
+            if card != nil { closeSummary() } else { recentSummary() }
         } else if tank.scenery.eggsHit(tank, at: q) {
             // the clutch of eggs: a new session, which will hatch from it
             newSession()
@@ -618,23 +622,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         outsideButton?.removeFromSuperview()
         outsideButton = nil
         updateDock()
-        summary(since: p.since, until: p.until, title: tr("Enquanto você estava fora (%@)", Journal.duration(p.until.timeIntervalSince(p.since))))
+        summary(.away(p.since))
     }
 
+    /// The chest, the menu, ⌘R and POST /summary: since you left, if you've just come back (your last absence ended
+    /// under two hours ago, today); otherwise the whole day.
     @objc func recentSummary() {
-        let until = Date(), since = until.addingTimeInterval(-7200)
-        summary(since: since, until: until, title: tr("Nas últimas 2 horas"))
+        if let a = journal.lastAway, Date().timeIntervalSince(a.until) < 7200, Calendar.current.isDateInToday(a.until) {
+            summary(.away(a.since))
+        } else {
+            summary(.today)
+        }
     }
 
-    /// The visual summary: the card and the parade of fish that did something, with the period's pearls lighting up.
-    private func summary(since: Date, until: Date, title: String) {
-        let list = journal.between(since, until)
+    /// The summary: the card over the water, and the parade of the fish it talks about, with the period's pearls
+    /// lighting up.
+    private func summary(_ range: SummaryRange) {
         card?.removeFromSuperview()
-        let c = SummaryView(title: title, since: since, until: until, list: list) { [weak self] id in
-            guard let id, let f = self?.tank.fish.first(where: { $0.id == id }) else { return nil }
-            return NSColor(red: CGFloat(f.color.x), green: CGFloat(f.color.y), blue: CGFloat(f.color.z), alpha: 1)
+        // the ranges to switch between: since you left (when it was today), today, and the pearl's hour if that's it
+        var ranges: [SummaryRange] = []
+        if let a = journal.lastAway, Calendar.current.isDateInToday(a.until) { ranges.append(.away(a.since)) }
+        else if case .away = range { ranges.append(range) }
+        ranges.append(.today)
+        if case .around = range { ranges.append(range) }
+        var actions = SummaryActions()
+        actions.open = { [weak self] f in
+            guard let self else { return }
+            self.closeSummary { self.cards.pick(f) }
         }
-        c.close = { [weak self] in self?.card?.removeFromSuperview(); self?.card = nil; self?.tank.highlighted = nil; self?.tank.scenery.chestOpen = false }
+        actions.go = { f in Whereabouts.go(f) }
+        actions.canGo = { f in Whereabouts.reach(f) != nil }
+        actions.link = { l in if let u = URL(string: l) { NSWorkspace.shared.open(u) } }
+        if Assistant.on, assistant.brain != nil {
+            actions.tell = { [weak self] r in
+                guard let self else { return }
+                let hour = DateFormatter(); hour.dateFormat = "HH:mm"
+                let q = "Tell me in a short paragraph of plain words what happened in the aquarium since \(hour.string(from: r.since)): "
+                    + "what got done, by project; what broke and whether it was fixed; who is waiting for me and for what; what is still running. "
+                    + "Use the journal; no lists."
+                self.closeSummary {
+                    self.openAssistant()
+                    self.assistant.ask(q, shown: tr("Me conta como foi (%@)", SummaryView.title(r).lowercased()))
+                }
+            }
+        }
+        actions.shown = { [weak self] d, r in self?.parade(d, r) }
+        let h = window.contentView!.bounds.height
+        // how long you were away: your last absence, or until now when the summary opens on your way back
+        var away: TimeInterval?
+        if let a = journal.lastAway { away = a.until.timeIntervalSince(a.since) }
+        if case .away(let since) = range, journal.lastAway?.since != since { away = Date().timeIntervalSince(since) }
+        let c = SummaryView(range: range, ranges: ranges, awayFor: away, maxHeight: max(260, h - 90), actions: actions) { [weak self] r in
+            guard let self else { return Digest() }
+            return Digest.make(r, journal: self.journal, tank: self.tank, permissions: self.permissions)
+        }
+        c.close = { [weak self] in self?.closeSummary() }
         c.translatesAutoresizingMaskIntoConstraints = false
         window.contentView!.addSubview(c)
         NSLayoutConstraint.activate([
@@ -643,23 +685,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ])
         card = c
         show()
+        c.layoutSubtreeIfNeeded()
+        c.appear()
         tank.scenery.chestOpen = true          // the treasure chest opens while the summary is open
+        parade(c.digest, range)
+    }
 
-        tank.highlightPearls(since: since, until: until)
-        // parade: each fish that did something comes to the front, one at a time
-        var ids: [String] = []
-        for a in list { if let id = a.fishId, !ids.contains(id), tank.fish.contains(where: { $0.id == id && !$0.leaving }) { ids.append(id) } }
-        for (i, id) in ids.prefix(8).enumerated() {
+    /// Closes the summary (it fades), then does what the click asked.
+    private func closeSummary(then: (() -> Void)? = nil) {
+        guard let c = card else { then?(); return }
+        card = nil
+        paradeRun += 1
+        tank.highlighted = nil
+        tank.scenery.chestOpen = false
+        c.dismiss { c.removeFromSuperview() }
+        then?()
+    }
+
+    /// Each fish the summary talks about comes to the front, one at a time, the most pressing first.
+    private func parade(_ d: Digest, _ range: SummaryRange) {
+        paradeRun += 1
+        let run = paradeRun
+        tank.highlighted = nil
+        tank.highlightPearls(since: range.since, until: range.until)
+        let ids = Array(d.fishIds.prefix(8))
+        for (i, id) in ids.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6 + Double(i) * 2.2) { [weak self] in
-                guard let self, self.card != nil else { return }
+                guard let self, self.card != nil, self.paradeRun == run else { return }
                 self.tank.highlighted = id
                 if let f = self.tank.fish.first(where: { $0.id == id }) {
                     self.tank.ring(at: f.pos, color: f.color, size: f.size * 0.6, grow: 120, life: 0.9)
                 }
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6 + Double(min(ids.count, 8)) * 2.2) { [weak self] in
-            self?.tank.highlighted = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6 + Double(ids.count) * 2.2) { [weak self] in
+            guard let self, self.paradeRun == run else { return }
+            self.tank.highlighted = nil
         }
     }
 
