@@ -232,6 +232,7 @@ final class Cards: NSObject, NSPopoverDelegate {
             guard let self, let f else { return }
             if !isPinned { self.close() }
             Providers.of(f.source)?.stop(f)
+            TerminalPrograms.interrupted(f, in: self.tank)
             self.tank.notice = (tr("Esc em %@", f.nickname ?? f.label), self.tank.time)
         } : nil
         let card = FishCard(fish: f, request: request, reply: resp, stop: stopFn) { [weak self] action in
@@ -446,7 +447,11 @@ extension AppDelegate {
         guard let f = menuFish, let t = ask(tr("Responder %@", f.nickname ?? f.label), "", tr("Enviar")), !t.isEmpty else { return }
         cards.sendReply(f, t)
     }
-    @objc func menuStop() { if let f = menuFish { Providers.of(f.source)?.stop(f) } }
+    @objc func menuStop() {
+        guard let f = menuFish else { return }
+        Providers.of(f.source)?.stop(f)
+        TerminalPrograms.interrupted(f, in: tank)
+    }
     @objc func menuNickname() {
         guard let f = menuFish, let t = ask(tr("Nome do peixe"), f.nickname ?? "", tr("Dar nome")) else { return }
         f.nickname = t

@@ -127,6 +127,20 @@ final class TerminalPrograms {
         }
     }
 
+    /// A session told to stop (Esc) in a terminal that doesn't say when its program goes idle (tmux, iTerm,
+    /// Ghostty…): nothing would ever say it stopped, so its fish would stay busy for good, refusing replies and
+    /// keeping `fishbots wait` waiting. If nothing more is heard from it a moment after the Esc, it's idle.
+    static func interrupted(_ f: Fish, in tank: Tank, tries: Int = 3) {
+        guard f.state == .busy, f.whereabouts["rex_block"] == nil, f.whereabouts["herdr"] == nil, Background.of(f) == nil else { return }
+        let heard = f.seen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak f, weak tank] in
+            guard let f, let tank, !f.leaving, f.state == .busy, f.compactingSince == nil else { return }
+            // it said something after the Esc (the end of a tool it was running): look again a moment later
+            guard f.seen == heard else { if tries > 1 { interrupted(f, in: tank, tries: tries - 1) }; return }
+            tank.upsert(source: f.source, entity: String(f.id.dropFirst(f.source.count + 1)), state: .idle, label: nil)
+        }
+    }
+
     /// The terminal's title changed: the conversation's title, for a session with hooks.
     func title(_ at: Place, _ title: String) {
         let clean = Whereabouts.cleanTitle(title)

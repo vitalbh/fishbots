@@ -140,6 +140,7 @@ final class SessionControl: EventSink {
                 reply(409, Self.error("\(f.id) has nothing to stop (state: \(f.state.rawValue))")); return true
             }
             provider.stop(f)
+            TerminalPrograms.interrupted(f, in: tank)
             reply(200, Data(#"{"ok":true}"#.utf8))
         case "/control/close":
             // only what the asker itself launched: its pane closes, whatever it's doing, and its fish leaves
