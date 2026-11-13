@@ -225,6 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             self.tank.drag(from: [Float(from.x), Float(from.y)], to: [Float(to.x), Float(to.y)])
         }
         view.onDragEnd = { [unowned self] in self.tank.endDrag() }
+        view.onLeave = { [unowned self] in self.tank.moveCursor(nil) }
         view.onKnock = { [unowned self] p in
             let q: SIMD2<Float> = [Float(p.x), Float(p.y)]
             guard self.tank.fish(at: q) == nil else { return }
@@ -479,6 +480,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             backgroundTick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 guard let self else { return }
                 if let s = self.windowModes.notchTank { self.tank.size = [Float(s.width), Float(s.height)] }
+                if self.tank.cursor != nil { self.tank.moveCursor(nil) }          // nobody is looking in: no mouse to follow
                 self.tank.update(dt: 0.05)
             }
         }

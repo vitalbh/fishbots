@@ -361,6 +361,13 @@ extension Tank {
             target = particles[idx].pos
             speed = 150
         }
+        // whoever is outside the glass comes in first, whatever it was about to do: a sick fish or a sleeping one
+        // stays where it is, and a tank that got smaller (the widget, the notch) would leave it out there for good
+        let room = min(f.size, w * 0.2)
+        if f.pos.x < room * 0.5 || f.pos.x > w - room * 0.5 {
+            target.x = max(room, min(w - room, target.x))
+            speed = max(speed, 55)
+        }
         return Heading(target: target, speed: speed, scale: scaleTarget)
     }
 

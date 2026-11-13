@@ -117,7 +117,9 @@ final class Tank {
             rippleFrom = nil
         }
         cursor = p
-        cursorAt = time
+        // (gone: forgotten at once. The last place it was seen is the edge it left by, and the curious ones would all
+        // go there and wait, which is where the notch found them the next time it opened)
+        cursorAt = p == nil ? -100 : time
     }
 
     /// Click near (but not on) fish: they get scared and flee. Returns true if it scared anyone.
@@ -561,7 +563,9 @@ final class Tank {
     func isHidden(_ f: Fish) -> Bool {
         guard compact else { return false }
         // (the music fish is company too, not work: it's there with the schools while nobody needs you)
-        if f.decor || f.source == NowPlaying.source { return !widgetCalm }
+        if f.source == NowPlaying.source { return !widgetCalm }
+        // (of the schools, only the first one and nine of its fish: three full schools are a crowd in a tank this small)
+        if f.decor { return !widgetCalm || f.phase / 100 != 0 || f.phase % 100 >= 9 }
         // who needs you; the agent sessions at work, and for a couple of minutes after their last sign of life (a
         // session goes quiet between one tool and the next: its fish shouldn't blink in and out); and, whatever its
         // state, the agent session you were last working with, so the tank always has the one you're on

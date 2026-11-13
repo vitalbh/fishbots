@@ -22,8 +22,11 @@ final class TankView: MTKView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseMoved, .activeAlways, .inVisibleRect], owner: self))
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
     }
+    /// The mouse left the water.
+    var onLeave: (() -> Void)?
+    override func mouseExited(with event: NSEvent) { onLeave?() }
     override func mouseMoved(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         (hits?(p) == true ? NSCursor.pointingHand : NSCursor.arrow).set()
