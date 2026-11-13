@@ -127,13 +127,22 @@ final class Scene {
     /// Where its text goes: above the objects on the sand, below the swimmers. (point, above)
     func labelAnchor(_ p: Presence) -> (SIMD2<Float>, above: Bool) {
         if p.kind.motion.grounded {
-            let top: Float = [47: 1.95, 27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 1.08, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
+            // dressed by the theme (the pond's water wheel for the helm): over that drawing, which has its own height
+            if let k = dressed(p) { return (p.pos + p.shakeOffset + [0, k.size * k.extent.y * 1.9 + 4], true) }
+            let top: Float = [47: 1.95, 27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 1.2, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
                 ?? (p.kind.pack != nil ? p.kind.extent.y * 1.9 : 1.2)
             return (p.pos + p.shakeOffset + [0, p.kind.size * top + 4], true)
         }
         let below: Float = p.kind.motion == .float ? 0.55 : [5: 1.5, 25: 0.8, 26: 0.85, 13: 1.2, 15: 0.95][p.kind.sprite]
             ?? (p.kind.pack != nil ? p.kind.extent.y : 1)
         return (p.pos + p.shakeOffset - [0, p.kind.size * below + 2], false)
+    }
+
+    /// What an object on the sand covers on screen, roughly: from the floor up to where its text starts.
+    func footprint(_ p: Presence) -> CGRect {
+        let at = p.pos + p.shakeOffset, top = labelAnchor(p).0.y - 6
+        let half = p.kind.size * (p.kind.pack != nil ? p.kind.extent.x : 1) * 0.6
+        return CGRect(x: CGFloat(at.x - half), y: CGFloat(at.y), width: CGFloat(half * 2), height: CGFloat(max(4, top - at.y)))
     }
 
     /// Objects on the sand are drawn above their anchor point.

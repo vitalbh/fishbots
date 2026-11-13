@@ -15,7 +15,7 @@ float4 draw_arctic_cod(float2 c, float phase, float glow, float4 col, float4 ext
     c3 = fish_round(c3, (p - float2(0.1, 0.0)) / float2(0.95, 0.3), body);
     c3 += float3(1.0) * pow(max(0.0, 1.0 - length((p - float2(0.2, 0.05)) / float2(0.7, 0.06))), 3.0) * 0.4 * step(body, 0.0);   // silver line
     if (body > 0.0) { c3 = col.rgb * 0.7; a *= 0.8; }
-    c3 = fish_eye(c3, p, float2(0.8, 0.06), 0.085, col.rgb, 0.0);
+    c3 = fish_eye(c3, p, float2(0.8, 0.06), 0.085, col.rgb, step(1.5, extra.w));      // asleep: a session wearing it
     return float4(c3 * a * col.a, a * col.a);
 }
 

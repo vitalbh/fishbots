@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import simd
 
 /// What stands in the tank: rocks, a big shell, a treasure chest, corals and the packs' pieces (the theme picks
@@ -126,6 +127,21 @@ final class Scenery {
             for x in [x - Float(i) * 4, x + Float(i) * 4] where x > w * 0.14 && x < w * 0.94 && !taken(x) { return x }
         }
         return x
+    }
+
+    /// What each piece standing on the floor covers on screen, roughly (a presence's text keeps off it: Labels.swift).
+    func footprints(_ t: Tank) -> [CGRect] {
+        // (not the ones that stand as tall as the water, the giant kelp, a black smoker: those are backdrop, and a
+        // text can't get over them anyway)
+        onSand.filter { $0.scale * ($0.pack != nil ? $0.extent.y : 1) * 2 < 0.45 }.map { s in
+            let (c, sz) = place(t, s)
+            // each drawing's quad (ShaderSprites), less the empty margin around the drawing
+            let ext: SIMD2<Float> = s.pack != nil ? s.extent
+                : s.id == "rock" ? [1.3, 0.85] : s.id == "shell" ? [1.1, 0.95] : s.id == "chest" ? [1.15, 0.8] : s.id == "eggs" ? [1.25, 0.85] : [1, 1]
+            let half = ext * sz * 0.82
+            let floor = min(floorY(t, s), c.y - half.y)
+            return CGRect(x: CGFloat(c.x - half.x), y: CGFloat(floor), width: CGFloat(half.x * 2), height: CGFloat(c.y + half.y - floor))
+        }
     }
 
     // MARK: the clutch of eggs

@@ -17,7 +17,7 @@ float4 draw_coral_chromis(float2 c, float phase, float glow, float4 col, float4 
         c3 = col.rgb * 0.72 * (0.88 + 0.12 * cos(atan2(p.y, -(p.x + 0.3)) * 26.0));     // fins: darker, with rays
         a *= 0.85;
     }
-    c3 = fish_eye(c3, p, float2(0.62, 0.08), 0.095, col.rgb, 0.0);
+    c3 = fish_eye(c3, p, float2(0.62, 0.08), 0.095, col.rgb, step(1.5, extra.w));     // asleep: a session wearing it
     return float4(c3 * a * col.a, a * col.a);
 }
 
