@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import simd
 
 /// What stands in the tank: rocks, a big shell, a treasure chest, corals and the packs' pieces (the theme picks
@@ -109,12 +110,14 @@ final class Scenery {
 
     /// A spot on the sand moved out of the scenery's way (pearls and pebbles would float in front of a rock or the chest).
     func clear(_ t: Tank, _ x: Float) -> Float {
-        for s in onSand {
-            let (c, sz) = place(t, s)
-            let half = sz * 1.35 + 8
-            if abs(x - c.x) < half { return c.x + (x < c.x ? -half : half) }
-        }
-        return x
+        let spans = onSand.map { s -> (c: Float, sz: Float) in let (c, sz) = place(t, s); return (c.x, sz) }
+        guard let first = spans.first(where: { abs(x - $0.c) < $0.sz * 1.35 + 8 }) else { return x }
+        let half = first.sz * 1.35 + 8
+        let near = first.c + (x < first.c ? -half : half), other = first.c + (x < first.c ? half : -half)
+        // out the nearer side; but if that lands it right on the piece next door (the wheel on the chest) and the
+        // other side is free, out the other side
+        func onOne(_ x: Float) -> Bool { spans.contains { abs(x - $0.c) < $0.sz * 0.7 } }
+        return onOne(near) && !onOne(other) && other > t.size.x * 0.04 && other < t.size.x * 0.96 ? other : near
     }
 
     /// The closest spot to `x` with nothing on the sand within `room` points of it (the old battery lies there).
@@ -126,6 +129,46 @@ final class Scenery {
             for x in [x - Float(i) * 4, x + Float(i) * 4] where x > w * 0.14 && x < w * 0.94 && !taken(x) { return x }
         }
         return x
+    }
+
+    /// What each piece standing on the floor covers on screen, roughly (a presence's text keeps off it: Labels.swift).
+    func footprints(_ t: Tank) -> [CGRect] {
+        // (not the ones that stand as tall as the water, the giant kelp, a black smoker: those are backdrop, and a
+        // text can't get over them anyway)
+        onSand.filter { $0.scale * ($0.pack != nil ? $0.extent.y : 1) * 2 < 0.45 }.map { s in
+            let (c, sz) = place(t, s)
+            // each drawing's quad (ShaderSprites), less the empty margin around the drawing
+            let ext: SIMD2<Float> = s.pack != nil ? s.extent
+                : s.id == "rock" ? [1.3, 0.85] : s.id == "shell" ? [1.1, 0.95] : s.id == "chest" ? [1.15, 0.8] : s.id == "eggs" ? [1.25, 0.85] : [1, 1]
+            let half = ext * sz * 0.82
+            let floor = min(floorY(t, s), c.y - half.y)
+            return CGRect(x: CGFloat(c.x - half.x), y: CGFloat(floor), width: CGFloat(half.x * 2), height: CGFloat(c.y + half.y - floor))
+        }
+    }
+
+    /// How dark the night is, 0…1, by this theme's own days and nights: 0 at its midday, 1 at its darkest (a theme
+    /// with bright nights, the pond, still lights its lantern all the way). A theme with no day and night at all (the
+    /// trench) goes by the light itself.
+    static func night(_ t: Tank) -> Float {
+        let range = (Themes.current.sky ?? Sky()).light
+        let span = range.upperBound - range.lowerBound
+        guard span > 0.08 else { return max(0, min(1, (0.8 - t.light) / 0.6)) }
+        return max(0, min(1, (range.upperBound - t.light) / span * 1.15))
+    }
+
+    /// The pieces that glow at night are lamps in the water (a stone lantern): the sand, the seaweed and the marine
+    /// snow around them take a warm light, as they do around a lanternfish's lure.
+    func lamps(_ t: Tank) -> [Lamp] {
+        let night = Self.night(t)
+        guard night > 0.02 else { return [] }
+        return items.filter { $0.glowAtNight && $0.anchor == .sand }.map { s in
+            let (c, sz) = place(t, s)
+            // a small pool of light around it, whatever its size (a black smoker glows at its mouth, far up: it's not
+            // a lamp for the whole trench), and gentler from a tall piece
+            let tall = s.scale * s.extent.y * 2 > 0.45
+            return Lamp(pos: c + [0, sz * s.extent.y * (tall ? 0.85 : 0.2)], radius: min(190, max(80, sz * 2.4)),
+                        color: [1.0, 0.72, 0.38], strength: min(tall ? 0.45 : 1.3, 2.0 * night))
+        }
     }
 
     // MARK: the clutch of eggs

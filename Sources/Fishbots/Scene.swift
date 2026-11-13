@@ -128,14 +128,25 @@ final class Scene {
 
     /// Where its text goes: above the objects on the sand, below the swimmers. (point, above)
     func labelAnchor(_ p: Presence) -> (SIMD2<Float>, above: Bool) {
+        // (where there's no floor it rides at the surface: its text hangs under it, as a bottle's does)
+        if p.kind.motion.grounded && !Themes.current.floor && p.kind.sprite != 47 { return (p.pos + p.shakeOffset - [0, 6], false) }
         if p.kind.motion.grounded {
-            let top: Float = [47: 1.95, 27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 1.08, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
+            // dressed by the theme (the pond's water wheel for the helm): over that drawing, which has its own height
+            if let k = dressed(p) { return (p.pos + p.shakeOffset + [0, k.size * k.extent.y * 1.9 + 4], true) }
+            let top: Float = [47: 1.95, 27: 0.8, 28: 1.8, 29: 1.85, 30: 2.15, 31: 1.2, 17: 1.15, 23: 1.6, 6: 0.9, 14: 1.0][p.kind.sprite]
                 ?? (p.kind.pack != nil ? p.kind.extent.y * 1.9 : 1.2)
             return (p.pos + p.shakeOffset + [0, p.kind.size * top + 4], true)
         }
         let below: Float = p.kind.motion == .float ? 0.55 : [5: 1.5, 25: 0.8, 26: 0.85, 13: 1.2, 15: 0.95][p.kind.sprite]
             ?? (p.kind.pack != nil ? p.kind.extent.y : 1)
         return (p.pos + p.shakeOffset - [0, p.kind.size * below + 2], false)
+    }
+
+    /// What an object on the sand covers on screen, roughly: from the floor up to where its text starts.
+    func footprint(_ p: Presence) -> CGRect {
+        let at = p.pos + p.shakeOffset, top = labelAnchor(p).0.y - 6
+        let half = p.kind.size * (p.kind.pack != nil ? p.kind.extent.x : 1) * 0.6
+        return CGRect(x: CGFloat(at.x - half), y: CGFloat(at.y), width: CGFloat(half * 2), height: CGFloat(max(4, top - at.y)))
     }
 
     /// Objects on the sand are drawn above their anchor point.
@@ -174,7 +185,7 @@ final class Scene {
             if let value { p.value = value }
             if let color { p.color = color }
             if let sound { p.sound = sound }
-            if let x, abs(x - p.u) > 0.001 { p.u = x; place(p, t, fresh: false) }
+            if let x, abs(x - (p.askedU >= 0 ? p.askedU : p.u)) > 0.001 { p.u = x; p.askedU = x; place(p, t, fresh: false) }
             if let state, state != p.state { setState(p, state, t); changed = true }
             if changed { p.changedAt = t.time }
             return nil
@@ -246,11 +257,19 @@ final class Scene {
         case .glass:
             break       // layoutGlass gives it its place, and it glides there
         case .walk, .sit:
-            let x = t.scenery.clear(t, w * p.u)
+            if p.askedU < 0 { p.askedU = p.u }
+            let x = t.scenery.clear(t, w * p.askedU)
             p.u = x / max(1, w)
             p.pos = [x, ground(p, t)]
             if fresh && p.kind.drops { p.pos.y = h + 20; p.landed = false }
         }
+    }
+
+    /// The theme changed: the scenery stands elsewhere now, so whoever is on the floor takes its place again, from
+    /// where it was asked to be.
+    func resettle(_ t: Tank) {
+        guard t.size.x > 10 else { return }
+        for p in presences where p.kind.motion.grounded && !p.leaving && p.landed { place(p, t, fresh: false) }
     }
 
     /// Which side glass each source's lights are on (0 left, 1 right): a new source takes the emptier side.
@@ -286,8 +305,14 @@ final class Scene {
 
     private func ground(_ p: Presence, _ t: Tank) -> Float {
         let u = p.pos.x / max(1, t.size.x)
-        let lift: Float = p.kind.sprite == 6 ? 2 : p.kind.motion == .walk ? 7 : 1
-        return t.size.y * t.sand(u) + lift
+        let lift: Float = p.kind.sprite == 6 ? 2 : p.kind.motion == .walk ? 8 : 1
+        // where there's no floor (the open sea) it rides at the surface as flotsam does, bobbing with the waves
+        if !Themes.current.floor {
+            return t.surfaceY(p.pos.x) - p.kind.size * (p.kind.motion == .walk ? 0.5 : 1.1) + sinf(p.phase * 1.3) * 2
+        }
+        // one that walks keeps to a lane up front on the floor, before the scenery: it passes in front of the rocks
+        // and the chest, never over them
+        return t.size.y * t.sand(u) * (p.kind.motion == .walk ? 1 - 0.2 * 2.8 : 1) + lift
     }
 
     private func setState(_ p: Presence, _ s: State, _ t: Tank) {
@@ -391,7 +416,7 @@ final class Scene {
                 if abs(p.pos.x - home) > 70 { p.dir = p.pos.x > home ? -1 : 1 }
                 if p.state != .idle && p.state != .error && p.state != .waiting {
                     let next = p.pos.x + p.dir * 22 * pace * dt
-                    if t.scenery.blocks(t, next) && !t.scenery.blocks(t, p.pos.x) { p.dir = -p.dir } else { p.pos.x = next }
+                    p.pos.x = next
                 }
                 p.pos.y = ground(p, t)
             case .glass:

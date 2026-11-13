@@ -303,7 +303,8 @@ float4 draw_whale(float2 c, float phase, float4 col) {
 }
 
 // corals on the sand (scenery). The sand line is at y = -0.3; `seed` picks the shape and varies it a little.
-float4 draw_coral(float2 c, float seed, float t, float4 col) {
+// `night` (0…1): its polyps come out, tiny pale dots breathing over it.
+float4 draw_coral(float2 c, float seed, float t, float4 col, float night) {
     float2 p = c;
     int kind = int(seed) % 3;
     float h = fract(seed) * 6.0;
@@ -386,6 +387,14 @@ float4 draw_coral(float2 c, float seed, float t, float4 col) {
     float inside = cover >= 0.0 ? cover : 1.0 - smoothstep(-aa, aa, d);
     // the sand line hides the base
     inside *= smoothstep(-0.36, -0.3, p.y);
+    if (night > 0.02) {
+        float2 g = p * 24.0;
+        float2 id = floor(g);
+        float2 o = fract(g) - 0.5 - (float2(hash21(id), hash21(id + 3.7)) - 0.5) * 0.5;
+        float breath = 0.55 + 0.45 * sin(t * 1.3 + hash21(id + 1.3) * 20.0);
+        float pol = (1.0 - smoothstep(0.08, 0.22, length(o))) * step(0.5, hash21(id + 9.1)) * breath * night;
+        c3 += (col.rgb * 1.2 + float3(0.3, 0.42, 0.36)) * pol * 0.85;
+    }
     return float4(c3 * inside, inside) * col.a;
 }
 

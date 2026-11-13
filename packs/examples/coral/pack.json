@@ -4,12 +4,12 @@
   "names": {
     "en": "Coral reef"
   },
-  "version": "2.7",
+  "version": "2.8",
   "author": "Fishbots",
   "license": "MIT",
-  "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de chromis, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
+  "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de anthias e chromis, um par de peixes-borboleta, um peixe-papagaio roendo o coral, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
   "descriptions": {
-    "en": "A coral reef: clownfish in three varieties, anemones and sponges, schools of chromis, a blue tang passing by, the reef wall in the distance and a tide-like music with marimba."
+    "en": "A coral reef: clownfish in three varieties, anemones and sponges, schools of anthias and chromis, a pair of butterflyfish, a parrotfish nibbling the coral, a blue tang passing by, the reef wall in the distance and a tide-like music with marimba."
   },
   "themes": [
     {
@@ -29,7 +29,8 @@
         "chromis",
         "tang",
         "clowns",
-        "butterflyfish"
+        "butterflyfish",
+        "parrotfish"
       ],
       "water": {
         "deep": "#04263a",
@@ -72,12 +73,12 @@
       },
       "schools": [
         {
-          "color": "#ff8a6a",
-          "kind": "reef-chromis",
-          "count": 10,
+          "color": "#ff7a8c",
+          "kind": "anthias",
+          "count": 11,
           "size": [
-            8,
-            9.5
+            8.5,
+            10
           ],
           "pattern": 0,
           "depth": [
@@ -234,6 +235,19 @@
       },
       "metal": "creatures.metal",
       "function": "draw_coral_chromis_fish"
+    },
+    {
+      "id": "anthias",
+      "name": "anthias",
+      "names": {
+        "en": "anthias"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_coral_anthias",
+      "swim": {
+        "speed": 1.1,
+        "beat": 1.3
+      }
     }
   ],
   "sounds": [
@@ -379,6 +393,25 @@
       ],
       "count": 2,
       "speed": 22,
+      "color": "#ffffff"
+    },
+    {
+      "id": "parrotfish",
+      "name": "peixe-papagaio",
+      "names": {
+        "en": "parrotfish"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_coral_parrotfish",
+      "behavior": "home",
+      "on": "coral",
+      "size": 30,
+      "extent": [
+        1.4,
+        0.8
+      ],
+      "count": 1,
+      "speed": 18,
       "color": "#ffffff"
     }
   ],

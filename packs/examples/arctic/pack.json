@@ -4,12 +4,12 @@
   "names": {
     "en": "Arctic"
   },
-  "version": "1.7",
+  "version": "1.8",
   "author": "Fishbots",
   "license": "MIT",
-  "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo e um iceberg ao longe, cardumes de bacalhau-polar, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
+  "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo e um iceberg ao longe, cardumes de bacalhau-polar e de capelim, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
   "descriptions": {
-    "en": "Under the ice: a cracked ice ceiling letting the light through, ice cliffs and an iceberg far away, schools of polar cod, a seal passing by, a rare narwhal, the frozen chest and a cold music of bells, with the aurora."
+    "en": "Under the ice: a cracked ice ceiling letting the light through, ice cliffs and an iceberg far away, schools of polar cod and capelin, a seal passing by, a rare narwhal, the frozen chest and a cold music of bells, with the aurora."
   },
   "themes": [
     {
@@ -138,12 +138,12 @@
           ]
         },
         {
-          "color": "#7a8a94",
-          "kind": "slender",
-          "count": 5,
+          "color": "#b4c6cc",
+          "kind": "capelin",
+          "count": 15,
           "size": [
-            13,
-            16
+            7,
+            8.5
           ],
           "pattern": 0,
           "depth": [
@@ -466,6 +466,22 @@
       },
       "metal": "creatures.metal",
       "function": "draw_arctic_cod_fish"
+    },
+    {
+      "id": "capelin",
+      "name": "capelim",
+      "names": {
+        "en": "capelin"
+      },
+      "metal": "capelin.metal",
+      "function": "draw_arctic_capelin",
+      "swim": {
+        "extent": [
+          1.5,
+          0.55
+        ],
+        "beat": 1.2
+      }
     }
   ],
   "presences": [

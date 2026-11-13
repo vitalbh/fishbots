@@ -41,6 +41,9 @@ final class Labels {
     /// Where each text went last frame and how visible it is now (see `makeRoom`).
     private var places: [String: LabelRoom.Place] = [:]
     private var fades: [String: Float] = [:]
+    /// How far each presence's text on the floor stands from its place, off the scenery (see `LabelRoom.clear`):
+    /// where it's going and where it is now (it glides there).
+    private var shifts: [String: (to: CGSize, now: CGSize)] = [:]
 
     /// Puts the fixed texts (footer, banner and the little notes) on the view; the fish get theirs as they show up.
     func attach(to view: LabelsView, scale: CGFloat) {
@@ -331,6 +334,7 @@ final class Labels {
         var alive = Set<String>()
         let widget = tank.compact ? tank.scene.shownInWidget() : nil
         func short(_ t: String, _ n: Int) -> String { t.count > n ? String(t.prefix(n - 1)) + "…" : t }
+        var onFloor: [(Presence, CATextLayer)] = []
         for p in tank.scene.presences {
             alive.insert(p.id)
             let l = presenceLayers[p.id] ?? {
@@ -387,13 +391,36 @@ final class Labels {
                 l.alignmentMode = .center
                 let (at, above) = tank.scene.labelAnchor(p)
                 l.position = CGPoint(x: CGFloat(at.x), y: CGFloat(at.y) + (above ? 1 : -1) * l.bounds.height / 2)
+                if p.kind.motion.grounded { onFloor.append((p, l)) }
             }
             l.opacity = p.alpha
             l.zPosition = near ? 10 : 1
         }
+        // the ones on the floor: each text off the scenery, off its neighbors standing there and off the texts already
+        // placed (whoever needs you, or is under the mouse, picks first; then from left to right)
+        var floorThings = tank.scenery.footprints(tank)
+        floorThings += tank.pearls.heaps.map { CGRect(x: CGFloat($0.at.x - $0.half), y: CGFloat($0.at.y), width: CGFloat($0.half * 2), height: CGFloat($0.half * 1.6)) }
+        let standing = tank.scene.presences.filter { $0.kind.motion.grounded && !$0.leaving }
+        onFloor.sort { a, b in
+            let pa = priority(a.0), pb = priority(b.0)
+            return pa != pb ? pa > pb : a.0.pos.x < b.0.pos.x
+        }
+        for (p, l) in onFloor {
+            let bodies = standing.filter { $0 !== p }.map { tank.scene.footprint($0) }
+            let to = LabelRoom.clear(l.frame, of: floorThings + bodies, within: view?.bounds ?? .zero, before: shifts[p.id]?.to)
+            floorThings.append(l.frame.offsetBy(dx: to.width, dy: to.height))
+            var now = shifts[p.id]?.now ?? to
+            let k = CGFloat(min(1, max(0.001, tank.frameDt) * 7))
+            now.width += (to.width - now.width) * k
+            now.height += (to.height - now.height) * k
+            shifts[p.id] = (to, now)
+            l.position.x += now.width
+            l.position.y += now.height
+        }
         for (id, l) in presenceLayers where !alive.contains(id) {
             l.removeFromSuperlayer()
             presenceLayers[id] = nil
+            shifts[id] = nil
         }
     }
 }

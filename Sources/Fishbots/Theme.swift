@@ -146,11 +146,11 @@ struct Theme {
 
     /// The original look.
     static let classicUniforms = ThemeUniforms(
-        deep: [0.016, 0.07, 0.14, 1], shallow: [0.06, 0.36, 0.47, 1], rays: [0.25, 0.45, 0.45, 1],
+        deep: [0.02, 0.1, 0.19, 1], shallow: [0.1, 0.5, 0.62, 1], rays: [0.32, 0.56, 0.56, 1],
         caustics: [0.5, 0.75, 0.75, 1], surface: [0.35, 0.6, 0.65, 1], farWeed: [0.08, 0.2, 0.14, 1],
         weedLow: [0.05, 0.22, 0.12, 1], weedHigh: [0.18, 0.45, 0.22, 1],
         sandDark: [0.44, 0.37, 0.25, 1], sandLight: [0.70, 0.60, 0.43, 1], murk: [0.17, 0.2, 0.11, 1],
-        params: [12, 12, 0.22, 0.06])
+        params: [12, 12, 0.27, 0.075])
 }
 
 /// The registry of themes. The chosen one is stored under "theme".
@@ -172,7 +172,7 @@ enum Themes {
     private static func builtIns() -> [Theme] {
         let specs: [[String: Any]] = [
             ["id": "classic", "name": "Aquário", "description": "O aquário de sempre: água azul, algas verdes, pedras, a ostra e o baú."],
-            ["id": "abyss", "name": "Fundo do mar", "description": "Quase escuro, poucas plantas, um peixe-abissal com sua isca acesa perto do fundo, tubarões-martelo, timões enferrujados, garrafas cobertas de cracas, um cofre de navio, um escafandro antigo, um navio naufragado ao longe, peixes-lanterna à noite, e o peixe-lua e a baleia passando ao longe.", "visualizer": "storm", "fauna": ["starfish", "snail", "lanternfish", "whale", "anglerfish", "sunfish"], "scenery": ["rock", "chest", "helmet", "wreck"],
+            ["id": "abyss", "name": "Fundo do mar", "description": "Quase escuro, poucas plantas, um peixe-abissal com sua isca acesa perto do fundo, tubarões-martelo, timões enferrujados, garrafas cobertas de cracas, um cofre de navio, um escafandro antigo, um navio naufragado ao longe, peixes-lanterna à noite, o peixe-lua e a baleia passando ao longe e, raramente, uma enguia-pelicano.", "visualizer": "storm", "fauna": ["starfish", "snail", "lanternfish", "whale", "anglerfish", "sunfish", "gulper"], "scenery": ["rock", "chest", "helmet", "wreck"],
              "looks": ["shark": "hammerhead", "helm": "rusty-helm", "bottle": "deep-bottle", "chest": "safe", "eggs": "egg-case"],
              "swim": ["*": ["speed": 0.75, "beat": 0.8]],
              "schools": [["kind": "bristlemouth", "color": "#58c8e8", "count": 10, "size": [9, 11], "depth": [0.2, 0.6]],
@@ -183,9 +183,9 @@ enum Themes {
                        "caustics": "#4a7fb0", "causticsStrength": 0.03, "surface": "#123a5c", "murk": "#0d1420"],
              "weeds": ["count": 5, "farCount": 8, "far": "#0b1f33", "low": "#06202a", "high": "#1d5a6b"],
              "sand": ["dark": "#1c1d24", "light": "#3a3a44"]],
-            ["id": "lagoon", "name": "Lagoa", "description": "Água verde e clara de lagoa costeira, raízes de mangue nas margens, capim-marinho, cavalos-marinhos agarrados nas algas, um covo de pesca na areia, caranguejos, a tartaruga e, de vez em quando, um peixe-boi que sobe para respirar.", "visualizer": "surface", "fauna": ["crab", "turtle", "snail", "starfish", "seahorses", "manatee"], "scenery": ["rock", "shell", "mangrove", "chest"],
+            ["id": "lagoon", "name": "Lagoa", "description": "Água verde e clara de lagoa costeira, raízes de mangue nas margens, capim-marinho, cavalos-marinhos agarrados nas algas, um covo de pesca na areia, cardumes de tainhas, um baiacuzinho que se infla quando o mouse chega perto, caranguejos, a tartaruga e, de vez em quando, um peixe-boi que sobe para respirar.", "visualizer": "surface", "fauna": ["crab", "turtle", "snail", "starfish", "seahorses", "manatee", "pufferling", "seasparkle"], "scenery": ["rock", "shell", "mangrove", "chest"],
              "looks": ["chest": "fish-trap", "eggs": "root-eggs"],
-             "schools": [["kind": "oval", "color": "#c9dcae", "count": 10, "size": [8.5, 10], "pattern": 0, "depth": [0.2, 0.6]],
+             "schools": [["kind": "mullet", "color": "#b4c8bc", "count": 9, "size": [10.5, 12.5], "pattern": 0, "depth": [0.25, 0.6]],
                          ["kind": "needlefish", "color": "#4f9c78", "count": 7, "size": [15, 19], "depth": [0.15, 0.45]],
                          ["kind": "slender", "color": "#a9c4b4", "count": 6, "size": [13, 16], "depth": [0.6, 0.8]]],
              "effects": ["fireworks": "#ffe38a", "sparkle": "#e8ffb0", "ring": "#c8f5dc"],

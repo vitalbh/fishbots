@@ -4,12 +4,12 @@
   "names": {
     "en": "Kelp forest"
   },
-  "version": "1.0",
+  "version": "1.1",
   "author": "Fishbots",
   "license": "MIT",
-  "description": "Uma floresta de kelp gigante subindo até a superfície, um deserto de ouriços-roxos onde o kelp foi todo comido, o sheephead que come os ouriços, garibaldis laranja, um abalone no lugar do baú, uma lontra boiando de costas e leões-marinhos passando rápido.",
+  "description": "Uma floresta de kelp gigante subindo até a superfície, um deserto de ouriços-roxos onde o kelp foi todo comido, o sheephead que come os ouriços, garibaldis laranja, sardinhas-do-pacífico e uma bola de sardinhas atravessando a floresta, um abalone no lugar do baú, uma lontra boiando de costas e leões-marinhos passando rápido.",
   "descriptions": {
-    "en": "A forest of giant kelp rising to the surface, an urchin barren where purple urchins ate the kelp down to nothing, the sheephead that eats them, orange garibaldi, an abalone for the chest, a sea otter floating on its back and sea lions darting by."
+    "en": "A forest of giant kelp rising to the surface, an urchin barren where purple urchins ate the kelp down to nothing, the sheephead that eats them, orange garibaldi, Pacific sardines and a bait ball of them drifting through the forest, an abalone for the chest, a sea otter floating on its back and sea lions darting by."
   },
   "themes": [
     {
@@ -26,7 +26,8 @@
         "sheephead",
         "otter",
         "sea-lion",
-        "garibaldi"
+        "garibaldi",
+        "sardine-ball"
       ],
       "scenery": [
         "rock",
@@ -90,8 +91,8 @@
           ]
         },
         {
-          "color": "#e8c860",
-          "kind": "slender",
+          "color": "#8fb6d0",
+          "kind": "pacific-sardine",
           "count": 6,
           "size": [
             9,
@@ -151,6 +152,19 @@
       },
       "metal": "creatures.metal",
       "function": "draw_kelp_senorita"
+    },
+    {
+      "id": "pacific-sardine",
+      "name": "sardinha-do-pacífico",
+      "names": {
+        "en": "Pacific sardine"
+      },
+      "metal": "sardines.metal",
+      "function": "draw_kelp_sardine",
+      "swim": {
+        "speed": 1.15,
+        "beat": 1.2
+      }
     }
   ],
   "scenery": [
@@ -301,6 +315,32 @@
       ],
       "speed": 18,
       "color": "#ff7a20"
+    },
+    {
+      "id": "sardine-ball",
+      "name": "bola de sardinhas",
+      "names": {
+        "en": "sardine bait ball"
+      },
+      "metal": "sardines.metal",
+      "function": "draw_kelp_sardine_ball",
+      "behavior": "cross",
+      "size": 38,
+      "extent": [
+        1.2,
+        1.0
+      ],
+      "count": 1,
+      "speed": 12,
+      "height": [
+        0.4,
+        0.7
+      ],
+      "every": [
+        50,
+        150
+      ],
+      "color": "#c8d4dc"
     }
   ],
   "presences": [

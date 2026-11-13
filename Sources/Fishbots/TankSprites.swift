@@ -81,7 +81,7 @@ extension Tank {
         // the scenery: behind the pearls, the creatures and the fish, softened a little by the water
         let lit = 0.45 + 0.55 * light
         let water = waterTint
-        let night = max(0, min(1, (0.8 - light) / 0.6))
+        let night = Scenery.night(self)
         // the rocks are the theme's own stone: tinted by its sand (brown in the river, blue-grey under the ice, near
         // black in the trench) and each theme with its own shapes
         let theme = Themes.current
@@ -126,7 +126,7 @@ extension Tank {
             let safe: Float = s.id == "chest" && FishKinds.dressByTheme && look?.of == "chest" ? look!.n : 0
             out.append(Sprite(pos: c, dir: [1, 0], size: sz, kind: s.kind, glow: s.id == "chest" ? 0.8 + scenery.chestLid * 0.6 : 0,
                               phase: s.id == "chest" || s.id == "shell" ? Float(time) : s.seed + (s.id == "rock" ? stoneSeed : 0), color: SIMD4(color, 1),
-                              extra: [1, s.id == "chest" ? min(1, scenery.chestLid) : s.id == "shell" ? 1 : 0, safe, 0],
+                              extra: [1, s.id == "chest" ? min(1, scenery.chestLid) : s.id == "shell" ? 1 : 0, safe, s.id == "coral" ? night : 0],
                               aux: s.kind > 40.5 ? [1, 1, 0, 0] : .zero))
         }
         // the widget keeps only the scenery: no battery, pebbles, pearls or list pebbles

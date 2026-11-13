@@ -200,7 +200,7 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
     } else if (k > 34.5) {             // a pack's scenery (extra.z: its index)
         outc = draw_scenery_pack(int(in.extra.z + 0.5), c, in.phase, in.glow, in.color, in.extra);
     } else if (k > 33.5) {             // scenery: coral (phase: 0 branching, 1 sea fan, 2 brain)
-        outc = draw_coral(c, in.phase, u.time, in.color);
+        outc = draw_coral(c, in.phase, u.time, in.color, in.extra.w);
     } else if (k > 32.5) {             // mote of marine snow: a tiny soft speck
         float a = exp(-r * r * 4.5) * in.glow;
         outc = float4(in.color.rgb * a, a);
@@ -268,33 +268,8 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         outc = float4(col * max(ic, ib), max(ic, ib));
     } else if (k > 14.5) {             // turtle in profile
         outc = draw_turtle(c, in.phase, in.color);
-    } else if (k > 13.5) {             // crab: body, claws, walking legs and stalked eyes
-        float2 p = c * float2(1.2, 0.8);
-        float d = length(p / float2(0.45, 0.27)) - 1.0;
-        d *= 0.27;
-        for (int s = -1; s <= 1; s += 2) {
-            float sx = float(s);
-            float claw = length(p - float2(sx * 0.66, 0.24)) - 0.14;
-            claw = max(claw, -(length(p - float2(sx * 0.76, 0.33)) - 0.06));
-            float2 a0 = float2(sx * 0.35, 0.08), a1 = float2(sx * 0.6, 0.2), pa = p - a0, ba = a1 - a0;
-            float arm = length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)) - 0.04;
-            float eye = length(p - float2(sx * 0.13, 0.43)) - 0.05;
-            float2 h0 = float2(sx * 0.11, 0.2), h1 = float2(sx * 0.13, 0.42), qa = p - h0, qb = h1 - h0;
-            float stalk = length(qa - qb * clamp(dot(qa, qb) / dot(qb, qb), 0.0, 1.0)) - 0.02;
-            d = min(d, min(min(claw, arm), min(eye, stalk)));
-            for (int i = 0; i < 3; i++) {
-                float fi = float(i);
-                float stride = sin(in.phase * 9.0 + fi * 2.1 + sx) * 0.05 * in.glow;
-                float2 l0 = float2(sx * (0.28 - fi * 0.06), -0.06 - fi * 0.06), l1 = float2(sx * (0.62 - fi * 0.05), -0.36 - fi * 0.04 + stride);
-                float2 la = p - l0, lb = l1 - l0;
-                d = min(d, length(la - lb * clamp(dot(la, lb) / dot(lb, lb), 0.0, 1.0)) - 0.025);
-            }
-        }
-        float inside = 1.0 - smoothstep(-0.012, 0.012, d);
-        float3 col = in.color.rgb * (0.75 + 0.4 * (p.y + 0.3));
-        for (int s = -1; s <= 1; s += 2) col = mix(col, float3(0.02), 1.0 - smoothstep(0.025, 0.04, length(p - float2(float(s) * 0.13, 0.44))));
-        float a = inside * in.color.a;
-        outc = float4(col * a, a);
+    } else if (k > 13.5) {             // crab (glow: walking)
+        outc = draw_crab(c, in.phase, in.color, in.glow);
     } else if (k > 12.5) {             // seahorse (extra.y: carrying the little letter)
         float2 p = c * float2(0.75, 1.2);
         float d = 1e3;
@@ -388,6 +363,16 @@ fragment Frag2 sprite_fragment(SpOut in [[stage_in]], constant Uniforms& u [[buf
         }
         float3 col = in.extra.w > 0.5 ? mix(in.color.rgb, tintB, mixB) : in.color.rgb;
         outc = float4(col * a, a * 0.35);
+    }
+    // the light that plays on the sand plays on what stands on it too: the rocks, the chest, the corals, a pack's
+    // scenery and creatures, the crab, the turtle, the starfish. On the faces turned up to the surface, and by the hour
+    if (outc.a > 0.01 && ((k > 20.5 && k < 23.5) || (k > 33.5 && k < 36.5) || (k > 13.5 && k < 17.5) || (k > 40.5 && k < 41.5))) {
+        float2 uw = in.world / u.res;
+        float2 q = float2(uw.x * (u.res.x / u.res.y), uw.y);
+        float caust = clamp(caustic(float2(q.x, q.y * 1.5) * 5.0 - 250.0, u.time * 0.35), 0.0, 1.0);
+        float up = smoothstep(-0.5, 0.7, c.y);
+        outc.rgb += outc.rgb * caust * (0.9 * up + 0.25) * u.light * (1.0 - u.grade.w) * 0.9
+                  + outc.a * float3(0.6, 0.8, 0.8) * caust * up * 0.1 * u.light * (1.0 - u.grade.w);
     }
     // murky water fades what is far away
     outc *= 1.0 - u.turbidity * 0.35;

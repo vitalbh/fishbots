@@ -96,6 +96,8 @@ Helpers you can call: `sd_box(p, half, r)`, `sd_seg(p, a, b)`, `sd_tri(p, a, b, 
 - No globals except `constant` ones; no `half` as a variable name; define a helper above the function using it.
 - Several pieces may share one `.metal` file (it goes into the shader once).
 - Anything past ±1 is clipped with a straight edge: keep shapes inside, and fade glows to zero before the edge.
+- An early `return float4(0.0)` goes **after** the edge is measured (`fwidth(d)`), or only where the shape is far away:
+  a return placed before it, close to the shape, shows as a thin straight line at the cut.
 - **There's plenty of room — don't skimp on looks, just avoid brute force.** A whole aquarium with the Japanese
   pond's koi, lantern, lily pads, frogs, tadpoles and shrimp draws in about 10 ms a frame; the app only steps in past
   33 ms. Detailed drawings like the koi (scales, two-octave patches, lighting, rayed fins) or the octopus (6 arms × 8
@@ -166,7 +168,7 @@ A **theme** in `pack.json`:
   `causticsStrength` (0…0.2, light patterns), `surface` (the water line), `murk` (the color of murky water).
 - `weeds`: `count` (0…16 blades in front), `farCount` (blades far behind), `far`, `low` (base color), `high` (tip
   color). `sand`: `dark`, `light`.
-- `fauna`: built-ins `crab starfish turtle snail lanternfish whale grouper anglerfish sunfish manatee seahorses` and the pack's creature ids.
+- `fauna`: built-ins `crab starfish turtle snail lanternfish whale grouper anglerfish sunfish manatee seahorses corydoras pufferling gulper seasparkle` and the pack's creature ids.
   `scenery`: built-ins `rock shell chest coral` and the pack's scenery ids. Leave a list out for all built-ins.
 - `visualizer`: `plankton`, `aurora`, `surface`, `score`, `constellation` or `fireworks`. `music`: a style id.
 - `names`: `{"en": "…"}`, the name in other languages. Colors are `"#rrggbb"` or `[r, g, b]` (0…1).

@@ -135,13 +135,19 @@ final class PackCreature: Creature {
                     if o.wait <= 0 {
                         o.moving = 1
                         let next = o.pos.x + o.dir * k.speed * dt
-                        if next < w * 0.06 || next > w * 0.94 || (t.scenery.blocks(t, next) && !t.scenery.blocks(t, o.pos.x)) { o.dir = -o.dir }
+                        // (it walks up front on the floor, see below: only the edges and the heaps of pearls turn it)
+                        func heap(_ x: Float) -> Bool { t.pearls.heaps.contains { abs(x - $0.at.x) < $0.half + k.size * 0.6 } }
+                        if next < w * 0.06 || next > w * 0.94 || (heap(next) && !heap(o.pos.x)) { o.dir = -o.dir }
                         else { o.pos.x = next }
                         o.phase += dt * max(1, k.speed / 4)
                         if Float.random(in: 0...1) < dt * 0.25 { o.wait = Float.random(in: 1.5...5); if Bool.random() { o.dir = -o.dir } }
                     } else { o.moving = 0; o.phase += dt * 0.3 }
                 } else { o.phase += dt * 0.4 }
-                o.pos.y = sandY(o.pos.x) + k.size * k.extent.y * 0.9          // its feet (c.y = -0.9) on the sand
+                // its feet (c.y = -0.9) on the sand. One that crawls keeps to a lane up front, on the bare floor before the
+                // scenery (which stands in rows from the back line), so it passes in front of the rocks and the chest and
+                // never over them; one that rests stays at the back line, in a gap between the pieces
+                let lane: Float = k.behavior == .crawl ? 1 - 0.2 * (2.3 + 0.7 * o.seed) : 1
+                o.pos.y = sandY(o.pos.x) * lane + k.size * k.extent.y * 0.9
                 ones[i] = o
             }
 
@@ -311,11 +317,16 @@ final class PackCreature: Creature {
         let far = k.behavior == .pass
         let color = mix(k.color * lit, water, t: far ? 0.55 : 0.1)
         let i = Float(index)
-        return ones.map { o in
+        // one on the floor has its shadow on the sand under it (where there is a floor)
+        let grounded = (k.behavior == .crawl || k.behavior == .rest) && Themes.current.floor
+        return ones.flatMap { o -> [Sprite] in
             let vertical = k.behavior == .glass
-            return Sprite(pos: o.pos, dir: vertical ? [0, o.dir] : [o.dir, 0], size: k.size, kind: 36, glow: 0, phase: o.phase,
-                          color: SIMD4(color, (far ? 0.6 : 1) * shown), extra: [vertical ? 1 : o.dir, o.seed, i, o.moving],
-                          aux: [k.extent.x, k.extent.y, 0, 0])
+            let it = Sprite(pos: o.pos, dir: vertical ? [0, o.dir] : [o.dir, 0], size: k.size, kind: 36, glow: 0, phase: o.phase,
+                            color: SIMD4(color, (far ? 0.6 : 1) * shown), extra: [vertical ? 1 : o.dir, o.seed, i, o.moving],
+                            aux: [k.extent.x, k.extent.y, 0, 0])
+            guard grounded else { return [it] }
+            return [Sprite(pos: [o.pos.x + 1.5, o.pos.y - k.size * k.extent.y * 0.9 + 1], dir: [1, 0], size: k.size * k.extent.x * 0.8, kind: 32,
+                           glow: 0.28 * (0.45 + 0.55 * t.light) * shown, phase: 0, color: [0, 0, 0, 1], extra: [1, 0, 0, 0]), it]
         }
     }
 }

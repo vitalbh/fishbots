@@ -4,12 +4,12 @@
   "names": {
     "en": "Japanese pond"
   },
-  "version": "1.8",
+  "version": "1.9",
   "author": "Fishbots",
   "license": "MIT",
-  "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
+  "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões, um dojô que se enterra na areia, uma carpa fantasma que só passa à noite e música zen.",
   "descriptions": {
-    "en": "A Japanese pond: koi in four varieties, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp and zen music."
+    "en": "A Japanese pond: koi in four varieties, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp, a weather loach that buries itself in the sand, a ghost koi that only passes at night and zen music."
   },
   "themes": [
     {
@@ -25,7 +25,9 @@
         "turtle",
         "frog",
         "tadpoles",
-        "shrimp"
+        "shrimp",
+        "loach",
+        "ghost-koi"
       ],
       "scenery": [
         "rock",
@@ -511,6 +513,54 @@
       ],
       "speed": 8,
       "color": "#d9806a"
+    },
+    {
+      "id": "loach",
+      "name": "dojô",
+      "names": {
+        "en": "weather loach"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_koi_loach",
+      "behavior": "crawl",
+      "size": 30,
+      "extent": [
+        1.6,
+        0.6
+      ],
+      "count": [
+        1,
+        2
+      ],
+      "speed": 16,
+      "color": "#7a6a3c"
+    },
+    {
+      "id": "ghost-koi",
+      "name": "carpa fantasma",
+      "names": {
+        "en": "ghost koi"
+      },
+      "metal": "ghost.metal",
+      "function": "draw_koi_ghost",
+      "behavior": "cross",
+      "size": 44,
+      "extent": [
+        1.5,
+        1.0
+      ],
+      "count": 1,
+      "speed": 14,
+      "height": [
+        0.3,
+        0.65
+      ],
+      "every": [
+        80,
+        220
+      ],
+      "when": "night",
+      "color": "#dfe8ff"
     }
   ]
 }

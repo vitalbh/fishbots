@@ -101,6 +101,12 @@ enum FishKinds {
         FishKind(id: "neon", name: "néon", source: nil, call: "draw_neon(c, phase, glow, col, extra)"),
         FishKind(id: "rasbora", name: "rasbora-arlequim", source: nil, call: "draw_rasbora(c, phase, glow, col, extra)"),
         FishKind(id: "corydoras", name: "coridora", source: nil, call: "draw_corydoras(c, phase, glow, col, extra)"),
+        // the lagoon's own: mullets in schools and a little puffer that blows up when the mouse comes near; the deep
+        // sea's rare visitor, the gulper eel
+        FishKind(id: "mullet", name: "tainha", source: nil, call: "draw_mullet(c, phase, glow, col, extra)"),
+        FishKind(id: "pufferling", name: "baiacuzinho", source: nil, call: "draw_pufferling(c, phase, glow, col, extra)"),
+        FishKind(id: "gulper", name: "enguia-pelicano", source: nil, call: "draw_gulper(c, phase, glow, col, extra)",
+                 swim: FishSwim(json: ["extent": [2.4, 0.9], "speed": 0.6, "beat": 0.7])),
     ]
 
     /// Kinds added after the shader was compiled only show up on the next launch.
