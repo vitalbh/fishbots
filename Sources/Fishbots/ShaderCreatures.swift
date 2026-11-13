@@ -763,4 +763,265 @@ float4 draw_bristlemouth(float2 c, float phase, float glow, float4 col, float4 e
     return float4(c3 * al * (1.0 - min(lum, 1.0)) + lightC * lum + col.rgb * halo * 0.9 * col.a, min(1.0, al + lum * 0.8 + halo * 0.55 * col.a));
 }
 
+// Mullet (the lagoon's schools): a silver torpedo with a blunt head and a flat back, two small fins apart on the
+// back, a forked tail, thin dark lines running along the flank. extra.w > 1.5: asleep.
+float4 draw_mullet(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    p.y -= sin(phase - p.x * 2.6) * 0.05 * smoothstep(0.3, -1.0, p.x);
+    float2 bc = float2(0.1, 0.0), br = float2(0.88, 0.27);
+    float2 b = (p - bc) / br;
+    float taper = mix(0.32, 1.0, smoothstep(-1.0, 0.1, b.x));
+    // a flat back and a fuller belly; the head ends blunt
+    float body = (length(float2(b.x, b.y / (taper * (b.y > 0.0 ? 0.82 : 1.0)))) - 1.0) * 0.27;
+    body = max(body, p.x - 0.93);
+    float2 tq = p - float2(-0.7, sin(phase - 1.2) * 0.04);
+    float tail = max(sd_tri(tq, float2(0.1, 0.0), float2(-0.44, 0.36), float2(-0.44, -0.36)),
+                     -sd_tri(tq, float2(-0.2, 0.0), float2(-0.6, 0.2), float2(-0.6, -0.2))) - 0.012;
+    float d1 = sd_tri(p, float2(0.3, 0.2), float2(0.05, 0.2), float2(0.08, 0.4)) - 0.012;
+    float d2 = sd_tri(p, float2(-0.2, 0.17), float2(-0.46, 0.12), float2(-0.42, 0.34)) - 0.012;
+    float an = sd_tri(p, float2(-0.18, -0.2), float2(-0.46, -0.13), float2(-0.42, -0.36)) - 0.012;
+    float pv = sd_tri(p, float2(0.28, -0.24), float2(0.1, -0.25), float2(0.08, -0.4)) - 0.01;
+    float fins = min(min(tail, min(d1, d2)), min(an, pv));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float edge = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = glow * exp(-max(d, 0.0) * 12.0) * edge;
+    if (a < 0.002 && halo < 0.002) return float4(0.0);
+    float3 c3;
+    if (body <= 0.0) {
+        // an olive-gray back over a silver flank and a white belly
+        c3 = mix(col.rgb * 1.2 + 0.12, col.rgb * 0.62, smoothstep(-0.15, 0.75, b.y));
+        // the lines along the flank, following the body's curve
+        float ln = abs(fract(b.y / taper * 3.4 + 0.25) - 0.5);
+        float lw = fwidth(b.y / taper * 3.4);
+        c3 = mix(c3, col.rgb * 0.5, (1.0 - smoothstep(0.1 - lw, 0.1 + lw, ln)) * smoothstep(-0.55, -0.2, b.y) * smoothstep(0.62, 0.3, p.x) * 0.4);
+        c3 = fish_round(c3, b, body);
+        // the gill cover and the small mouth at the very front
+        c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.02, abs(length((p - float2(0.5, 0.0)) / float2(0.16, 0.24)) - 1.0) * 0.16)) * step(0.5, p.x) * 0.25;
+        c3 = mix(c3, col.rgb * 0.35, (1.0 - smoothstep(0.004, 0.012, abs(p.y + 0.02))) * step(0.84, p.x) * 0.7);
+        c3 = fish_eye(c3, p, float2(0.72, 0.07), 0.07, float3(0.95, 0.85, 0.5), step(1.5, extra.w));
+        // the pectoral fin, set high
+        float2 pq = p - float2(0.42, 0.02);
+        float pf = sd_tri(pq, float2(0.0, 0.04), float2(0.0, -0.04), float2(-0.24, -0.08 + sin(phase * 2.0) * 0.03)) - 0.01;
+        c3 = mix(c3, col.rgb * 0.75, (1.0 - smoothstep(-0.01, 0.01, pf)) * 0.5);
+    } else {
+        c3 = col.rgb * 0.68 * (0.9 + 0.1 * cos(atan2(p.y, -(p.x + 0.3)) * 30.0));
+        a *= 0.85;
+    }
+    c3 += col.rgb * glow * 0.45;
+    return float4((c3 * a + col.rgb * halo * (1.0 - a)) * col.a, (a + halo * (1.0 - a) * 0.55) * col.a);
+}
+
+// The lagoon's little puffer: a small boxy fish with a big eye, a pursed beak and whirring fins, sandy olive with
+// dark spots over a white belly. extra.y ≥ 100 carries how blown up it is (100 slack … 101 a ball, its spines out);
+// extra.w > 1.5: asleep.
+float4 draw_pufferling(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.25, 0.8);
+    float k = clamp(extra.y - 100.0, 0.0, 1.0);
+    k = k * k * (3.0 - 2.0 * k);
+    float2 bc = float2(mix(0.12, 0.08, k), 0.0), br = float2(mix(0.56, 0.6, k), mix(0.31, 0.6, k));
+    float2 b = (p - bc) / br;
+    float taper = mix(mix(0.45, 1.0, smoothstep(-1.0, 0.0, b.x)), 1.0, k);
+    float th = atan2(b.y, b.x);
+    // the spines: short cones all around, out only when it's blown up
+    float spike = pow(max(0.0, cos(th * 9.0)), 8.0) * 0.1 * k * smoothstep(0.9, 0.3, cos(th));
+    float body = (length(float2(b.x, b.y / taper)) - 1.0) * mix(0.31, 0.6, k) - spike;
+    // the tail and the two little fins near it, whirring
+    float2 tq = p - float2(bc.x - br.x * mix(0.82, 0.93, k), sin(phase * 1.5 - 1.0) * 0.03);
+    float tail = max(sd_tri(tq, float2(0.06, 0.0), float2(-0.3, 0.2), float2(-0.3, -0.2)), length(tq) - 0.27) - 0.012;
+    float whirr = sin(phase * 4.0) * 0.05;
+    float dors = sd_tri(p, float2(bc.x - 0.2, br.y * 0.82), float2(bc.x - 0.42, br.y * 0.7), float2(bc.x - 0.44 + whirr, br.y * 0.7 + 0.2)) - 0.015;
+    float anal = sd_tri(p, float2(bc.x - 0.2, -br.y * 0.82), float2(bc.x - 0.42, -br.y * 0.7), float2(bc.x - 0.44 - whirr, -br.y * 0.7 - 0.18)) - 0.015;
+    float fins = min(tail, min(dors, anal));
+    float d = min(body, fins);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float edge = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = glow * exp(-max(d, 0.0) * 12.0) * edge;
+    if (a < 0.002 && halo < 0.002) return float4(0.0);
+    float3 c3;
+    if (body <= 0.0) {
+        // the back in its color, spotted; the belly white, and more of it as it swells
+        float belly = smoothstep(mix(-0.05, 0.25, k), mix(-0.55, -0.25, k), b.y + 0.12 * b.x);
+        float3 back = col.rgb;
+        float2 sg = b * float2(5.0, 4.0) + float2(0.0, 0.3);
+        float2 sid = floor(sg);
+        float2 so = fract(sg) - 0.5 - (float2(hash21(sid), hash21(sid + 7.0)) - 0.5) * 0.5;
+        float spot = (1.0 - smoothstep(0.12, 0.24, length(so))) * step(0.3, hash21(sid + 3.0));
+        back = mix(back, col.rgb * 0.38, spot * 0.75);
+        c3 = mix(back, float3(0.97, 0.95, 0.88) * (0.55 + 0.45 * max(col.r, max(col.g, col.b))), belly);
+        // blown up: the base of each spine shows as a pale dot on the skin
+        float2 dg = b * 6.0;
+        dg.x += 0.5 * floor(dg.y);
+        c3 = mix(c3, c3 * 1.25 + 0.05, (1.0 - smoothstep(0.08, 0.16, length(fract(dg) - 0.5))) * k * 0.6);
+        c3 = fish_round(c3, b * mix(1.0, 0.92, k), body + spike);
+        // spines catch the light
+        c3 = mix(c3, float3(0.98, 0.96, 0.85), smoothstep(0.012, 0.04, spike) * smoothstep(0.86, 1.0, length(b)) * 0.8);
+        // the beak: a small pale pout
+        float2 mq = p - float2(bc.x + br.x * 0.97, -0.03 - 0.03 * k);
+        float m = length(mq / float2(0.07, 0.06)) - 1.0;
+        c3 = mix(c3, float3(0.95, 0.9, 0.8), (1.0 - smoothstep(-0.2, 0.1, m)) * 0.85);
+        c3 = mix(c3, float3(0.3, 0.22, 0.2), (1.0 - smoothstep(0.004, 0.012, abs(mq.y))) * step(-0.03, mq.x) * step(m, 0.0) * 0.7);
+        // a big eye (wider when it's had a fright), and a pectoral fin whirring on the flank
+        float2 eye = float2(bc.x + br.x * mix(0.52, 0.46, k), mix(0.1, 0.2, k));
+        c3 = fish_eye(c3, p, eye, mix(0.095, 0.105, k), float3(1.0, 0.8, 0.3), step(1.5, extra.w));
+        float2 pq = p - float2(bc.x + br.x * 0.12, -0.03);
+        float pa = atan2(pq.y, -pq.x) + 0.2 + sin(phase * 5.0) * 0.35;
+        float pf = max(length(pq) - 0.17, abs(pa) - 0.55);
+        c3 = mix(c3, float3(1.0, 0.97, 0.85) * (0.85 + 0.15 * cos(pa * 20.0)), (1.0 - smoothstep(-0.012, 0.012, pf)) * 0.55);
+    } else {
+        c3 = mix(col.rgb, float3(1.0, 0.95, 0.75), 0.35) * (0.85 + 0.15 * cos(atan2(p.y, -(p.x - bc.x + 0.3)) * 26.0));
+        a *= 0.8;
+    }
+    c3 += col.rgb * glow * 0.45;
+    return float4((c3 * a + col.rgb * halo * (1.0 - a)) * col.a, (a + halo * (1.0 - a) * 0.55) * col.a);
+}
+
+// A gulper eel, the deep sea's rare visitor: almost all mouth, a pouch of a jaw hinged far back that hangs open
+// like a pelican's, a pinpoint eye at the tip of the snout, and behind it a body that thins into a whip with a
+// little pink light at its very end. Dark as the water, so a rim of the tank's light draws it. The quad is 2.4 × 0.9.
+float4 draw_gulper(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(2.4, 0.9);
+    // the whip waves, more and more toward its end
+    float wave = sin(phase * 0.8 - p.x * 1.7) * 0.3 * smoothstep(0.9, -2.2, p.x);
+    float2 q = float2(p.x, p.y - wave);
+    float open = 0.62 + 0.38 * sin(phase * 0.23);
+    // the body: thickest behind the jaw's hinge, a whip from there back
+    float along = clamp((1.0 - q.x) / 3.2, 0.0, 1.0);
+    float thick = mix(0.12, 0.012, pow(along, 0.45));
+    float body = max(abs(q.y - 0.02) - thick, max(q.x - 1.05, -2.22 - q.x));
+    body = min(body, length(float2(max(0.0, q.x - 1.0), q.y - 0.02)) - 0.12);
+    // the jaws: two long thin bones hinged far back, gaping, and the pouch that sags under the lower one
+    float2 hinge = float2(0.98, 0.03);
+    float2 tip = float2(2.24, 0.22 + 0.36 * open);
+    float2 low = float2(2.1, -0.2 - 0.4 * open);
+    float upper = sd_seg(q, hinge, tip) - mix(0.07, 0.028, clamp((q.x - 0.98) / 1.2, 0.0, 1.0));
+    float lower = sd_seg(q, hinge, low) - mix(0.055, 0.022, clamp((q.x - 0.98) / 1.1, 0.0, 1.0));
+    float gape = sd_tri(q, hinge, tip, low);
+    float2 jq = q - (hinge + low) * 0.5;
+    float sag = (length(jq / float2(0.6, 0.3 + 0.08 * open)) - 1.0) * 0.3;
+    float pouch = min(gape, sag);
+    float rim = min(upper, lower);
+    float d = min(min(body, rim), pouch);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    // the light at the end of the whip
+    float2 lq = p - float2(-2.2, 0.02 + sin(phase * 0.8 + 2.2 * 1.7) * 0.3);
+    float lr = length(lq);
+    float lamp = (exp(-lr * lr * 600.0) + exp(-lr * lr * 60.0) * 0.45 + exp(-lr * lr * 14.0) * 0.12) * (0.75 + 0.25 * sin(phase * 1.7));
+    lamp *= 1.0 - smoothstep(0.85, 1.0, abs(c.x));
+    if (a < 0.002 && lamp < 0.004) return float4(0.0);
+    float3 dark = float3(0.1, 0.08, 0.16), lit = col.rgb;
+    float3 c3 = dark;
+    if (pouch <= 0.0 && rim > 0.0 && body > 0.0) {
+        // inside the mouth and the pouch's thin skin: darker toward the throat, ribbed like an umbrella
+        float2 hq = q - hinge;
+        c3 = mix(float3(0.04, 0.02, 0.06), float3(0.22, 0.08, 0.16), smoothstep(0.1, 1.0, length(hq)));
+        c3 *= 0.8 + 0.2 * step(0.5, fract(atan2(hq.y, hq.x) * 5.0));
+        a *= 0.86;
+    } else {
+        // skin: velvet dark, a soft sheen along the top
+        float top = smoothstep(0.0, 0.12, q.y - 0.02 + thick * 0.2);
+        c3 = dark * (0.8 + 0.5 * top);
+    }
+    // the rim of light that draws it against the dark
+    float rimlight = (1.0 - smoothstep(0.0, 0.05, -min(min(body, rim), sag)))   // (not the open front of the mouth)
+         * (0.45 + 0.55 * smoothstep(-0.2, 0.3, q.y));
+    c3 += (lit * 0.6 + float3(0.16, 0.24, 0.38)) * rimlight;
+    // the eye: tiny, at the tip of the snout
+    float2 eq = q - (tip - float2(0.14, 0.03));
+    c3 = mix(c3, float3(0.75, 0.9, 1.0), 1.0 - smoothstep(0.014, 0.024, length(eq)));
+    c3 = mix(c3, float3(0.0), 1.0 - smoothstep(0.006, 0.012, length(eq)));
+    float3 pink = float3(1.0, 0.45, 0.6);
+    float al = a * col.a;
+    return float4(c3 * al * (1.0 - min(lamp, 1.0)) + pink * lamp * col.a, min(1.0, al + lamp * 0.85 * col.a));
+}
+
+// The crab: a domed shell seen from the front, lit from above, two claws held up, three pairs of jointed legs that
+// step while it walks (`walking` 0…1), eyes on stalks, and its shadow on the sand. The quad is 1.2 × 0.8.
+float4 draw_crab(float2 c, float phase, float4 color, float walking) {
+    float2 p = c * float2(1.2, 0.8);
+    float3 base = color.rgb;
+    float3 c3 = float3(0.0);
+    float a = 0.0;
+    // its shadow on the sand, under the legs
+    float sh = (1.0 - smoothstep(0.5, 1.0, length((p - float2(0.0, -0.5)) / float2(0.75, 0.1)))) * 0.3;
+    float bob = sin(phase * 9.0) * 0.012 * walking;
+    p.y -= bob;
+    // the legs, behind the shell: a thigh up and out to the knee, a shin down to a pointed foot
+    for (int s = -1; s <= 1; s += 2) {
+        float sx = float(s);
+        for (int i = 0; i < 3; i++) {
+            float fi = float(i);
+            float stp = sin(phase * 9.0 + fi * 2.1 + sx * 1.3);
+            float lift = max(0.0, stp) * 0.07 * walking, reach = cos(phase * 9.0 + fi * 2.1 + sx * 1.3) * 0.05 * walking;
+            float2 hip = float2(sx * (0.3 - fi * 0.07), -0.04 - fi * 0.03);
+            float2 foot = float2(sx * (0.72 - fi * 0.13) + reach, -0.47 + lift);
+            float2 knee = float2(sx * (0.6 - fi * 0.1) + reach * 0.5, 0.0 - fi * 0.07 + lift * 0.6);
+            float t1 = clamp(dot(p - hip, knee - hip) / dot(knee - hip, knee - hip), 0.0, 1.0);
+            float thigh = length(p - hip - (knee - hip) * t1) - mix(0.052, 0.042, t1);
+            float t2 = clamp(dot(p - knee, foot - knee) / dot(foot - knee, foot - knee), 0.0, 1.0);
+            float shin = length(p - knee - (foot - knee) * t2) - mix(0.042, 0.01, t2);
+            float d = min(thigh, shin);
+            float la = 1.0 - smoothstep(-0.01, 0.012, d);
+            // round: lighter along the top of each segment, the farther legs darker, the feet pale
+            float3 lc = base * (0.52 + 0.12 * fi) * (0.8 + 0.5 * smoothstep(0.02, -0.03, d) * 0.6 + 0.35 * smoothstep(-0.2, 0.1, p.y));
+            lc = mix(lc, base * 1.1 + 0.15, smoothstep(0.55, 1.0, t2) * step(shin, thigh) * 0.6);
+            c3 = mix(c3, lc, la); a = max(a, la);
+        }
+    }
+    // the shell: a wide dome, flatter underneath
+    float2 b = (p - float2(0.0, 0.02)) / float2(0.47, p.y > 0.02 ? 0.27 : 0.2);
+    float shell = (length(b) - 1.0) * 0.22;
+    float sa = 1.0 - smoothstep(-0.01, 0.012, shell);
+    float3 n = normalize(float3(b * 0.95, sqrt(max(0.0, 1.0 - min(dot(b, b), 1.0))) + 0.25));
+    float3 sc = base * (0.5 + 0.7 * max(0.0, dot(n, normalize(float3(-0.25, 0.8, 0.55)))));
+    sc *= 0.9 + 0.2 * vnoise(p * 14.0);                                                    // mottled
+    sc = mix(sc, base * 0.35, smoothstep(-0.2, -0.95, b.y) * 0.7);                           // the underside in shade
+    sc += float3(1.0, 0.95, 0.9) * pow(max(0.0, dot(n, normalize(float3(-0.2, 0.6, 0.78)))), 22.0) * 0.4;
+    sc += (base * 0.5 + 0.3) * (1.0 - smoothstep(0.0, 0.035, -shell)) * smoothstep(0.0, 0.8, b.y) * 0.5;   // a rim of light on top
+    // the seam across the shell and the mouth below it
+    sc *= 1.0 - (1.0 - smoothstep(0.0, 0.014, abs(p.y + 0.02 + 0.1 * p.x * p.x))) * 0.3;
+    sc = mix(sc, base * 0.25, (1.0 - smoothstep(0.6, 1.0, length((p - float2(0.0, -0.1)) / float2(0.13, 0.05)))) * 0.7);
+    c3 = mix(c3, sc, sa); a = max(a, sa);
+    // the eyes on their stalks
+    for (int s = -1; s <= 1; s += 2) {
+        float sx = float(s);
+        float2 h0 = float2(sx * 0.11, 0.22), h1 = float2(sx * 0.14, 0.43);
+        float ts = clamp(dot(p - h0, h1 - h0) / dot(h1 - h0, h1 - h0), 0.0, 1.0);
+        float stalk = length(p - h0 - (h1 - h0) * ts) - 0.024;
+        float ea = 1.0 - smoothstep(-0.008, 0.01, stalk);
+        c3 = mix(c3, base * (0.7 + 0.3 * ts), ea); a = max(a, ea);
+        float2 eq = p - float2(sx * 0.14, 0.46);
+        float eb = 1.0 - smoothstep(-0.008, 0.01, length(eq) - 0.06);
+        c3 = mix(c3, float3(0.03, 0.03, 0.05), eb); a = max(a, eb);
+        c3 = mix(c3, float3(1.0), (1.0 - smoothstep(0.012, 0.024, length(eq - float2(-0.018, 0.022)))) * eb);
+    }
+    // the claws, in front: an arm to a round fist with a pincer
+    for (int s = -1; s <= 1; s += 2) {
+        float sx = float(s);
+        float wave = sin(phase * 2.3 + sx) * 0.02;
+        float2 a0 = float2(sx * 0.36, 0.06), a1 = float2(sx * 0.62, 0.2 + wave);
+        float ta = clamp(dot(p - a0, a1 - a0) / dot(a1 - a0, a1 - a0), 0.0, 1.0);
+        float arm = length(p - a0 - (a1 - a0) * ta) - 0.05;
+        float2 cq = p - float2(sx * 0.68, 0.27 + wave);
+        float fist = length(cq / float2(0.16, 0.15)) - 1.0;
+        float notch = sd_tri(cq, float2(sx * 0.02, 0.06), float2(sx * 0.2, 0.2), float2(sx * 0.02, 0.24));
+        float claw = max(fist * 0.15, -notch);
+        float d = min(arm, claw);
+        float ca = 1.0 - smoothstep(-0.01, 0.012, d);
+        float2 cb = cq / float2(0.16, 0.15);
+        float3 cn = normalize(float3(cb, sqrt(max(0.0, 1.0 - min(dot(cb, cb), 1.0))) + 0.3));
+        float3 cc = base * 1.05 * (0.5 + 0.7 * max(0.0, dot(cn, normalize(float3(-0.25, 0.8, 0.55)))));
+        cc = mix(cc, base * 0.4 + float3(0.6, 0.55, 0.45), smoothstep(0.02, 0.16, cq.y) * step(claw, arm) * 0.55);   // pale pincer tips
+        cc += float3(1.0) * pow(max(0.0, dot(cn, normalize(float3(-0.2, 0.6, 0.78)))), 18.0) * 0.3 * step(claw, arm);
+        if (arm < claw) cc = base * (0.6 + 0.5 * smoothstep(0.03, -0.04, arm));
+        c3 = mix(c3, cc, ca); a = max(a, ca);
+    }
+    float al = a * color.a;
+    float shA = sh * (1.0 - a) * color.a;
+    return float4(c3 * al, al + shA);
+}
+
 """#

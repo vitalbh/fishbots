@@ -135,13 +135,19 @@ final class PackCreature: Creature {
                     if o.wait <= 0 {
                         o.moving = 1
                         let next = o.pos.x + o.dir * k.speed * dt
-                        if next < w * 0.06 || next > w * 0.94 || (t.scenery.blocks(t, next) && !t.scenery.blocks(t, o.pos.x)) { o.dir = -o.dir }
+                        // (it walks up front on the floor, see below: only the edges and the heaps of pearls turn it)
+                        func heap(_ x: Float) -> Bool { t.pearls.heaps.contains { abs(x - $0.at.x) < $0.half + k.size * 0.6 } }
+                        if next < w * 0.06 || next > w * 0.94 || (heap(next) && !heap(o.pos.x)) { o.dir = -o.dir }
                         else { o.pos.x = next }
                         o.phase += dt * max(1, k.speed / 4)
                         if Float.random(in: 0...1) < dt * 0.25 { o.wait = Float.random(in: 1.5...5); if Bool.random() { o.dir = -o.dir } }
                     } else { o.moving = 0; o.phase += dt * 0.3 }
                 } else { o.phase += dt * 0.4 }
-                o.pos.y = sandY(o.pos.x) + k.size * k.extent.y * 0.9          // its feet (c.y = -0.9) on the sand
+                // its feet (c.y = -0.9) on the sand. One that crawls keeps to a lane up front, on the bare floor before the
+                // scenery (which stands in rows from the back line), so it passes in front of the rocks and the chest and
+                // never over them; one that rests stays at the back line, in a gap between the pieces
+                let lane: Float = k.behavior == .crawl ? 1 - 0.2 * (2.3 + 0.7 * o.seed) : 1
+                o.pos.y = sandY(o.pos.x) * lane + k.size * k.extent.y * 0.9
                 ones[i] = o
             }
 

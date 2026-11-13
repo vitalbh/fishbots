@@ -46,6 +46,7 @@ final class Fauna {
         ("snail", { Snail() }), ("lanternfish", { Lanterns() }), ("whale", { WhaleSwimmer() }), ("grouper", { Grouper() }),
         ("anglerfish", { Anglerfish() }), ("sunfish", { Sunfish() }), ("manatee", { Manatee() }), ("seahorses", { Seahorses() }),
         ("corydoras", { Corydoras() }),
+        ("pufferling", { Pufferling() }), ("gulper", { GulperEel() }),
     ]
 
     static func register(_ id: String, _ make: @escaping () -> Creature) {
@@ -102,17 +103,23 @@ final class Crabs: Creature {
         var goal: Float = 0
         var home: Float = 0
         var errandAt: Double = 0
+        /// Its lane on the floor (as the scenery's rows): up front, on the bare sand before the rocks and the chest,
+        /// so it walks in front of them and never over them.
+        var row: Float = 2.6
     }
     private var crabs: [Crab] = []
+
+    /// Where a crab's feet are: its lane on the floor.
+    private func floorY(_ t: Tank, _ c: Crab) -> Float { t.size.y * t.sand(c.x / max(1, t.size.x)) * (1 - 0.2 * c.row) }
 
     func update(_ t: Tank, dt: Float) {
         let w = t.size.x
         if crabs.isEmpty {
             crabs = [Crab(x: w * 0.3, dir: 1, color: [0.85, 0.35, 0.22]),
-                     Crab(x: w * 0.66, dir: -1, until: t.time + 20, color: [0.9, 0.5, 0.25])]
+                     Crab(x: w * 0.66, dir: -1, until: t.time + 20, color: [0.9, 0.5, 0.25], row: 3.0)]
         }
-        // one that ended up on the scenery (a theme change, a resize) walks off it
-        for i in crabs.indices where t.scenery.blocks(t, crabs[i].x) && crabs[i].buried < 0.5 { crabs[i].x += crabs[i].dir * 40 * dt }
+        // (the heaps of pearls lie up front too: a crab turns around at one, unless that's where its errand takes it)
+        func heap(_ x: Float) -> Bool { t.pearls.heaps.contains { abs(x - $0.at.x) < $0.half + 12 } }
         for i in crabs.indices {
             var c = crabs[i]
             c.phase += dt
@@ -128,7 +135,7 @@ final class Crabs: Creature {
                 c.dir = c.goal >= c.x ? 1 : -1
                 c.x += c.dir * 30 * dt
                 if abs(c.goal - c.x) < 4 {
-                    let y = t.size.y * t.sand(c.x / max(1, t.size.x)) + 12
+                    let y = floorY(t, c) + 12
                     switch c.errand {
                     case 1:
                         t.sparkle(at: [c.x, y], color: [1, 0.97, 0.85])
@@ -161,7 +168,7 @@ final class Crabs: Creature {
                 else if r < 0.15 {
                     c.buried = 1; c.walking = false; c.until = t.time + Double.random(in: 20...45)
                     // digs in: a little cloud of sand
-                    let y = t.size.y * t.sand(c.x / max(1, t.size.x)) + 4
+                    let y = floorY(t, c) + 4
                     for _ in 0..<4 {
                         t.addParticle(Particle(pos: [c.x + Float.random(in: -8...8), y], vel: [Float.random(in: -14...14), Float.random(in: 4...14)],
                                                life: 0, maxLife: 1.8, size: 9, grow: 8, kind: 10, color: [0.75, 0.65, 0.48, 1]))
@@ -172,8 +179,8 @@ final class Crabs: Creature {
             }
             if c.walking && c.buried < 0.5 {
                 let next = c.x + c.dir * 22 * dt
-                // the edges and the scenery: turn around instead of walking over a rock or the chest
-                if next < w * 0.14 || next > w * 0.86 || (t.scenery.blocks(t, next) && !t.scenery.blocks(t, c.x)) { c.dir = -c.dir }
+                // the edges and the pearls: turn around
+                if next < w * 0.14 || next > w * 0.86 || (heap(next) && !heap(c.x)) { c.dir = -c.dir }
                 else { c.x = next }
             }
             crabs[i] = c
@@ -183,9 +190,9 @@ final class Crabs: Creature {
     func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
         guard layer == .middle else { return [] }
         return crabs.flatMap { c -> [Sprite] in
-            let u = c.x / max(1, t.size.x)
-            let y = t.size.y * t.sand(u) + 7 - c.buried * 7
-            var out = [Sprite(pos: [c.x, y], dir: [1, 0], size: 20, kind: 14,
+            let near = 1 + 0.07 * c.row                                    // nearer the glass: a little bigger
+            let y = floorY(t, c) + (8 - c.buried * 7) * near
+            var out = [Sprite(pos: [c.x, y], dir: [1, 0], size: 20 * near, kind: 14,
                               glow: c.walking ? 1 : 0, phase: c.phase, color: SIMD4(c.color * (0.55 + 0.45 * t.light), 1 - c.buried * 0.75),
                               extra: [1, 0, 0, 0])]
             // carrying: a little shiny pearl held up over its shell
@@ -201,14 +208,15 @@ final class Crabs: Creature {
 /// Starfish in the sand: they just move an arm now and then.
 final class Starfish: Creature {
     let id = "starfish"
-    private var stars: [(u: Float, phase: Float, color: SIMD3<Float>)] = [(0.42, 0, [0.95, 0.5, 0.35]), (0.57, 2, [0.85, 0.4, 0.6])]
+    private var stars: [(u: Float, phase: Float, color: SIMD3<Float>)] = [(0.445, 0, [0.95, 0.5, 0.35]), (0.6, 2, [0.85, 0.4, 0.6])]
 
     func update(_ t: Tank, dt: Float) { for i in stars.indices { stars[i].phase += dt } }
 
     func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
         guard layer == .middle else { return [] }
         return stars.map { (u, phase, color) in
-            Sprite(pos: [t.size.x * u, t.size.y * t.sand(u) + 3], dir: [1, 0], size: 16, kind: 17, glow: 0, phase: phase,
+            // lying on the bare sand up front, not on the clutch and the coral that stand at the back line
+            Sprite(pos: [t.size.x * u, t.size.y * t.sand(u) * (u < 0.5 ? 0.5 : 0.62) + 4], dir: [1, 0], size: 17, kind: 17, glow: 0, phase: phase,
                    color: SIMD4(color * (0.55 + 0.45 * t.light), 1), extra: [1, 0, 0, 0])
         }
     }
@@ -718,5 +726,115 @@ final class Seahorses: Creature {
             return Sprite(pos: hz.pos + [0, bob], dir: [hz.dir, 0], size: 15, kind: 13, glow: 0.1, phase: hz.phase,
                           color: SIMD4(hz.color * (0.6 + 0.4 * t.light), 1), extra: [hz.dir, 0, 0, 0])
         }
+    }
+}
+
+/// The lagoon's little puffer: it potters low among the seagrass, and when the mouse comes near it takes fright
+/// and blows itself up into a spiny ball, hangs there bobbing, and lets the air out once it's been left alone.
+final class Pufferling: Creature {
+    let id = "pufferling"
+    private var pos: SIMD2<Float>?
+    private var goal: SIMD2<Float> = .zero
+    private var dir: Float = 1
+    private var phase: Float = 0
+    private var puff: Float = 0             // 0 slack … 1 a ball
+    private var calmAt: Double = 0          // when it dares let the air out
+    private var pause: Float = 0
+
+    private func spot(_ t: Tank) -> SIMD2<Float> {
+        [t.size.x * Float.random(in: 0.18...0.86), t.size.y * Float.random(in: 0.2...0.42)]
+    }
+
+    func update(_ t: Tank, dt: Float) {
+        guard t.size.x > 10 else { return }
+        if pos == nil { pos = spot(t); goal = spot(t) }
+        guard var p = pos else { return }
+        phase += dt
+        // the mouse near (and moving about, not parked there): a fright
+        let near = t.cursor.map { simd_distance($0, p) < 95 && t.time - t.cursorAt < 3 } ?? false
+        if near {
+            if puff < 0.05 { for _ in 0..<3 { t.bubble(at: p + [dir * 12, 4], size: Float.random(in: 1.4...2.4)) } }
+            calmAt = t.time + 2.5
+        }
+        let want: Float = t.time < calmAt ? 1 : 0
+        puff += (want - puff) * min(1, dt * (want > puff ? 9 : 1.6))
+        if puff > 0.3 {
+            // a ball can't swim: it drifts up a little and bobs, edging away from the mouse
+            if let c = t.cursor, near { p.x += (p.x > c.x ? 1 : -1) * 10 * dt }
+            p.y += (6 * puff + sinf(phase * 2.2) * 5) * dt
+            goal = [p.x + dir * 60, max(t.size.y * 0.2, p.y - 50)]
+        } else if pause > 0 {
+            pause -= dt
+        } else {
+            let d = goal - p
+            if simd_length(d) < 6 {
+                goal = spot(t)
+                pause = Float.random(in: 0.5...3)
+            } else {
+                p += simd_normalize(d) * 15 * dt
+                if abs(d.x) > 4 { dir = d.x > 0 ? 1 : -1 }
+            }
+        }
+        p.x = max(t.size.x * 0.06, min(t.size.x * 0.94, p.x))
+        p.y = max(t.size.y * 0.16, min(t.size.y * 0.8, p.y))
+        pos = p
+    }
+
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
+        guard layer == .middle, let p = pos else { return [] }
+        let kind = Float(FishKinds.index(of: "pufferling"))
+        let col = SIMD3<Float>(0.8, 0.7, 0.36) * (0.5 + 0.5 * t.light)
+        let bob: SIMD2<Float> = [0, sinf(phase * 1.3) * 2]
+        // blown up it's bigger too; slack, it tilts a little the way it potters
+        return [Sprite(pos: p + bob, dir: [dir, 0], size: 21 * (1 + 0.3 * puff), kind: 0, glow: 0, phase: phase * (puff > 0.3 ? 5 : 3),
+                       color: SIMD4(col, 1), extra: [dir, 100 + puff, kind, 0], aux: [0, 0, 0, 0])]
+    }
+}
+
+/// The deep sea's rare visitor: a gulper eel crossing in the dark, all mouth and a whip of a tail with a little pink
+/// light at its end, which the marine snow around it catches.
+final class GulperEel: Creature {
+    let id = "gulper"
+    private var pos: SIMD2<Float>?
+    private var dir: Float = 1
+    private var y0: Float = 0
+    private var phase: Float = 0
+    private var next: Double?
+    private let size: Float = 40
+    func summon(_ t: Tank) -> Bool { next = t.time; return true }
+
+    func update(_ t: Tank, dt: Float) {
+        let w = t.size.x, h = t.size.y
+        if next == nil { next = t.time + Double.random(in: 60...240) * Tank.scale }
+        if pos == nil, let n = next, t.time > n {
+            next = t.time + Double.random(in: 420...1100) * Tank.scale * t.visitGap
+            dir = Bool.random() ? 1 : -1
+            y0 = h * Float.random(in: 0.3...0.62)
+            pos = [dir > 0 ? -size * 3 : w + size * 3, y0]
+        }
+        guard var p = pos else { return }
+        phase += dt
+        p.x += dir * 17 * dt
+        p.y = y0 + sinf(phase * 0.2) * h * 0.035
+        pos = p
+        if p.x < -size * 3.5 || p.x > w + size * 3.5 { pos = nil }
+    }
+
+    /// The end of its tail, where the light is.
+    private func tailTip(_ p: SIMD2<Float>) -> SIMD2<Float> {
+        p + [-dir * size * 2.2, size * 0.9 * (0.02 + sinf(phase * 2.4 * 0.8 + 2.2 * 1.7) * 0.3) / 0.9]
+    }
+
+    func sprites(_ t: Tank, layer: FaunaLayer) -> [Sprite] {
+        guard layer == .background, let p = pos else { return [] }
+        let kind = Float(FishKinds.index(of: "gulper"))
+        let col = SIMD3<Float>(0.3, 0.42, 0.6) * (0.5 + 0.5 * t.light)
+        return [Sprite(pos: p, dir: [dir, 0], size: size, kind: 0, glow: 0, phase: phase * 2.4,
+                       color: SIMD4(col, 1), extra: [dir, 0, kind, 0], aux: [0, 0, 0, 0])]
+    }
+
+    func lamps(_ t: Tank) -> [Lamp] {
+        guard let p = pos else { return [] }
+        return [Lamp(pos: tailTip(p), radius: 70, color: [1.0, 0.45, 0.6], strength: 0.5)]
     }
 }

@@ -292,8 +292,10 @@ final class Scene {
 
     private func ground(_ p: Presence, _ t: Tank) -> Float {
         let u = p.pos.x / max(1, t.size.x)
-        let lift: Float = p.kind.sprite == 6 ? 2 : p.kind.motion == .walk ? 7 : 1
-        return t.size.y * t.sand(u) + lift
+        let lift: Float = p.kind.sprite == 6 ? 2 : p.kind.motion == .walk ? 8 : 1
+        // one that walks keeps to a lane up front on the floor, before the scenery: it passes in front of the rocks
+        // and the chest, never over them
+        return t.size.y * t.sand(u) * (p.kind.motion == .walk ? 1 - 0.2 * 2.8 : 1) + lift
     }
 
     private func setState(_ p: Presence, _ s: State, _ t: Tank) {
@@ -396,7 +398,7 @@ final class Scene {
                 if abs(p.pos.x - home) > 70 { p.dir = p.pos.x > home ? -1 : 1 }
                 if p.state != .idle && p.state != .error && p.state != .waiting {
                     let next = p.pos.x + p.dir * 22 * pace * dt
-                    if t.scenery.blocks(t, next) && !t.scenery.blocks(t, p.pos.x) { p.dir = -p.dir } else { p.pos.x = next }
+                    p.pos.x = next
                 }
                 p.pos.y = ground(p, t)
             case .glass:
