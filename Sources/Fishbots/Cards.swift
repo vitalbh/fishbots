@@ -59,6 +59,9 @@ final class Cards: NSObject, NSPopoverDelegate {
         popover.contentViewController = cardContent(f, pinned: true)
     }
 
+    /// For the test route: the open card as if it had been dragged off its fish.
+    func pinHoverCardForTest() { if let p = hoverCard { popoverDidDetach(p) } }
+
     func popoverDidClose(_ notification: Notification) {
         guard let pop = notification.object as? NSPopover else { return }
         pinned = pinned.filter { $0.value.pop !== pop }

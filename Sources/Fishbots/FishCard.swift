@@ -334,9 +334,9 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
         }
         // launched by another session: its leader (a click opens the leader's card)
         if let l = leader {
-            tags.append(tag(link("↳ " + (l.nickname ?? l.displayTitle ?? l.label).prefix(14), tip: tr("quem lançou esta sessão")) { [weak self] in
+            tags.append(tag(link("↳ " + (l.nickname ?? l.displayTitle ?? l.label), tip: tr("quem lançou esta sessão")) { [weak self] in
                 self?.visit?(l)
-            }))
+            }, widest: 170))
         }
         let place = (f.sub?.isEmpty == false ? f.sub! : (f.isAgent ? species : ""))
         if !place.isEmpty {
@@ -348,9 +348,26 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
             }))
         }
         guard !tags.isEmpty else { return [] }
-        let r = NSStackView(views: tags)
-        r.spacing = 6
-        return [r]
+        // as many to a line as fit, the rest on the next line (one long stack squeezed a tag to a letter a line)
+        var lines: [[NSView]] = [[]]
+        var used: CGFloat = 0
+        for t in tags {
+            let w = t.fittingSize.width
+            if !lines[lines.count - 1].isEmpty && used + 6 + w > width { lines.append([]); used = 0 }
+            used += (lines[lines.count - 1].isEmpty ? 0 : 6) + w
+            lines[lines.count - 1].append(t)
+        }
+        let rows = lines.map { l -> NSView in
+            let r = NSStackView(views: l)
+            r.spacing = 6
+            return r
+        }
+        if rows.count == 1 { return rows }
+        let col = NSStackView(views: rows)
+        col.orientation = .vertical
+        col.alignment = .leading
+        col.spacing = 5
+        return [col]
     }
 
     /// What it says: the question, highlighted; then the last reply.
@@ -673,7 +690,18 @@ final class FishCard: NSViewController, NSTextFieldDelegate {
     private func divider() -> NSView { WaveLine(width: width, tint: tint) }
 
     /// A link on a soft rounded patch (where it runs).
-    private func tag(_ link: NSButton) -> NSView {
+    /// No wider than `widest` (or the card): a longer one is cut in the middle with an ellipsis, on one line.
+    private func tag(_ link: NSButton, widest: CGFloat? = nil) -> NSView {
+        link.cell?.lineBreakMode = .byTruncatingMiddle
+        link.cell?.usesSingleLineMode = true
+        link.cell?.wraps = false
+        let title = NSMutableAttributedString(attributedString: link.attributedTitle)
+        let para = NSMutableParagraphStyle()
+        para.lineBreakMode = .byTruncatingMiddle
+        title.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: title.length))
+        link.attributedTitle = title
+        link.widthAnchor.constraint(lessThanOrEqualToConstant: min(widest ?? width, width) - 16).isActive = true
+        link.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let box = NSStackView(views: [link])
         box.edgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
         box.wantsLayer = true

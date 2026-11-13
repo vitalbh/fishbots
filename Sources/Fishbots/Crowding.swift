@@ -21,7 +21,8 @@ final class Crowding {
     private var fannedUntil: [String: Double] = [:]
 
     func update(_ t: Tank) {
-        let agents = t.fish.filter { $0.isAgent && !$0.decor && !$0.leaving }
+        // (in the small tank, only the ones shown: it holds a few, and the hidden ones mustn't lead a shoal)
+        let agents = t.fish.filter { $0.isAgent && !$0.decor && !$0.leaving && !t.isHidden($0) }
         if agents.count >= Self.onAt { on = true } else if agents.count <= Self.offAt { on = false }
         shoals = [:]
         homes = [:]
@@ -89,8 +90,8 @@ extension Tank {
         let lead = mates[0]
         let open: Float = crowding.fanned(f.projectKey) ? 2.6 : 1
         let a = Float(i) * 2.39996 + Float(time) * 0.28
-        let r = (lead.size * 0.95 + 10) * sqrtf(Float(i)) * open * (1 + 0.25 * sinf(Float(time) * 0.6 + Float(i)))
-        let sway = SIMD2(cosf(Float(time) * 0.9 + Float(f.phase)), sinf(Float(time) * 1.2 + Float(f.phase))) * 14
+        let r = (drawn(lead) * 0.95 + 10 * pace) * sqrtf(Float(i)) * open * (1 + 0.25 * sinf(Float(time) * 0.6 + Float(i)))
+        let sway = SIMD2(cosf(Float(time) * 0.9 + Float(f.phase)), sinf(Float(time) * 1.2 + Float(f.phase))) * 14 * pace
         var place = lead.pos + SIMD2(cosf(a), sinf(a) * 0.7) * r + sway
         place.y = max(size.y * 0.25, min(size.y * 0.9, place.y))
         place.x = max(size.x * 0.06, min(size.x * 0.94, place.x))

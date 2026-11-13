@@ -569,10 +569,24 @@ final class Tank {
         // who needs you; the agent sessions at work, and for a couple of minutes after their last sign of life (a
         // session goes quiet between one tool and the next: its fish shouldn't blink in and out); and, whatever its
         // state, the agent session you were last working with, so the tank always has the one you're on
-        if [.waiting, .error, .alert].contains(f.state) { return false }
-        guard f.isAgent, !f.leaving else { return true }
-        return !(f.state == .busy || time - f.seen < 120 * Self.scale || f.id == widgetLatest)
+        guard mayShow(f) else { return true }
+        // and of those, only as many as the small tank holds (SmallTank.swift)
+        if widgetShownAt != time {
+            widgetShownAt = time
+            widgetShownIDs = widgetShown(fish.filter { !$0.decor && $0.source != NowPlaying.source && mayShow($0) }, latest: widgetLatest)
+        }
+        return !widgetShownIDs.contains(f.id)
     }
+
+    private func mayShow(_ f: Fish) -> Bool {
+        if [.waiting, .error, .alert].contains(f.state) { return true }
+        guard f.isAgent, !f.leaving else { return false }
+        return f.state == .busy || time - f.seen < 120 * Self.scale || f.id == widgetLatest
+    }
+    /// The widget's shown fish, computed once a frame, and when each one came in (SmallTank.swift).
+    private var widgetShownAt: Double = -1
+    private var widgetShownIDs: Set<String> = []
+    var widgetSince: [String: Double] = [:]
 
     /// The agent session heard from last (the one you're working with, most likely): it stays in the widget's tank.
     private var widgetLatest: String? { fish.filter { $0.isAgent && !$0.decor && !$0.leaving }.max { $0.seen < $1.seen }?.id }
@@ -900,7 +914,7 @@ final class Tank {
         // chats: two fish from the same project, idle and awake, meet snout to snout
         if time > nextChat {
             nextChat = time + Double.random(in: 25...50)
-            let freeSlots = fish.filter { !$0.decor && !$0.leaving && $0.isAgent && ($0.state == .idle || $0.state == .ok) && !sleeping($0) && $0.chattingWith == nil }
+            let freeSlots = fish.filter { !$0.decor && !$0.leaving && $0.isAgent && !isHidden($0) && ($0.state == .idle || $0.state == .ok) && !sleeping($0) && $0.chattingWith == nil }
             for a in freeSlots {
                 if let b = freeSlots.first(where: { $0 !== a && $0.label == a.label && $0.source == a.source && $0.chattingWith == nil }) {
                     a.chattingWith = b.id; b.chattingWith = a.id
@@ -918,7 +932,7 @@ final class Tank {
         if let b = game, time > b.until { game = nil }
         if game == nil && light < 0.75 && time > nextGame {
             nextGame = time + Double.random(in: 70...140)
-            let freeSlots = fish.filter { !$0.leaving && !sleeping($0) && ($0.decor ? $0.parent == nil && $0.phase % 100 != 0 : ($0.state == .idle || $0.state == .ok)) }
+            let freeSlots = fish.filter { !$0.leaving && !sleeping($0) && !isHidden($0) && ($0.decor ? $0.parent == nil && $0.phase % 100 != 0 : ($0.state == .idle || $0.state == .ok)) }
             if freeSlots.count >= 2 {
                 let stopFn = freeSlots.shuffled().prefix(2)
                 game = (stopFn.first!.id, stopFn.last!.id, time + 18)
@@ -975,8 +989,10 @@ final class Tank {
         for i in fish.indices {
             for j in fish.indices where j > i {
                 let a = fish[i], b = fish[j]
+                // (in the small tank, a fish that isn't shown doesn't shove the ones that are; sizes as drawn)
+                if compact && (isHidden(a) || isHidden(b)) { continue }
                 let d = a.pos - b.pos
-                let minD = (a.decor || b.decor) ? (a.size + b.size) * 0.9 : (a.size + b.size) * 1.6
+                let minD = (drawn(a) + drawn(b)) * ((a.decor || b.decor) ? 0.9 : 1.6)
                 let l = simd_length(d)
                 if l < minD && l > 0.01 {
                     let push = d / l * (minD - l) * 0.5 * min(1, dt * 8)
