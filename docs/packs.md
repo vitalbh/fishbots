@@ -79,6 +79,8 @@ Rules that keep a pack working:
 - Name functions after the pack (`draw_sunkenship_anchor`): every pack shares one shader, and two functions with the
   same name break both packs.
 - Stay inside the quad: what goes past ±1 is cut off with a straight edge. Fade glows out before the edge.
+- Measure the edge (`fwidth(d)`) before any early `return float4(0.0)` that sits close to the shape: a return placed
+  before it shows as a thin straight line where the drawing is cut.
 - Several pieces can share one `.metal` file; it goes into the shader once.
 
 A fish can say how it swims with `"swim"` (everything optional):

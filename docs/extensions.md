@@ -157,7 +157,7 @@ A pack theme can draw its own far background and give the built-in pieces anothe
     safe) and `"chest": "fish-trap"` (a woven fishermen's trap), for the chest piece and the chest presence. Built-in
     scenery only for themes that list it: `helmet` (an old diving helmet on the sand), `wreck` (a sunken ship far away)
     and `mangrove` (prop roots coming down at the sides). Built-in creatures for a theme's `fauna`: `anglerfish`,
-    `sunfish`, `manatee`, `seahorses`.
+    `sunfish`, `manatee`, `seahorses`, `pufferling` (a little puffer that blows up when the mouse comes near), `gulper` (a gulper eel, a rare visitor).
   - a **fish kind** (`"oval": "koi"`): the fish of that kind are drawn as the pack's fish. A kind someone picked by hand
     in the fish menu stays as picked. `"betta"` is the music fish (it keeps dancing and letting out notes);
     `"lanternfish"` the night lanternfish;
@@ -287,7 +287,7 @@ behaviors, with parameters. Only themes that list it get it.
 |---|---|---|
 | `cross` | swims across the tank now and then, at `height`, every `every` seconds | the turtle |
 | `pass` | rare, far away in the background, faded by the water | the whale |
-| `crawl` | walks on the sand (its feet at c.y ≈ -0.9), stops, turns around at the edges and the scenery | the crab |
+| `crawl` | walks on the sand (its feet at c.y ≈ -0.9), stops, turns around at the edges; it keeps to the bare sand up front, so it passes in front of the scenery, never over it | the crab |
 | `rest` | stays on the sand, barely moving | the starfish |
 | `glass` | climbs up and down the glass (its drawing's +x points the way it goes) | the snail |
 | `drift` | floats, rising and sinking slowly, at `height` | a jellyfish |
