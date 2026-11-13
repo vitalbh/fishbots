@@ -365,3 +365,79 @@ float4 draw_amazon_cardinal(float2 c, float phase, float glow, float4 col, float
     float halo = glow * exp(-max(d, 0.0) * 12.0) * edge * (1.0 - a) * col.a;
     return float4(c3 * al + col.rgb * halo, min(al + halo * 0.55, 1.0));
 }
+
+// How deep the hatchetfish's body hangs under its back line at x: nothing at the snout, the keel's lowest point
+// under the chest, then a straight climb to the thin tail stock.
+float amazon_hatchet_depth(float x) {
+    float front = sqrt(max(0.0, 1.0 - pow(max(x - 0.2, 0.0) / 0.6, 2.0)));
+    float u = clamp((0.2 - x) / 0.62, 0.0, 1.0);
+    float rear = mix(1.0, 0.14, pow(u, 1.7));
+    return 0.9 * (x > 0.2 ? front : rear);
+}
+
+// Marbled hatchetfish (Carnegiella strigata), the fish of the surface: a straight back, a chest and belly as deep as
+// a hatchet's blade, long pectoral fins held out and up like wings (they beat with the swim), a small upturned mouth,
+// a forked tail; silver-gold in the school's color, a golden line along the flank and dark marbled bands slanting
+// across the keel. The quad is 1.15 × 0.9.
+float4 draw_amazon_hatchetfish(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.15, 0.9);
+    float asleep = step(1.5, extra.w);
+    p.y -= sin(phase - p.x * 2.4) * 0.05 * smoothstep(-0.1, -1.0, p.x);
+    float top = 0.36 - 0.13 * pow(smoothstep(0.42, 0.84, p.x), 2.0) - 0.05 * smoothstep(-0.2, -0.75, p.x);
+    float h = amazon_hatchet_depth(p.x);
+    float yb = top - h;
+    float body = max(max(p.y - top, yb - p.y), max(p.x - 0.8, -0.56 - p.x));
+    float2 tq = p - float2(-0.54, top - 0.07 + sin(phase - 1.2) * 0.04);
+    float tail = sd_tri(tq, float2(0.08, 0.0), float2(-0.42, 0.3), float2(-0.42, -0.3));
+    tail = max(tail, -amazon_ell(tq, float2(-0.47, 0.0), float2(0.22, 0.12))) - 0.012;
+    float dors = sd_tri(p, float2(-0.2, top - 0.02), float2(-0.44, top - 0.04), float2(-0.42, top + 0.13)) - 0.012;
+    float anal = sd_tri(p, float2(-0.13, top - amazon_hatchet_depth(-0.13) + 0.03), float2(-0.49, top - 0.13),
+                        float2(-0.43, top - 0.42)) - 0.012;
+    // the wing: a long blade from behind the gill, swept back and up over the back, beating
+    float wa = 0.62 + sin(phase * 1.6) * 0.2;
+    float2 wq = amazon_rot(p - float2(0.3, top - 0.4), wa);
+    float wing = amazon_ell(wq, float2(-0.4, 0.0), float2(0.42, 0.13 * (0.3 + 0.7 * smoothstep(0.05, -0.55, wq.x))));
+    wing = max(wing, wq.x - 0.02);
+    float fins = min(min(tail, dors), anal);
+    float d = min(min(body, fins), wing);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    if (a <= 0.0 && glow <= 0.0) return float4(0.0);
+    float3 silver = mix(col.rgb, float3(0.95, 0.93, 0.86), 0.45) * 1.08;
+    float3 dark = mix(col.rgb * 0.16, float3(0.12, 0.08, 0.04), 0.6);
+    float3 c3;
+    float al = a;
+    if (body < 0.0) {
+        float yn = (p.y - top) / max(h, 0.08);                // 0 at the back, -1 at the keel's edge
+        c3 = mix(silver, col.rgb * float3(0.5, 0.46, 0.3), smoothstep(-0.2, 0.0, yn) * 0.85);     // olive back
+        // marbling: dark bands slanting down and forward across the blade, broken by noise
+        float s = (p.x + p.y - top) * 14.0 + (vnoise(p * 6.0 + 3.0) - 0.5) * 3.0;
+        float band = smoothstep(0.35, 0.7, sin(s) * 0.5 + 0.5) * smoothstep(-0.16, -0.3, yn);
+        band *= smoothstep(0.5, 0.36, p.x) * (0.6 + 0.4 * vnoise(p * 12.0));
+        c3 = mix(c3, dark, band * 0.85);
+        // the golden line from the gill to the tail, a dark one under it
+        float ly = p.y - (top - 0.1 - 0.02 * smoothstep(0.2, 0.7, p.x));
+        float on = smoothstep(0.52, 0.4, p.x);
+        c3 = mix(c3, dark, (1.0 - smoothstep(0.012, 0.035, abs(ly + 0.04))) * on * 0.8);
+        c3 = mix(c3, float3(1.0, 0.86, 0.42), (1.0 - smoothstep(0.012, 0.03, abs(ly))) * on);
+        c3 = fish_round(c3 * 1.08, float2((p.x - 0.1) / 0.75, yn * 2.0 + 1.0), body);
+        c3 *= 1.0 - 0.3 * smoothstep(0.02, 0.0, abs(length((p - float2(0.28, top - 0.2)) / float2(0.16, 0.24)) - 1.0) * 0.16) * step(0.28, p.x);   // gill cover
+        c3 = mix(c3, dark, 1.0 - smoothstep(0.008, 0.02, sd_seg(p, float2(0.785, top - 0.1), float2(0.7, top - 0.17))));    // upturned mouth
+        c3 = fish_eye(c3, p, float2(0.56, top - 0.2), 0.09, float3(0.9, 0.8, 0.5), asleep);
+    } else {
+        c3 = mix(silver, float3(0.95, 0.9, 0.75), 0.4);
+        al *= 0.45;
+    }
+    if (wing < 0.0) {
+        float rays = 0.8 + 0.2 * sin(wq.y / max(0.02, -wq.x + 0.06) * 60.0);
+        float3 w3 = mix(silver, float3(1.0, 0.97, 0.88), 0.5) * rays;
+        float wal = (0.62 + 0.2 * smoothstep(-0.02, 0.0, wing)) * (1.0 - smoothstep(-aa, aa, wing));
+        c3 = mix(c3, w3, body < 0.0 ? wal : 1.0);
+        al = body < 0.0 ? a : max(al, wal * a);
+    }
+    c3 += col.rgb * glow * 0.45;
+    al *= col.a;
+    float edge = 1.0 - smoothstep(0.6, 1.0, max(abs(c.x), abs(c.y)));
+    float halo = glow * exp(-max(d, 0.0) * 12.0) * edge * (1.0 - a) * col.a;
+    return float4(c3 * al + col.rgb * halo, min(al + halo * 0.55, 1.0));
+}

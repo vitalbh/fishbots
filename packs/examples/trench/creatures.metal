@@ -346,3 +346,106 @@ float4 draw_trench_lantern(float2 c, float phase, float glow, float4 col, float4
     float alpha = max(a, ph * 0.6) + halo * 0.55 * (1.0 - a);
     return float4(rgb * col.a, min(alpha, 1.0) * col.a);
 }
+
+// A tripod fish (Bathypterois), facing +x into the current: it stands still on the floor on three long stiff fin
+// rays (the two pelvic fins and the lower lobe of the tail, each about as long as the body), its slim pale body held
+// well above the sand, and its long thin pectoral rays raised and spread forward and up like antennae, feeling the
+// water. Tiny eyes. It sways very slightly (phase). p = c * (1.3, 1.0); the floor at p.y = -0.9.
+float4 draw_trench_tripod(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.3, 1.0);
+    float gy = -0.9;
+    if (p.y < gy - 0.07) return float4(0.0);
+    // the sway: the feet stay put, the body leans a little with the current and comes back
+    float lean = sin(phase * 1.3 + extra.y * 6.0) * 0.022 + sin(phase * 2.9) * 0.006;
+    float2 q = p;
+    q.x -= lean * (p.y - gy) / 0.85;
+    float by = -0.04 + sin(phase * 0.9) * 0.008;
+    // the body: slim, deepest behind the head, a long tail stock; a flattened head with a pointed snout
+    float2 bc = float2(0.08, by);
+    float taper = mix(0.42, 1.0, smoothstep(-0.62, 0.2, q.x));
+    float ry = 0.125 * taper;
+    float2 b = (q - bc) / float2(0.7, ry);
+    float body = (length(b) - 1.0) * ry;
+    float snout = sd_tri(q, float2(0.5, by + 0.085), float2(0.5, by - 0.09), float2(0.9, by - 0.03)) - 0.025;
+    body = smin_k(body, snout, 0.06);
+    // the three legs: stiff rays, a little bowed, thicker where they leave the body; the far pelvic ray behind
+    float2 hip = float2(0.24, by - 0.09), tb = float2(-0.58, by - 0.02);
+    float2 f1 = float2(0.74, gy), f2 = float2(0.5, gy), f3 = float2(-1.06, gy);
+    float2 k1 = mix(hip, f1, 0.5) + float2(0.035, 0.02), k3 = mix(tb, f3, 0.5) + float2(-0.04, 0.03);
+    float h1 = clamp((hip.y - p.y) / (hip.y - gy), 0.0, 1.0);
+    float leg1 = min(sd_seg(q, hip, k1), sd_seg(q, k1, f1)) - mix(0.03, 0.017, h1);
+    float2 k2 = mix(hip, f2, 0.5) + float2(0.02, 0.02);
+    float leg2 = min(sd_seg(q, hip - float2(0.07, -0.01), k2), sd_seg(q, k2, f2)) - mix(0.026, 0.015, h1);
+    float leg3 = min(sd_seg(q, tb, k3), sd_seg(q, k3, f3)) - mix(0.032, 0.017, h1);
+    float legs = min(leg1, leg3);
+    // the upper lobe of the tail and the small fins on the back and under the stock
+    float tailUp = sd_tri(q, tb + float2(0.06, 0.03), tb + float2(-0.3, 0.26), tb + float2(-0.2, 0.0)) - 0.012;
+    float dors = sd_tri(q, float2(0.12, by + 0.1), float2(-0.16, by + 0.085), float2(-0.1, by + 0.25)) - 0.012;
+    float anal = sd_tri(q, float2(-0.2, by - 0.08), float2(-0.42, by - 0.05), float2(-0.4, by - 0.2)) - 0.01;
+    float fins = min(min(tailUp, dors), anal);
+    // the antennae: pectoral rays fanned forward and up from behind the head, each one swaying on its own
+    float ant = 1e3, antT = 0.0;
+    float2 sh = float2(0.4, by + 0.03);
+    for (int i = 0; i < 4; i++) {
+        float fi = float(i);
+        float ang = 0.3 + fi * 0.3 + sin(phase * 2.1 + fi * 1.7 + extra.y * 4.0) * 0.08 + lean * 2.0;
+        float len = 0.98 - 0.07 * fi;
+        float2 dir = float2(cos(ang), sin(ang));
+        // each ray an arc: up from the shoulder, bending forward to its tip
+        float2 ctl = sh + dir * len * 0.5 + float2(-dir.y, dir.x) * 0.2;
+        float2 tip = sh + dir * len + float2(sin(phase * 1.7 + fi * 2.3) * 0.03, 0.0);
+        float2 prev = sh;
+        for (int j = 1; j <= 5; j++) {
+            float t = float(j) / 5.0;
+            float2 pt = mix(mix(sh, ctl, t), mix(ctl, tip, t), t);
+            float2 pa = q - prev, ba = pt - prev;
+            float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+            float along = (float(j) - 1.0 + h) / 5.0;
+            float dd = length(pa - ba * h) - mix(0.02, 0.01, along);
+            if (dd < ant) { ant = dd; antT = along; }
+            prev = pt;
+        }
+    }
+    float back = min(min(leg2, ant), fins);
+    float d = min(min(body, legs), back);
+    float aa = fwidth(d) + 1e-4;
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    // the contact shadows under the three ray tips
+    float shd = 0.0;
+    shd += exp(-pow((p.x - f1.x) / 0.1, 2.0)) + exp(-pow((p.x - f2.x) / 0.08, 2.0)) * 0.7 + exp(-pow((p.x - f3.x) / 0.1, 2.0));
+    shd *= (1.0 - smoothstep(0.0, 0.035, abs(p.y - gy + 0.012))) * 0.45;
+    if (a <= 0.001 && shd <= 0.003) return float4(0.0);
+    float3 pale = col.rgb;
+    float3 c3;
+    float al = 1.0;
+    if (body <= min(legs, back)) {
+        c3 = mix(pale, pale * float3(0.72, 0.66, 0.74), smoothstep(0.3, -0.6, q.x) * 0.6);          // duskier toward the tail
+        c3 *= 0.93 + 0.14 * vnoise(q * float2(9.0, 22.0) + extra.y * 5.0);
+        c3 = fish_round(c3 * 1.12, float2(b.x * 0.8, clamp((q.y - by) / max(ry, 0.03), -1.0, 1.0) * 0.95), body);
+        // the gill cover, the long mouth, the tiny eye
+        float garc = abs(length((q - float2(0.5, by)) * float2(1.0, 0.75)) - 0.11);
+        c3 *= 1.0 - (1.0 - smoothstep(0.004, 0.016, garc)) * step(q.x, 0.5) * 0.22;
+        float mouth = abs(q.y - (by - 0.045 + (q.x - 0.7) * 0.08)) - 0.007;
+        c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.012, mouth)) * step(0.62, q.x) * 0.5;
+        float re = length(q - float2(0.66, by + 0.035));
+        c3 = mix(c3, float3(0.02, 0.02, 0.04), 1.0 - smoothstep(0.016, 0.028, re));
+        c3 += float3(0.8) * (1.0 - smoothstep(0.003, 0.01, length(q - float2(0.667, by + 0.043))));
+    } else if (legs <= back) {
+        // the standing rays: pale and bony, lit down one side, darker toward the sand
+        c3 = pale * (0.74 + 0.3 * smoothstep(gy, by, p.y));
+        c3 += pale * 0.2 * smoothstep(-0.006, -0.02, d);
+    } else if (ant <= min(leg2, fins)) {
+        c3 = pale * mix(0.82, 1.08, antT);                                                      // fine, catching light at their tips
+        al = mix(0.95, 0.75, antT);
+    } else if (leg2 <= fins) {
+        c3 = pale * 0.55;                                                                       // the far leg, in shade
+    } else {
+        float2 rr = q - tb;
+        c3 = pale * float3(0.7, 0.64, 0.72) * (0.85 + 0.15 * cos(atan2(rr.y, -rr.x) * 24.0));
+        al = 0.8;
+    }
+    c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.02, -d)) * 0.15 * step(body, 0.0);
+    a *= al * smoothstep(gy - 0.012, gy + 0.004, p.y);
+    float alpha = a + shd * (1.0 - a);
+    return float4(c3 * a * col.a, alpha * col.a);
+}

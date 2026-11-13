@@ -4,12 +4,12 @@
   "names": {
     "en": "Abyssal trench"
   },
-  "version": "1.2",
+  "version": "1.3",
   "author": "Fishbots",
   "license": "MIT",
-  "description": "O fundo de uma fossa, onde a luz do dia nunca chega: fumarolas negras com rachaduras em brasa, vermes tubulares, penas-do-mar que acendem em ondas, a carcaça de uma baleia, ctenóforos com arco-íris correndo pelo corpo, um sifonóforo, o polvo-dumbo, peixes-machado e um isópode gigante. Os peixes das sessões viram peixes-lanterna com luzes na cor do projeto.",
+  "description": "O fundo de uma fossa, onde a luz do dia nunca chega: fumarolas negras com rachaduras em brasa, vermes tubulares, penas-do-mar que acendem em ondas, a carcaça de uma baleia, ctenóforos com arco-íris correndo pelo corpo, um sifonóforo, o polvo-dumbo, peixes-machado, um isópode gigante e o peixe-tripé, parado sobre três raios compridos. Os peixes das sessões viram peixes-lanterna com luzes na cor do projeto.",
   "descriptions": {
-    "en": "The bottom of a trench, where daylight never arrives: black smokers with glowing cracks, tube worms, sea pens lighting up in waves, a whale fall, comb jellies with rainbows running down them, a siphonophore, the dumbo octopus, hatchetfish and a giant isopod. Session fish become lanternfish with lights in the project's color."
+    "en": "The bottom of a trench, where daylight never arrives: black smokers with glowing cracks, tube worms, sea pens lighting up in waves, a whale fall, comb jellies with rainbows running down them, a siphonophore, the dumbo octopus, hatchetfish, a giant isopod and the tripod fish, standing still on three long rays. Session fish become lanternfish with lights in the project's color."
   },
   "themes": [
     {
@@ -33,7 +33,8 @@
         "dumbo",
         "hatchetfish",
         "isopod",
-        "yeti-crabs"
+        "yeti-crabs",
+        "tripod-fish"
       ],
       "scenery": [
         "rock",
@@ -444,6 +445,26 @@
       ],
       "speed": 7,
       "color": "#f2ecd8"
+    },
+    {
+      "id": "tripod-fish",
+      "name": "peixe-tripé",
+      "names": {
+        "en": "tripod fish"
+      },
+      "metal": "creatures.metal",
+      "function": "draw_trench_tripod",
+      "behavior": "rest",
+      "size": 34,
+      "extent": [
+        1.3,
+        1.0
+      ],
+      "count": [
+        1,
+        2
+      ],
+      "color": "#e2c8cc"
     }
   ],
   "presences": [

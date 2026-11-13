@@ -103,3 +103,110 @@ float4 draw_shrimp(float2 c, float phase, float glow, float4 col, float4 extra) 
     float al = a * (body < 0.0 ? 0.85 : 0.7);
     return float4(c3 * al * col.a, al * col.a);
 }
+
+// A weather loach (dojo), facing +x: a long, soft, eel-like olive-brown fish with a paler belly, dark speckles, a
+// small eye set high, barbels around a down-turned mouth and a rounded tail. While it moves (extra.w) it wriggles
+// along the floor in a gentle S; while it rests it has buried itself: only the head and a hump of its back show
+// above a little mound of sand. The mound is in the pond's sand colors (#3a3a34 … #7a786a), lit like col is: col is
+// its pack.json color (#7a6a3c) lit by the hour, so the light is col against that color. p = c * (1.6, 0.6); the
+// floor at p.y = -0.54.
+float4 draw_koi_loach(float2 c, float phase, float glow, float4 col, float4 extra) {
+    float2 p = c * float2(1.6, 0.6);
+    float w = clamp(extra.w, 0.0, 1.0);
+    float gy = -0.54;
+    float R = 0.155;
+    float light = clamp(dot(col.rgb, float3(0.333)) / 0.38, 0.0, 1.3);
+    float x = p.x;
+    // the line of its back: swimming, a low wave running tailward with the belly on the sand; buried, it dips
+    // under the floor, with a hump of the back and the lifted head left out
+    float wave = 0.5 + 0.5 * sin(phase * 1.5 - x * 4.2);
+    float ySwim = gy + R + 0.015 + 0.11 * wave * smoothstep(1.15, 0.5, x) - 0.03 * smoothstep(0.85, 1.25, x);
+    float breathe = sin(phase * 2.0) * 0.008;
+    float yBury = gy - 0.2 + (0.47 + breathe) * exp(-pow((x + 0.35) / 0.44, 2.0)) + 0.37 * smoothstep(0.3, 0.8, x) - 0.03 * smoothstep(0.85, 1.25, x);
+    float yc = mix(yBury, ySwim, w);
+    // how thick it is along its length: a blunt head, an even body, a slimmer tail stock
+    float prof = sqrt(max(0.0, 1.0 - pow(max(0.0, (x - 0.93) / 0.34), 2.0)));
+    prof *= mix(0.6, 1.0, smoothstep(-1.2, -0.2, x)) * step(-1.22, x);
+    float r = R * prof;
+    float body = prof > 0.0 ? abs(p.y - yc) - r : 1.0;
+    body *= 0.8;
+    // the tail: a rounded paddle; the dorsal fin: a small soft lobe behind the middle; a pectoral fin low on the chest
+    float yt = mix(gy - 0.2, gy + R + 0.015 + 0.11 * (0.5 + 0.5 * sin(phase * 1.5 + 1.22 * 4.2)), w);
+    float tail = (length((p - float2(-1.28, yt)) / float2(0.2, 0.17)) - 1.0) * 0.17;
+    float yd = mix(gy - 0.2, gy + 2.0 * R + 0.015 + 0.11 * (0.5 + 0.5 * sin(phase * 1.5 + 0.15 * 4.2)), w);
+    float dors = max((length((p - float2(-0.15, yd - 0.03)) / float2(0.2, 0.13)) - 1.0) * 0.13, yd - 0.04 - p.y);
+    float2 hq = float2(0.72, gy + 0.06);
+    float pect = (length((p - hq - float2(-0.08, -0.02)) / float2(0.14, 0.05)) - 1.0) * 0.05;
+    pect = mix(1.0, pect, w);
+    float fins = min(min(tail, dors), pect);
+    // the barbels: short whiskers around the mouth, feeling the sand
+    float2 m = float2(1.22, gy + R - 0.05);
+    float barb = 1e3;
+    for (int i = 0; i < 3; i++) {
+        float fi = float(i);
+        float2 e = m + float2(0.1 - fi * 0.07, -0.1 - 0.02 * fi + sin(phase * 1.3 + fi * 2.0) * 0.012);
+        e.y = max(e.y, gy + 0.01);
+        barb = min(barb, sd_seg(p, m - float2(fi * 0.045, 0.0), e) - 0.016);
+    }
+    float d = min(min(body, fins), barb);
+    float aa = fwidth(d) + 1e-4;
+    // (outside its strip there's nothing; only after the edge is measured, or the cut shows as a thin line)
+    if (p.y > gy + 0.62 || p.y < gy - 0.09) return float4(0.0);
+    float a = 1.0 - smoothstep(-aa, aa, d);
+    float3 olive = col.rgb;
+    float3 c3;
+    if (body <= min(fins, barb)) {
+        float yn = clamp((p.y - yc) / max(r, 0.02), -1.0, 1.0);
+        c3 = mix(olive, olive * float3(0.5, 0.52, 0.45), smoothstep(-0.3, 0.8, yn) * 0.7);                 // a darker back
+        c3 = mix(c3, olive * 0.4 + float3(0.56, 0.52, 0.4) * light, smoothstep(-0.2, -0.85, yn) * 0.75);   // the pale belly
+        // speckles, thicker along the back, and a faint dark line down the flank
+        float2 sg = float2(x * 15.0, yn * 2.6) + extra.y * 7.0;
+        float2 sid = floor(sg);
+        float sp = step(0.5, hash21(sid)) * (1.0 - smoothstep(0.12, 0.3, length(fract(sg) - 0.5 - (float2(hash21(sid + 3.0), hash21(sid + 7.0)) - 0.5) * 0.5)));
+        c3 = mix(c3, olive * 0.3, sp * 0.6 * smoothstep(-0.5, 0.1, yn));
+        c3 = mix(c3, olive * 0.45, (1.0 - smoothstep(0.0, 0.14, abs(yn - 0.05))) * 0.3 * smoothstep(1.0, 0.6, x));
+        c3 = fish_round(c3 * 1.12, float2(0.0, yn * 0.92), body);
+        // the eye, small and high on the head, and the down-turned mouth
+        float2 eye = float2(1.0, yc + 0.055);
+        c3 = fish_eye(c3, p, eye, 0.05, float3(0.9, 0.7, 0.3), 0.0);
+        float mouth = abs(p.y - (yc - 0.07 - (x - 1.1) * 0.5)) - 0.01;
+        c3 *= 1.0 - (1.0 - smoothstep(0.0, 0.012, mouth)) * step(1.1, x) * 0.45;
+    } else if (barb < fins) {
+        c3 = olive * 0.8 + float3(0.12, 0.1, 0.06) * light;
+    } else {
+        // the fins: thin, a little see-through, rayed, darker spots on the tail
+        float2 tq = p - float2(-1.1, yt);
+        float rays = 0.5 + 0.5 * cos(atan2(tq.y, -tq.x) * 22.0);
+        c3 = (olive * 0.85 + float3(0.1, 0.09, 0.05) * light) * (0.82 + 0.18 * rays);
+        c3 = mix(c3, olive * 0.4, smoothstep(0.55, 0.7, vnoise(p * 14.0)) * 0.4);
+        a *= 0.82;
+    }
+    // nothing of it shows under the floor
+    a *= smoothstep(gy - 0.005, gy + 0.015, p.y);
+    float3 rgb = c3 * a;
+    float al = a;
+    // the mound it lies under, only while it rests: a low heap of sand, lumpy, lit from above, pressed around the
+    // body where it goes in; it fades into the floor at its foot
+    float bury = 1.0 - w;
+    float mh = (0.3 * exp(-pow((x + 0.2) / 0.82, 4.0)) + 0.04 * exp(-pow((x - 0.1) / 1.2, 6.0)) + 0.04 * (vnoise(float2(x * 5.0 + extra.y * 9.0, 2.0)) - 0.5) * exp(-pow(x / 1.1, 4.0))) * bury;
+    mh *= 1.0 - 0.22 * exp(-pow((x + 0.35) / 0.4, 2.0));                                 // it sags where the back comes out
+    float md = p.y - (gy + mh);
+    float ma = (1.0 - smoothstep(-0.012, 0.012, md)) * step(0.004, mh) * smoothstep(gy - 0.08, gy - 0.01, p.y);
+    if (ma > 0.0) {
+        float3 sDark = float3(0.227, 0.227, 0.204), sLight = float3(0.478, 0.471, 0.416);
+        float up = clamp((p.y - gy) / max(mh, 0.02), 0.0, 1.0);
+        float grain = vnoise(p * float2(26.0, 30.0) + extra.y * 3.0);
+        float3 s3 = mix(sDark, sLight, 0.5 + 0.45 * up + 0.22 * (grain - 0.5));
+        s3 += sLight * 0.3 * (1.0 - smoothstep(0.0, 0.035, -md));                          // light along its crest
+        s3 += float3(0.07) * step(0.9, hash21(floor(p * 34.0)));                           // a few bright grains
+        s3 *= light;
+        // where the body comes out of it: a soft shadow on the sand
+        s3 *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, 0.07, body));
+        rgb = mix(rgb, s3, ma);
+        al = mix(al, 1.0, ma);
+    }
+    // its shadow on the floor while it swims
+    float sh = (1.0 - smoothstep(0.0, 0.05, abs(p.y - gy + 0.015))) * (1.0 - smoothstep(1.0, 1.35, abs(x))) * 0.3 * w * (1.0 - al);
+    al += sh;
+    return float4(rgb * col.a, al * col.a);
+}
