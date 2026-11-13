@@ -349,8 +349,16 @@ case "$cmd" in
          done
          [ -n "$e" ] && j="$j,\"env\":{${e#,}}"
          if [ -n "$made" ]; then
-           # the session didn't start: the worktree made for it goes away with its branch (nothing was done in it)
-           ( control spawn $((timeout + 15)) "$j}" ) || { git -C "$root" worktree remove --force "$made" >/dev/null 2>&1; git -C "$root" branch -D "$branch" >/dev/null 2>&1; exit 1; }
+           out=$( control spawn $((timeout + 15)) "$j}" ) && { printf '%s\n' "$out"; exit 0; }
+           printf '%s\n' "$out"
+           case "$out" in
+             # its pane opened and the agent runs in the worktree, though it hasn't said so yet (it may be asking
+             # something first, like trusting the folder): the worktree stays
+             *'"where"'*) echo "fishbots: the session runs in $made (branch $branch), which stays" >&2 ;;
+             # the session didn't start: the worktree made for it goes away with its branch (nothing was done in it)
+             *) git -C "$root" worktree remove --force "$made" >/dev/null 2>&1; git -C "$root" branch -D "$branch" >/dev/null 2>&1 ;;
+           esac
+           exit 1
          else
            control spawn $((timeout + 15)) "$j}"
          fi ;;

@@ -7,6 +7,10 @@ import AppKit
 extension AppDelegate {
     @objc func newSession() {
         newSessionCard?.close()
+        // a question still up on the aquarium ("End …?", "Couldn't open the session"): this macOS dims a window with a
+        // sheet and everything over it, so the card would come up under a dark panel and take no clicks. Asking for a
+        // new session is the answer to it: it's put away as cancelled
+        if let sheet = window.attachedSheet { window.endSheet(sheet, returnCode: .cancel) }
         let agents = Providers.all.values.filter { $0.launchCommand(prompt: nil, model: nil) != nil }.sorted { $0.name < $1.name }
         guard !agents.isEmpty, Launchers.pick(nil, near: nil) != nil else {
             let a = NSAlert()
@@ -78,7 +82,8 @@ extension AppDelegate {
         cards.close()
         show()
         a.beginSheetModal(for: window) { [weak self, weak f] answer in
-            guard let self, let f, answer != .alertSecondButtonReturn else { return }
+            // only its End buttons end it (not Cancel, nor the sheet being put away)
+            guard let self, let f, answer == .alertFirstButtonReturn || answer == .alertThirdButtonReturn else { return }
             var failures: [String] = []
             let going = (answer == .alertThirdButtonReturn ? school : []) + [f]
             for one in going {
@@ -202,7 +207,7 @@ final class NewSessionCard: NSViewController, NSTextFieldDelegate, NSPopoverDele
 
         let l = NSButton(checkboxWithTitle: tr("Pode lançar outras sessões e comandá-las (orquestrar)"), target: nil, action: nil)
         l.font = rounded(11.5)
-        l.state = SessionControl.enabled && UserDefaults.standard.object(forKey: "newSessionLeads") as? Bool ?? true ? .on : .off
+        l.state = SessionControl.enabled && UserDefaults.standard.flag("newSessionLeads") ? .on : .off
         l.isEnabled = SessionControl.enabled
         if !SessionControl.enabled { l.toolTip = tr("Ligue \"Sessões podem comandar outras\" em Preferências → Geral") }
         leads = l

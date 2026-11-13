@@ -140,7 +140,7 @@ final class ThemeKeeper {
         signature = Packs.signature()
         watch = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             guard let self else { return }
-            if UserDefaults.standard.object(forKey: "watchPacks") as? Bool ?? true {
+            if UserDefaults.standard.flag("watchPacks") {
                 let sig = Packs.signature()
                 if sig != self.signature { self.signature = sig; Packs.resumeLinked(); self.reloadPacks() }
             }

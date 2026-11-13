@@ -456,8 +456,9 @@ enum Whereabouts {
 
     static func rexPath(_ o: [String: String]) -> String? { rexBin(o) }
     static func rexBin(_ o: [String: String]) -> String? {
-        let candidates = [o["rex_bin"], NSString("~/.local/bin/rex").expandingTildeInPath, "/opt/homebrew/bin/rex", "/usr/local/bin/rex"]
-        return candidates.compactMap { $0 }.first { FileManager.default.isExecutableFile(atPath: $0) }
+        // in ~/.local/bin of the real home, like Herdr (not CFFIXED_USER_HOME's, where a test instance looks)
+        if let b = o["rex_bin"], FileManager.default.isExecutableFile(atPath: b) { return b }
+        return local("rex")
     }
 
     /// Finds the Rex pane running the session, by Claude's pid or by the tty's processes.

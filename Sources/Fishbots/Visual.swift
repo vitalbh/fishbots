@@ -113,7 +113,7 @@ final class Visual {
 
     /// Aurora as the background of everything (default: on); the other visualizers appear on top.
     var auroraBackground: Bool {
-        get { UserDefaults.standard.object(forKey: "auroraBackground") as? Bool ?? true }
+        get { UserDefaults.standard.flag("auroraBackground") }
         set { UserDefaults.standard.set(newValue, forKey: "auroraBackground") }
     }
     /// The chosen visualizer is the aurora itself (drawn at full strength).

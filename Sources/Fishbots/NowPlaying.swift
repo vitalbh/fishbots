@@ -29,7 +29,7 @@ final class NowPlaying {
 
     /// On by default; Preferências → Geral.
     static var enabled: Bool {
-        get { UserDefaults.standard.object(forKey: "nowPlaying") as? Bool ?? true }
+        get { UserDefaults.standard.flag("nowPlaying") }
         set { UserDefaults.standard.set(newValue, forKey: "nowPlaying"); if !newValue { shared?.clear() } else { shared?.askOnce() } }
     }
     private static weak var shared: NowPlaying?

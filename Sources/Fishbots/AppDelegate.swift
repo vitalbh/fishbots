@@ -522,6 +522,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // about to call you: are you already looking at its session? (the call waits for the answer)
         if [.waiting, .error, .alert].contains(f.state) { InView.check(f) }
         if restoring { updateDock(); return }
+        // kept as it changes, not only once a minute: an app that's killed (a crash, an update) brings a session that
+        // was at work back at work, and a `fishbots wait` that outlived it goes on waiting instead of hearing "idle"
+        if f.isAgent && !f.decor { SessionMemory.save(tank) }
         // whatever was already like this when the app opened isn't news
         if !f.decor && Date().timeIntervalSince(openedAt) > 20 {
             switch f.state {
@@ -741,9 +744,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // look settings (Preferências → Aparência); FISHBOTS_BLOOM wins
         let d = UserDefaults.standard
         renderer.bloom = Env.value("BLOOM").flatMap(Float.init) ?? Float(d.object(forKey: "bloom") as? Double ?? 1.1)
-        tank.motes.show = d.object(forKey: "marineSnow") as? Bool ?? true
-        tank.dust.show = d.object(forKey: "goldenDust") as? Bool ?? true
-        let hourColors = d.object(forKey: "hourColors") as? Bool ?? true
+        tank.motes.show = d.flag("marineSnow")
+        tank.dust.show = d.flag("goldenDust")
+        let hourColors = d.flag("hourColors")
         // the quake also moves the background (the sprites move in Tank.sprites)
         var u = Uniforms(res: .zero, time: 0, turbidity: tank.turbidity, light: tank.light, alert: alert, pix: .zero,
                          gaze: tank.gaze + tank.scene.shakeOffset * 0.02, flash: tank.scene.flash, grade: hourColors ? (Themes.current.sky ?? Sky()).grade(hour: hourNow()) : [1, 1, 1, 0],
