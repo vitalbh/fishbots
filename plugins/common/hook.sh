@@ -6,6 +6,7 @@
 #     route              the provider's route, without the leading slash ("claude-code", "codex", "agent/<id>"…)
 #     process patterns   globs for the agent's executable, used to find its pid outside Rex/iTerm/tmux…
 #                        (default: Claude Code's)
+#   FISHBOTS_HOOK_FROM   the pid to look up from for the tty and the .app (default: the parent; plugins/codex)
 #   FISHBOTS_HOOK_LOG=1  keeps the last event in ~/Library/Logs/Fishbots/<route>-last.json (to check a new format)
 route="$1"; [ -n "$route" ] || exit 0
 shift
@@ -21,7 +22,7 @@ fi
 tty=""; app=""; pid=""
 if [ -z "$REX_BLOCK$HC_TERMINAL_ID$ITERM_SESSION_ID$WEZTERM_PANE$KITTY_WINDOW_ID$TMUX_PANE" ]; then
   # walks up the parent processes: the tty (Terminal.app and others), the agent's pid and the .app that opened it all
-  p=$PPID; i=0
+  p=${FISHBOTS_HOOK_FROM:-$PPID}; i=0
   while [ $i -lt 10 ] && [ -n "$p" ] && [ "$p" -gt 1 ]; do
     line=$(ps -o tty=,comm= -p "$p" 2>/dev/null)
     t=${line%% *}; c=${line#* }; c=$(printf '%s' "$c" | sed 's/^ *//')
