@@ -104,7 +104,7 @@ enum ControlTokens {
 
     /// Created 0600 under a temporary name and moved over the old one, so the token is never readable by others,
     /// not even for a moment, and a reader never sees half of it.
-    private static func writePrivately(_ data: Data, to url: URL) throws {
+    static func writePrivately(_ data: Data, to url: URL) throws {
         let tmp = url.path + ".\(getpid()).tmp"
         unlink(tmp)
         let fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0o600)

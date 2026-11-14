@@ -605,6 +605,41 @@ Still open: the token for the control routes (the assistant acts through them), 
 were away" told by the assistant, holding the shortcut to talk, and a background session surviving the app (today
 its agent goes when the app quits).
 
+### 13. Other devices (Remote.swift)
+The aquarium seen from another device, like an iPhone app. The sessions keep running on the Mac: the device
+watches, answers permission requests and replies, and nothing is started on it. A reply goes into the session's
+terminal through the provider, exactly as the card sends it (`Cards.sendReply`, `Cards.decide`).
+
+Off unless **Preferences → General → Other devices** turns it on (`remoteAccess`). Then a second listener opens on
+every interface, on the local port + 1 (7778), announced over Bonjour as `_fishbots._tcp`. It speaks plain HTTP inside
+TLS 1.2 with a pre-shared key (`TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256`, identity `fishbots`, the PSK being
+HMAC-SHA256(key, "fishbots-psk-v1")): no certificates, a device without the key fails the handshake, and ECDHE gives
+each connection a key of its own (forward secrecy). `Remote.parameters(key:)` builds the connection on both sides.
+Listing the suite doesn't stop the server from agreeing to plain PSK, so `Remote.admits` checks the agreed suite
+after the handshake, and also the address: only private networks get in (10/8, 172.16/12, 192.168/16, Tailscale's
+100.64/10, link-local, fc00::/7), so a forwarded port or a global IPv6 address doesn't open it to the internet. The 32-byte key lives in `remote.key` (0600, next to
+fish.json) and survives restarts, so a paired phone stays paired; **Forget devices** (or `POST /remote/forget` on
+the local server) makes a new one. The QR code carries
+`fishbots://pair?v=1&name=<Mac>&port=7778&hosts=<IPv4,…>&ts=<MagicDNS name>&key=<base64url>`: Bonjour finds the Mac
+on the same network; away from it the device tries `ts` (the Mac's tailnet name, found by a reverse lookup of its
+100.x address, stable when addresses change) and then `hosts`. That needs the Tailscale app on the Mac: Tailscale built
+into another app runs its own node inside that process and makes no address on the Mac, so it can't reach this
+listener. Preferences says which case it is. `GET /remote` on the local server returns the same link.
+
+Only these routes answer on the remote listener. The others stay local: events and hooks never come from a device.
+
+| Route | |
+|---|---|
+| `GET /state`, `/packs`, `/packs/files`, `/journal` | the same as locally |
+| `GET /stream` | Server-Sent Events: `state` (the whole `/state`, one line, when it changes), `permissions` (the pending list, when it changes) and `event` (each `TankEvent`, as it happens; `Remote` is an `EventSink`). Both snapshots come first, on connecting |
+| `GET /permissions` | `{"permissions": [{id, source, entity, label, tool, summary, since, question?, questions?}]}` |
+| `POST /permissions/<id>` | `{"decision": "allow"\|"deny"}`, `{"answer": "…"}` (a question with a menu: its number or label, or free text) or `{"answers": {"question": "answer"}}` (a form) |
+| `POST /reply` | `{"source", "entity", "text"}`: a question with a menu waiting on that fish takes it as its answer; otherwise the session gets it, if it `can` take a reply (409 if not) |
+| `POST /stop` | `{"source", "entity"}`: interrupts the agent, if it `can` |
+
+Still open: the iOS app itself (the engine files the screen saver builds plus a UIKit view, labels without AppKit),
+and telling the phone when the app is closed, which needs push (APNs) through a relay.
+
 ## Order of work
 
 1. **Session providers:** move Claude Code, Codex and the generic source behind `SessionProvider`. Biggest win for the

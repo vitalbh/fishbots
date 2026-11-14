@@ -111,7 +111,7 @@ The **aurora stays in the background** (default; turn off in Visualizador → Au
 
 ## Preferences
 
-**Preferências…** (⌘, or the menu bar menu) has five tabs (the fifth, **Assistente**, is the resident assistant's: who thinks for it, its voice, what it may do without asking, its notes): **Geral** (open at login, menu bar only, floating, sound and volume, ambient music, a note per tool, reading questions aloud, focus mode), **Aparência** (theme, visualizer, background aurora, labels), **Atenção** (notify when waiting or on errors, and your rules per source and state, next to the defaults and the ones from `config.json`, which win) and **Plugins e pacotes** (what's installed, how each plugin's last run went, and the folders). `config.json` is still where webhooks and fish menu actions go.
+**Preferências…** (⌘, or the menu bar menu) has five tabs (the fifth, **Assistente**, is the resident assistant's: who thinks for it, its voice, what it may do without asking, its notes): **Geral** (open at login, menu bar only, floating, other devices, sound and volume, ambient music, a note per tool, reading questions aloud, focus mode), **Aparência** (theme, visualizer, background aurora, labels), **Atenção** (notify when waiting or on errors, and your rules per source and state, next to the defaults and the ones from `config.json`, which win) and **Plugins e pacotes** (what's installed, how each plugin's last run went, and the folders). `config.json` is still where webhooks and fish menu actions go.
 
 **Languages:** the interface texts go through `tr(...)` (Sources/Fishbots/L10n.swift): the Portuguese text is the key and `L10nEnglish.swift` has the English. When adding a text, add its English too; `python3 scripts/l10n-check.py` lists what's missing. A pack's theme can bring its name in both languages with `"names": {"en": "…"}`.
 
@@ -188,6 +188,8 @@ Everything comes in through `POST http://127.0.0.1:7777/event` (local only) with
 
 States: `born busy idle waiting ok alert error done` (+ `end`). `GET /state` returns the aquarium as JSON, `GET /journal` what happened today (`?hours=N`: in the last hours). Packs:
 `GET /packs` (what's installed and its problems), `POST /packs/reload`, `POST /packs/install` (`{"path": "…/x.fishbotspack"}`).
+
+Other devices (an iPhone app) can see the aquarium and answer it when **Preferências → Geral → Outros aparelhos** is on: a second port (7778, Bonjour `_fishbots._tcp`), encrypted with the key in the QR code shown there, that only watches, answers permission requests and sends replies. See [docs/extensions.md](docs/extensions.md) (13).
 
 From the command line (`bin/fishbots`):
 

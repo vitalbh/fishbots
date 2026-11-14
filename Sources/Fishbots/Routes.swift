@@ -28,6 +28,13 @@ extension AppDelegate {
                 self.permissionAsked(m, provider: provider, route: mainRoute, headers: headers, reply: reply)
                 return true
             }
+            // other devices see the same tank and answer the way the card does
+            remote.local = { [unowned self] method, path, headers, body in self.respond(method, path, headers, body) }
+            remote.reply = { [unowned self] f, text in self.cards.sendReply(f, text) }
+            remote.decide = { [unowned self] id, action in self.cards.decide(id, action) }
+            remote.can = { [unowned self] c, f in self.cards.can(c, f) }
+            Outputs.register(remote)
+            remote.start()
             // a session with no terminal asks leave through its stream: the same request on its fish's card
             Background.tank = tank
             Background.askPermission = { [unowned self] session, request, answer in
@@ -98,8 +105,14 @@ extension AppDelegate {
         case ("GET", "/state"), ("GET", "/estado"):
             return (200, TankProtocol.state(self.tank))
         case ("GET", "/"):
-            let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /journal", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload"] + SessionControl.routes
+            let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /journal", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload", "GET /remote", "POST /remote/forget"] + SessionControl.routes
             return (200, (try? JSONSerialization.data(withJSONObject: ["fishbots": "ok", "routes": routes])) ?? Data())
+        case ("GET", "/remote"):
+            // pairing another device (Remote.swift): whether it's on, and the link its QR code carries
+            return (200, self.remote.pairingJSON)
+        case ("POST", "/remote/forget"):
+            self.remote.forgetDevices()
+            return (200, self.remote.pairingJSON)
         case ("POST", "/assistant/watch"):
             // the resident assistant asks to be woken when a session stops, to tell the person (`fishbots watch`)
             return self.assistant.watch(body)
