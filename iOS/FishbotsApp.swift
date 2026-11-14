@@ -37,6 +37,7 @@ struct Aquarium: View {
                 .ignoresSafeArea()
             VStack {
                 if link.pairing != nil { StatusPill(link: link, showLabels: $showLabels) }
+                if !link.away.isEmpty && link.pairing != nil { AwayCard(link: link) { selected = Selected(id: $0) } }
                 Spacer()
                 if let n = link.notice {
                     Text(n).font(.footnote).padding(10).background(.ultraThinMaterial, in: Capsule())
@@ -50,7 +51,7 @@ struct Aquarium: View {
         }
         .sheet(item: $selected) { s in FishCard(link: link, id: s.id).presentationDetents([.medium, .large]) }
         #if DEBUG
-        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off, so a script
+        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off|away:<hours>, so a script
         // can press what a finger would (the simulator can't be tapped from the terminal)
         .onReceive(NotificationCenter.default.publisher(for: .fishbotsTest)) { n in
             guard let url = n.object as? URL, let d = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "do" })?.value else { return }
@@ -65,6 +66,11 @@ struct Aquarium: View {
             else if d.hasPrefix("theme:") { link.theme = String(d.dropFirst(6)) }
             else if d == "themeMac" { link.useThemeOnMac() }
             else if d.hasPrefix("labels:") { showLabels = d.hasSuffix("on") }
+            else if d.hasPrefix("away:") {
+                link.pause()
+                UserDefaults.standard.set(Date().addingTimeInterval(-(Double(d.dropFirst(5)) ?? 1) * 3600), forKey: "lastSeen")
+                link.resume()
+            }
         }
         #endif
         .onChange(of: link.permissions.map(\.id)) { old, new in

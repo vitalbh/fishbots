@@ -698,4 +698,7 @@ let english: [String: String] = [
     "Usar este tema no Mac também": "Use this theme on the Mac too",
     "o Mac não trocou de tema": "the Mac didn't change its theme",
     "Nomes dos peixes": "Fish names",
+    "Enviar para a sessão no Mac": "Send to the session on the Mac",
+    "%d esperaram você": "%d waited for you",
+    "%d merges": "%d merges",
 ]

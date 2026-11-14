@@ -56,6 +56,13 @@ final class MacLink: ObservableObject {
     @Published private(set) var permissions: [PermissionRequest] = []
     /// A short line for the person (a reply that didn't go, a decision that failed).
     @Published var notice: String?
+    /// What happened while the app wasn't looking (`GET /journal`), when that was a while: shown once.
+    @Published var away: [[String: Any]] = []
+    /// When the app last looked at the aquarium (the stream open, in the front).
+    private var lastSeen: Date? {
+        get { UserDefaults.standard.object(forKey: "lastSeen") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "lastSeen") }
+    }
 
     let mirror = TankMirror()
     /// The theme this phone shows: "" follows the Mac's.
@@ -138,8 +145,25 @@ final class MacLink: ObservableObject {
 
     /// The app went to the back: iOS would cut it anyway.
     func pause() {
+        if status == .connected { lastSeen = Date() }
         active = false
         disconnect()
+    }
+
+    /// The journal since the app last looked, if that was more than 10 minutes ago (only what's worth telling:
+    /// finished, broke, waited, merged).
+    private func catchUp() {
+        guard let since = lastSeen, Date().timeIntervalSince(since) > 600 else { lastSeen = Date(); return }
+        let hours = min(72, Date().timeIntervalSince(since) / 3600 + 0.1)
+        request("GET", "/journal?hours=" + String(format: "%.2f", hours)) { [weak self] status, data in
+            guard let self, status == 200, let d = data.flatMap({ (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }) else { return }
+            let iso = ISO8601DateFormatter()
+            self.away = (d["journal"] as? [[String: Any]] ?? []).filter {
+                guard let w = ($0["when"] as? String).flatMap(iso.date(from:)), w > since else { return false }
+                return ["done", "error", "waiting", "merge"].contains($0["kind"] as? String ?? "")
+            }
+            self.lastSeen = Date()
+        }
     }
 
     private func disconnect() {
@@ -198,6 +222,7 @@ final class MacLink: ObservableObject {
             buffer.removeSubrange(..<r.upperBound)
             headersDone = true
             status = .connected
+            catchUp()
         }
         let sep = Data("\n\n".utf8)
         while let r = buffer.range(of: sep) {
@@ -309,39 +334,49 @@ final class MacLink: ObservableObject {
 
     // MARK: - finding the Mac
 
-    /// A ready connection to the Mac: the endpoint that worked last, then Bonjour, the tailnet name and each address,
-    /// one after another, a few seconds each.
+    /// A ready connection to the Mac. Every way to it is tried at once (Bonjour, the tailnet name, each address) and
+    /// the first that's ready wins; the one that worked last starts a moment ahead, so at home it's still Bonjour.
     private func open(_ pairing: Pairing, done: @escaping (NWConnection?) -> Void) {
         var tries = pairing.endpoints
         if let lastGood { tries.removeAll { $0 == lastGood }; tries.insert(lastGood, at: 0) }
-        attempt(tries[...], pairing.key, done)
-    }
-
-    private func attempt(_ tries: ArraySlice<NWEndpoint>, _ key: Data, _ done: @escaping (NWConnection?) -> Void) {
-        guard let e = tries.first else { done(nil); return }
-        let c = NWConnection(to: e, using: RemoteTLS.parameters(key: key))
-        var settled = false
-        func settle(_ ok: Bool) {
-            guard !settled else { return }
-            settled = true
-            if ok {
-                c.stateUpdateHandler = nil
+        var pending = tries.count
+        var won = false
+        var all: [NWConnection] = []
+        func finish(_ c: NWConnection?, _ e: NWEndpoint?) {
+            guard !won else { return }
+            if let c, let e {
+                won = true
                 lastGood = e
+                for o in all where o !== c { o.stateUpdateHandler = nil; o.cancel() }
+                c.stateUpdateHandler = nil
                 done(c)
             } else {
-                c.stateUpdateHandler = nil
-                c.cancel()
-                attempt(tries.dropFirst(), key, done)
+                pending -= 1
+                if pending == 0 { won = true; done(nil) }
             }
         }
-        c.stateUpdateHandler = { s in
-            switch s {
-            case .ready: settle(true)
-            case .failed, .waiting: settle(false)
-            default: break
+        for (i, e) in tries.enumerated() {
+            let c = NWConnection(to: e, using: RemoteTLS.parameters(key: pairing.key))
+            all.append(c)
+            var settled = false
+            func settle(_ ok: Bool) {
+                guard !settled else { return }
+                settled = true
+                if !ok { c.stateUpdateHandler = nil; c.cancel() }
+                finish(ok ? c : nil, ok ? e : nil)
             }
+            c.stateUpdateHandler = { s in
+                switch s {
+                case .ready: settle(true)
+                case .failed, .waiting: settle(false)
+                default: break
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + (i == 0 || lastGood == nil ? 0 : 0.3)) {
+                if !won { c.start(queue: .main) } else { settle(false) }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { settle(false) }
         }
-        c.start(queue: .main)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { settle(false) }
+        if tries.isEmpty { done(nil) }
     }
 }

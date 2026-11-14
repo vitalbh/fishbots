@@ -4,14 +4,17 @@ import VisionKit
 
 /// Face ID (or the passcode) before letting a session do something: whoever picks up the unlocked phone shouldn't
 /// approve a command on the Mac. Without a passcode on the device (the simulator) it just goes ahead.
-func confirmOwner(_ reason: String, then go: @escaping () -> Void) {
+/// `within`: an approval this recent counts (replies ask once every few minutes; allowing a tool asks every time).
+func confirmOwner(_ reason: String, within: TimeInterval = 0, then go: @escaping () -> Void) {
+    if within > 0, let last = lastConfirmed, Date().timeIntervalSince(last) < within { go(); return }
     let ctx = LAContext()
     var err: NSError?
     guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else { go(); return }
     ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { ok, _ in
-        if ok { DispatchQueue.main.async(execute: go) }
+        if ok { DispatchQueue.main.async { lastConfirmed = Date(); go() } }
     }
 }
+private var lastConfirmed: Date?
 
 // MARK: - permission requests
 
@@ -252,11 +255,14 @@ struct FishCard: View {
                 TextField(tr("Escreva para a sessão"), text: $text, axis: .vertical).lineLimit(1...6)
                     .padding(10).background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                 Button {
-                    sending = true
-                    error = nil
-                    link.reply(source: source, entity: entity, text: text) { e in
-                        sending = false
-                        if let e { error = e } else { text = ""; dismiss() }
+                    // what's typed goes into the session's terminal, and an agent may act on it: the owner sends it
+                    confirmOwner(tr("Enviar para a sessão no Mac"), within: 300) {
+                        sending = true
+                        error = nil
+                        link.reply(source: source, entity: entity, text: text) { e in
+                            sending = false
+                            if let e { error = e } else { text = ""; dismiss() }
+                        }
                     }
                 } label: {
                     Image(systemName: sending ? "ellipsis.circle.fill" : "arrow.up.circle.fill").font(.title)
@@ -331,6 +337,61 @@ struct RichText: UIViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         let w = proposal.width ?? 320
         return CGSize(width: w, height: uiView.sizeThatFits(CGSize(width: w, height: .greatestFiniteMagnitude)).height)
+    }
+}
+
+// MARK: - while you were away
+
+/// What happened since the app last looked: how many finished, broke, waited, and the latest of each.
+struct AwayCard: View {
+    @ObservedObject var link: MacLink
+    var open: (String) -> Void
+
+    var body: some View {
+        let items = Array(link.away.suffix(6).reversed())
+        let count = { (k: String) in link.away.filter { $0["kind"] as? String == k }.count }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(tr("🌙 Enquanto você estava fora…")).font(.headline)
+                Spacer()
+                Button { link.away = [] } label: { Image(systemName: "xmark.circle.fill").font(.title3).symbolRenderingMode(.hierarchical) }
+                    .foregroundStyle(.secondary)
+            }
+            Text([count("done") > 0 ? String(format: tr("%d terminaram"), count("done")) : nil,
+                  count("error") > 0 ? String(format: tr("%d com erro"), count("error")) : nil,
+                  count("waiting") > 0 ? String(format: tr("%d esperaram você"), count("waiting")) : nil,
+                  count("merge") > 0 ? String(format: tr("%d merges"), count("merge")) : nil].compactMap { $0 }.joined(separator: " · "))
+                .font(.subheadline).foregroundStyle(.secondary)
+            ForEach(items.indices, id: \.self) { i in
+                let e = items[i]
+                Button { if let f = e["fish"] as? String, !f.isEmpty { open(f) } } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(icon(e["kind"] as? String)).frame(width: 18)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(line(e)).font(.subheadline.weight(.medium)).lineLimit(1)
+                            if let said = e["said"] as? String, !said.isEmpty {
+                                Text(said).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .padding(.horizontal)
+    }
+
+    private func icon(_ kind: String?) -> String {
+        switch kind { case "done": "✓"; case "error": "✗"; case "waiting": "✋"; case "merge": "⇢"; default: "·" }
+    }
+
+    private func line(_ e: [String: Any]) -> String {
+        let label = e["label"] as? String ?? ""
+        let what = [e["title"], e["task"]].compactMap { $0 as? String }.first { !$0.isEmpty }
+        return what.map { label + " — " + $0 } ?? label
     }
 }
 
