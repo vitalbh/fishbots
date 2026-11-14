@@ -494,7 +494,7 @@ let english: [String: String] = [
     " (sem manifesto)": " (no manifest)",
     "Abrir pasta de agentes": "Open agents folder",
     "Recarregar": "Reload",
-    "Outros agentes entram mandando eventos para /agent/<id>; um manifesto aqui dá nome, peixe e timbre. Depois de mudar um, Recarregar (ou POST /agents/reload). Veja o README.": "Other agents join by sending events to /agent/<id>; a manifest here gives the name, fish and timbre. After changing one, Reload (or POST /agents/reload). See the README.",
+    "Outros agentes entram mandando eventos para /agent/<id>; um manifesto aqui dá nome, peixe e timbre. Depois de mudar um, Recarregar (ou POST /agents/reload). Veja docs/agents.md.": "Other agents join by sending events to /agent/<id>; a manifest here gives the name, fish and timbre. After changing one, Reload (or POST /agents/reload). See docs/agents.md.",
     "agente sem \"id\" válido (letras minúsculas, números e -)": "agent without a valid \"id\" (lowercase letters, digits and -)",
     "%@: já é um agente do app": "%@: is already one of the app's agents",
     "%@: JSON inválido": "%@: invalid JSON",

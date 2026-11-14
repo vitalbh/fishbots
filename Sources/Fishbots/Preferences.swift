@@ -213,7 +213,7 @@ private struct GeneralTab: View {
                     Button(tr("Abrir pasta de agentes")) { AgentManifests.openFolder() }
                     Button(tr("Recarregar")) { prefs.a.reloadAgents(); prefs.refresh() }
                 }
-                Text(tr("Outros agentes entram mandando eventos para /agent/<id>; um manifesto aqui dá nome, peixe e timbre. Depois de mudar um, Recarregar (ou POST /agents/reload). Veja o README."))
+                Text(tr("Outros agentes entram mandando eventos para /agent/<id>; um manifesto aqui dá nome, peixe e timbre. Depois de mudar um, Recarregar (ou POST /agents/reload). Veja docs/agents.md."))
                     .font(.footnote).foregroundStyle(.secondary)
                 DisconnectAgentsRow()
             }
