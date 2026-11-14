@@ -71,11 +71,14 @@ case "$1" in
     echo "running in the simulator $SIM" ;;
   device)
     [ -n "$TEAM" ] || { echo "set FISHBOTS_TEAM to your team id (Xcode → Settings → Accounts)"; exit 1; }
-    DEV=$(xcrun devicectl list devices 2>/dev/null | awk '/iPhone|iPad/ && $0 !~ /unavailable/ {for(i=1;i<=NF;i++) if ($i ~ /^[0-9A-F-]{36}$/) {print $i; exit}}')
+    DEV=$(xcrun devicectl list devices 2>/dev/null | grep -E 'iPhone|iPad' | grep -v unavailable | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -1)
     [ -n "$DEV" ] || { echo "no iPhone reachable (plug it in, unlock it, trust this Mac, Developer Mode on)"; exit 1; }
-    xcodebuild -project "$OUT/Fishbots.xcodeproj" -scheme Fishbots -configuration Release -destination "generic/platform=iOS" \
-      -derivedDataPath "$OUT/derived" -allowProvisioningUpdates -quiet build
-    xcrun devicectl device install app --device "$DEV" "$OUT/derived/Build/Products/Release-iphoneos/Fishbots.app"
+    # built for that iPhone (Xcode's id for it), so a personal team can register it and get a profile
+    XID=$(xcodebuild -project "$OUT/Fishbots.xcodeproj" -scheme Fishbots -showdestinations 2>/dev/null | grep 'platform:iOS, arch' | grep -oE 'id:[0-9A-Fa-f-]+' | head -1 | cut -c4-)
+    [ -n "$XID" ] || { echo "Xcode doesn't see the iPhone yet (unlock it; the first time, Xcode prepares it for a while)"; exit 1; }
+    xcodebuild -project "$OUT/Fishbots.xcodeproj" -scheme Fishbots -configuration Release -destination "id=$XID" \
+      SYMROOT="$PWD/$OUT/products" OBJROOT="$PWD/$OUT/obj" -allowProvisioningUpdates -allowProvisioningDeviceRegistration -quiet build
+    xcrun devicectl device install app --device "$DEV" "$OUT/products/Release-iphoneos/Fishbots.app"
     xcrun devicectl device process launch --device "$DEV" "$BUNDLE" || true ;;
   *)
     echo "usage: scripts/ios.sh project|sim|device" ;;
