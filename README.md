@@ -36,6 +36,8 @@ Keys and shortcuts:
 
 To avoid the automation permission prompt on every build, create a self-signed **Code Signing** certificate named `Fishbots Dev` in Keychain Access (Certificate Assistant → Create a Certificate). `scripts/app.sh` will use it.
 
+To hand the app out, `scripts/release.sh` signs the app and the screen saver with a Developer ID certificate and builds `build/Fishbots.dmg`, notarized and stapled (setup in the script's header).
+
 ## Mechanics: the living aquarium
 
 - **Error = sick fish:** it fades, turns nose-down and slowly sinks. Fish from the same project gather around it. When it recovers, it does a little lap. If the error lasts more than 12 min, the water around it clouds and it becomes an urgent alert (once).

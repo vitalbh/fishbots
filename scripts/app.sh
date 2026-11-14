@@ -28,6 +28,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSSpeechRecognitionUsageDescription</key><string>Para transcrever o que você fala ao peixinho (no próprio Mac quando possível).</string>
   <key>NSAudioCaptureUsageDescription</key><string>Para os visualizadores dançarem com o Spotify ou o Música: só o som desses apps, analisado na hora, nada é gravado.</string>
   <key>NSAppleEventsUsageDescription</key><string>Para levar você até o terminal de uma sessão quando você clica no peixe.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>Para o seu iPhone ver o aquário e responder às sessões, quando você liga o acesso de outros aparelhos.</string>
+  <key>NSBonjourServices</key><array><string>_fishbots._tcp</string></array>
   <key>CFBundleDocumentTypes</key><array><dict>
     <key>CFBundleTypeName</key><string>Fishbots pack</string>
     <key>CFBundleTypeRole</key><string>Viewer</string>
@@ -50,6 +52,7 @@ NSMicrophoneUsageDescription = "So you can talk to the little fish: your voice b
 NSSpeechRecognitionUsageDescription = "To transcribe what you say to the little fish (on the Mac itself when possible).";
 NSAudioCaptureUsageDescription = "So the visualizers dance to Spotify or Music: only those apps' sound, analyzed on the fly, nothing recorded.";
 NSAppleEventsUsageDescription = "To take you to a session's terminal when you click its fish.";
+NSLocalNetworkUsageDescription = "So your iPhone can watch the aquarium and answer sessions, when you turn on access from other devices.";
 STRINGS
 touch "$APP/Contents/Resources/pt-BR.lproj/InfoPlist.strings"
 # With a "Fishbots Dev" certificate in the Keychain (self-signed, free), the signature stays
