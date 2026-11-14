@@ -14,6 +14,13 @@ final class TankMirror {
     var packsFolder = FileManager.default.temporaryDirectory.appendingPathComponent("fishbots-mirror-packs", isDirectory: true)
     var log: (String) -> Void = { _ in }
 
+    /// A theme of the mirror's own (the iPhone's choice); nil: the app's.
+    var themeOverride: String? {
+        didSet { applyTheme(themeOverride ?? appTheme) }
+    }
+    /// The theme the app is using, from its last state.
+    private(set) var appTheme: String?
+
     private var packsSignature = ""
     private var fetchingPacks = false
     private var appliedTheme = ""
@@ -45,6 +52,7 @@ final class TankMirror {
                 guard let data else { self.log("packs: fetch failed"); return }
                 guard Packs.mirror(data, into: self.packsFolder) else { self.log("packs: bad data"); return }
                 self.log("packs: \(Packs.loaded.map(\.id)) problems: \(Packs.problems.count)")
+                for p in Packs.problems { self.log("  " + p) }
                 self.packsSignature = signature
                 self.renderer?.reload()
                 self.appliedTheme = ""                   // apply it again, with what the packs brought
@@ -76,7 +84,8 @@ final class TankMirror {
     func apply(_ obj: [String: Any]) {
         // the app's packs (copied when they change) and its theme
         if let sig = obj["packsSignature"] as? String { syncPacks(sig) }
-        applyTheme(obj["theme"] as? String)
+        appTheme = obj["theme"] as? String
+        applyTheme(themeOverride ?? appTheme)
         let fishes = obj["fish"] as? [[String: Any]] ?? []
         var seen = Set<String>()
         for p in fishes {

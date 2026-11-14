@@ -43,3 +43,4 @@ Generator.swift
 L10n.swift
 L10nEnglish.swift
 TankMirror.swift
+Portraits.swift

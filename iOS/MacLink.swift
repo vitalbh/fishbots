@@ -58,6 +58,13 @@ final class MacLink: ObservableObject {
     @Published var notice: String?
 
     let mirror = TankMirror()
+    /// The theme this phone shows: "" follows the Mac's.
+    @Published var theme = UserDefaults.standard.string(forKey: "theme") ?? "" {
+        didSet {
+            UserDefaults.standard.set(theme, forKey: "theme")
+            mirror.themeOverride = theme.isEmpty ? nil : theme
+        }
+    }
     /// Something happened on the Mac (a `TankEvent`: state, permission, party).
     var onEvent: (([String: Any]) -> Void)?
 
@@ -72,10 +79,28 @@ final class MacLink: ObservableObject {
     init() {
         pairing = Pairing.load()
         status = pairing == nil ? .unpaired : .connecting
+        mirror.log = { MacLink.log($0) }
+        ShaderSheet.failed = { m in DispatchQueue.main.async { MacLink.log(m) } }
+        // a pack drawing that doesn't compile here is left out (the rest still draws): say which
+        Renderer.packFishFailed = { k, e in MacLink.log("pack fish \(k.id) failed: \(e)") }
+        Renderer.packSceneryFailed = { k, e in MacLink.log("pack scenery \(k.id) failed: \(e)") }
+        Renderer.packFaunaFailed = { k, e in MacLink.log("pack creature \(k.id) failed: \(e)") }
+        Renderer.packPresenceFailed = { k, e in MacLink.log("pack presence \(k.id) failed: \(e)") }
+        Renderer.packBackgroundFailed = { k, e in MacLink.log("pack background \(k.id) failed: \(e)") }
+        mirror.themeOverride = theme.isEmpty ? nil : theme
         mirror.packsFolder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("packs", isDirectory: true)
         mirror.fetchPacks = { [weak self] done in
             self?.request("GET", "/packs/files") { status, data in done(status == 200 ? data : nil) }
         }
+    }
+
+    /// The app's own log (Library/Caches/fishbots.log): what the mirror did with the packs, drawings that didn't
+    /// compile here. Kept short.
+    static func log(_ line: String) {
+        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("fishbots.log")
+        let text = "\(Date()) \(line)\n"
+        if let h = try? FileHandle(forWritingTo: url), (try? h.seekToEnd()) ?? 0 < 200_000 { h.write(Data(text.utf8)); try? h.close() }
+        else { try? text.write(to: url, atomically: true, encoding: .utf8) }
     }
 
     // MARK: - pairing
@@ -223,6 +248,26 @@ final class MacLink: ObservableObject {
     func reply(source: String, entity: String, text: String, done: @escaping (String?) -> Void) {
         request("POST", "/reply", ["source": source, "entity": entity, "text": text]) { status, data in
             done(status == 200 ? nil : Self.error(data) ?? tr("não enviei"))
+        }
+    }
+
+    /// The session's last reply (markdown when the Mac has it), for reading on its card.
+    func said(source: String, entity: String, done: @escaping (_ text: String?, _ markdown: Bool) -> Void) {
+        var c = URLComponents()
+        c.path = "/said"
+        c.queryItems = [URLQueryItem(name: "source", value: source), URLQueryItem(name: "entity", value: entity)]
+        request("GET", c.string ?? "/said") { status, data in
+            let d = status == 200 ? data.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } : nil
+            done(d?["text"] as? String, d?["markdown"] as? Bool ?? false)
+        }
+    }
+
+    /// The Mac takes this phone's theme too; then the phone goes back to following it.
+    func useThemeOnMac() {
+        let id = theme
+        guard !id.isEmpty else { return }
+        request("POST", "/theme", ["id": id]) { [weak self] status, data in
+            if status == 200 { self?.theme = "" } else { self?.notice = Self.error(data) ?? tr("o Mac não trocou de tema") }
         }
     }
 

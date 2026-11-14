@@ -50,6 +50,7 @@ targets:
 YML
   grep -v '^#' scripts/engine-files.txt | sed 's#^#      - ../../Sources/Fishbots/#'
   echo "      - ../../Sources/Fishbots/RemoteTLS.swift"
+  echo "      - ../../Sources/Fishbots/ReplyText.swift"
   echo "      - ../../iOS"
 } > "$OUT/project.yml"
 xcodegen generate --spec "$OUT/project.yml" --project "$OUT" --quiet

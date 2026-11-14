@@ -693,4 +693,9 @@ let english: [String: String] = [
     "Ler o código": "Scan the code",
     "Colar o link": "Paste the link",
     "Isso não é um código do Fishbots.": "That isn't a Fishbots code.",
+    "Última resposta": "Last reply",
+    "Igual ao Mac": "Same as the Mac",
+    "Usar este tema no Mac também": "Use this theme on the Mac too",
+    "o Mac não trocou de tema": "the Mac didn't change its theme",
+    "Nomes dos peixes": "Fish names",
 ]

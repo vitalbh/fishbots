@@ -16,8 +16,8 @@ import Security
 final class Remote: EventSink {
     let id = "remote"
     static var enabled: Bool { UserDefaults.standard.bool(forKey: "remoteAccess") }
-    static let routes = ["GET /state", "GET /stream", "GET /permissions", "POST /permissions/<id>", "POST /reply",
-                         "POST /stop", "GET /packs", "GET /packs/files", "GET /journal"]
+    static let routes = ["GET /state", "GET /stream", "GET /permissions", "POST /permissions/<id>", "GET /said", "POST /reply",
+                         "POST /stop", "POST /theme", "GET /packs", "GET /packs/files", "GET /journal"]
 
     let port: UInt16
     private let tank: Tank
@@ -28,6 +28,8 @@ final class Remote: EventSink {
     var reply: ((Fish, String) -> Void)?
     var decide: ((Int, String) -> Void)?
     var can: ((Capability, Fish) -> Bool)?
+    /// Changes the Mac's theme, as its menu does.
+    var useTheme: ((String) -> Void)?
 
     private var server: Server?
     private var streams: [Server.Stream] = []
@@ -219,6 +221,22 @@ final class Remote: EventSink {
             if permissions.request(id: id) != nil { return (400, Self.error("that request doesn't take this answer")) }
             push()
             return (200, Data(#"{"ok":true}"#.utf8))
+        case ("POST", "/theme"):
+            // the device chose a theme for the Mac too: {"id": "…"}, one the Mac has (built in or from a pack)
+            let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+            guard let id = m["id"] as? String, Themes.all.contains(where: { $0.id == id }) else { return (404, Self.error("no such theme")) }
+            useTheme?(id)
+            push()
+            return (200, Data(#"{"ok":true}"#.utf8))
+        case ("GET", "/said"):
+            // the session's last reply, to read on the device: ?source=…&entity=… (not in /state: it can be long)
+            let q = URLComponents(string: path)?.queryItems ?? []
+            guard let source = q.first(where: { $0.name == "source" })?.value, let entity = q.first(where: { $0.name == "entity" })?.value,
+                  let f = tank.fish(source: source, entity: entity) else { return (404, Self.error("no such fish: send ?source=…&entity=…")) }
+            var d: [String: Any] = [:]
+            if let t = f.lastReplyMarkdown ?? f.lastReply { d["text"] = String(t.suffix(20_000)); d["markdown"] = f.lastReplyMarkdown != nil }
+            if let a = f.asked { d["asked"] = a }
+            return (200, Self.json(d))
         case ("POST", "/reply"), ("POST", "/stop"):
             let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
             guard let source = m["source"] as? String, let entity = m["entity"] as? String,

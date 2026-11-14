@@ -6,34 +6,6 @@ import simd
 // What makes a fish's card a piece of the aquarium: the fish behind a round window, the water's surface between the
 // card's parts, the context as a water level, and bubbles going up the glass.
 
-/// Each fish drawn big, as the tank draws it (its kind, color, pattern and fin cut), on a bit of water. Drawing one
-/// compiles the shader, so it happens once per look, in the background; the card asks again when it's ready.
-enum FishPortraits {
-    private static var cache: [String: CGImage] = [:]
-    private static var pending = Set<String>()
-
-    /// The picture, if it's been drawn; otherwise nil now and `ready` (on the main thread) once it has.
-    static func image(for f: Fish, ready: @escaping () -> Void) -> CGImage? {
-        guard FishKinds.all.indices.contains(f.species) else { return nil }
-        let c = f.color
-        let key = "\(f.kindID)|\(f.species)|\(f.pattern)|\(f.cut)|\(c.x),\(c.y),\(c.z)|\(FishKinds.all.count)"
-        if let img = cache[key] { return img }
-        guard pending.insert(key).inserted else { return nil }
-        let job = PackPreview.portraitJob(species: f.species, color: c, pattern: f.pattern, cut: f.cut)
-        DispatchQueue.global(qos: .utility).async {
-            let img = PackPreview.portrait(job)
-            DispatchQueue.main.async {
-                pending.remove(key)
-                guard let img else { return }
-                if cache.count > 60 { cache.removeAll() }       // packs came and went: start over
-                cache[key] = img
-                ready()
-            }
-        }
-        return nil
-    }
-}
-
 /// The fish behind a round window, rimmed in its color.
 final class Porthole: NSView {
     static let size = NSSize(width: 84, height: 56)

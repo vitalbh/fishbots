@@ -29,13 +29,14 @@ private struct Selected: Identifiable { let id: String }
 struct Aquarium: View {
     @ObservedObject var link: MacLink
     @SwiftUI.State private var selected: Selected?
+    @AppStorage("labels") private var showLabels = true
 
     var body: some View {
         ZStack {
-            AquariumView(mirror: link.mirror) { selected = Selected(id: $0) }
+            AquariumView(mirror: link.mirror, showLabels: showLabels) { selected = Selected(id: $0) }
                 .ignoresSafeArea()
             VStack {
-                if link.pairing != nil { StatusPill(link: link) }
+                if link.pairing != nil { StatusPill(link: link, showLabels: $showLabels) }
                 Spacer()
                 if let n = link.notice {
                     Text(n).font(.footnote).padding(10).background(.ultraThinMaterial, in: Capsule())
@@ -49,7 +50,7 @@ struct Aquarium: View {
         }
         .sheet(item: $selected) { s in FishCard(link: link, id: s.id).presentationDetents([.medium, .large]) }
         #if DEBUG
-        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close, so a script
+        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off, so a script
         // can press what a finger would (the simulator can't be tapped from the terminal)
         .onReceive(NotificationCenter.default.publisher(for: .fishbotsTest)) { n in
             guard let url = n.object as? URL, let d = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "do" })?.value else { return }
@@ -61,6 +62,9 @@ struct Aquarium: View {
                 link.reply(source: f["source"] as? String ?? "", entity: f["entity"] as? String ?? "", text: String(d.dropFirst(6))) { e in link.notice = e ?? "sent" }
             }
             else if d == "close" { selected = nil }
+            else if d.hasPrefix("theme:") { link.theme = String(d.dropFirst(6)) }
+            else if d == "themeMac" { link.useThemeOnMac() }
+            else if d.hasPrefix("labels:") { showLabels = d.hasSuffix("on") }
         }
         #endif
         .onChange(of: link.permissions.map(\.id)) { old, new in
@@ -72,9 +76,20 @@ struct Aquarium: View {
 /// Which Mac, and whether it's reachable; its menu pairs again or forgets it.
 private struct StatusPill: View {
     @ObservedObject var link: MacLink
+    @Binding var showLabels: Bool
 
     var body: some View {
         Menu {
+            Picker(tr("Tema"), selection: $link.theme) {
+                Text(tr("Igual ao Mac")).tag("")
+                ForEach(Themes.all, id: \.id) { Text($0.displayName).tag($0.id) }
+            }
+            .pickerStyle(.menu)
+            if !link.theme.isEmpty {
+                Button(tr("Usar este tema no Mac também")) { link.useThemeOnMac() }
+            }
+            Toggle(tr("Nomes dos peixes"), isOn: $showLabels)
+            Divider()
             Button(tr("Esquecer este Mac"), role: .destructive) { link.forget() }
         } label: {
             HStack(spacing: 6) {

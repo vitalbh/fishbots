@@ -1,12 +1,21 @@
+#if canImport(AppKit)
 import AppKit
+typealias ReplyFont = NSFont
+typealias ReplyColor = NSColor
+#else
+import UIKit
+typealias ReplyFont = UIFont
+typealias ReplyColor = UIColor
+#endif
 
 /// An agent's reply laid out for reading on the card: headings stand out in the fish's color, lists hang, bold and
 /// code keep their weight, code blocks and tables stay apart. It reads the reply's markdown when the app has it;
-/// from text already stripped of it, it still finds the lists and guesses the headings.
+/// from text already stripped of it, it still finds the lists and guesses the headings. The same on the Mac's card and
+/// the iPhone's.
 enum ReplyText {
-    static func attributed(_ source: String, markdown: Bool, tint: NSColor, size: CGFloat = 13) -> NSAttributedString {
+    static func attributed(_ source: String, markdown: Bool, tint: ReplyColor, size: CGFloat = 13) -> NSAttributedString {
         let out = NSMutableAttributedString()
-        let body = NSColor(white: 1, alpha: 0.88)
+        let body = ReplyColor(white: 1, alpha: 0.88)
         let lines = source.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
 
         func style(spacing: CGFloat = 5, before: CGFloat = 0, indent: CGFloat = 0, hang: CGFloat = 0) -> NSMutableParagraphStyle {
@@ -24,7 +33,7 @@ enum ReplyText {
             line.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: line.length))
             out.append(line)
         }
-        func plain(_ s: String, _ font: NSFont, _ color: NSColor) -> NSAttributedString {
+        func plain(_ s: String, _ font: ReplyFont, _ color: ReplyColor) -> NSAttributedString {
             NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
         }
 
@@ -34,7 +43,7 @@ enum ReplyText {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if markdown, line.hasPrefix("```") { inCode.toggle(); blankBefore = false; continue }
             if inCode {
-                add(plain(raw, .monospacedSystemFont(ofSize: size - 1.5, weight: .regular), NSColor(white: 1, alpha: 0.72)), style(spacing: 1, indent: 10))
+                add(plain(raw, .monospacedSystemFont(ofSize: size - 1.5, weight: .regular), ReplyColor(white: 1, alpha: 0.72)), style(spacing: 1, indent: 10))
                 continue
             }
             if line.isEmpty { blankBefore = true; continue }
@@ -50,7 +59,7 @@ enum ReplyText {
                 heading = line
             }
             if let h = heading {
-                add(inline(h, markdown: markdown, font: rounded(size + 1, .semibold), color: tint, tint: tint, size: size), style(spacing: 4, before: out.length > 0 ? 12 : 0))
+                add(inline(h, markdown: markdown, font: roundedFont(size + 1, .semibold), color: tint, tint: tint, size: size), style(spacing: 4, before: out.length > 0 ? 12 : 0))
                 continue
             }
             // a table: its cells side by side (the separator row says nothing)
@@ -108,13 +117,13 @@ enum ReplyText {
     }
 
     /// Bold, code and links inside a line. `lead`: in plain text, a list item's label ("Name: the rest") is bold.
-    private static func inline(_ s: String, markdown: Bool, font: NSFont, color: NSColor, tint: NSColor, size: CGFloat, lead: Bool = false) -> NSAttributedString {
+    private static func inline(_ s: String, markdown: Bool, font: ReplyFont, color: ReplyColor, tint: ReplyColor, size: CGFloat, lead: Bool = false) -> NSAttributedString {
         let base: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let bold = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
+        let bold = boldFont(font)
         guard markdown else {
             let out = NSMutableAttributedString(string: s, attributes: base)
             if lead, let colon = s.firstIndex(of: ":"), s[..<colon].count <= 40, !s[..<colon].contains(".") {
-                out.addAttributes([.font: bold, .foregroundColor: NSColor.white], range: NSRange(s.startIndex...colon, in: s))
+                out.addAttributes([.font: bold, .foregroundColor: ReplyColor.white], range: NSRange(s.startIndex...colon, in: s))
             }
             return out
         }
@@ -133,14 +142,45 @@ enum ReplyText {
             let inner = String(text[open.upperBound..<close.lowerBound])
             if mark == "`" {
                 out.append(NSAttributedString(string: inner, attributes: [
-                    .font: NSFont.monospacedSystemFont(ofSize: size - 1, weight: .regular),
-                    .foregroundColor: tint.blended(withFraction: 0.55, of: .white) ?? color,
-                    .backgroundColor: NSColor.white.withAlphaComponent(0.07)]))
+                    .font: ReplyFont.monospacedSystemFont(ofSize: size - 1, weight: .regular),
+                    .foregroundColor: mix(tint, .white, 0.55),
+                    .backgroundColor: ReplyColor.white.withAlphaComponent(0.07)]))
             } else {
-                out.append(NSAttributedString(string: inner, attributes: [.font: bold, .foregroundColor: NSColor.white]))
+                out.append(NSAttributedString(string: inner, attributes: [.font: bold, .foregroundColor: ReplyColor.white]))
             }
             text = String(text[close.upperBound...])
         }
         return out
+    }
+
+    // MARK: - the two platforms
+
+    private static func roundedFont(_ size: CGFloat, _ weight: ReplyFont.Weight) -> ReplyFont {
+        let f = ReplyFont.systemFont(ofSize: size, weight: weight)
+        #if canImport(AppKit)
+        return f.fontDescriptor.withDesign(.rounded).flatMap { ReplyFont(descriptor: $0, size: size) } ?? f
+        #else
+        return f.fontDescriptor.withDesign(.rounded).map { ReplyFont(descriptor: $0, size: size) } ?? f
+        #endif
+    }
+
+    private static func boldFont(_ f: ReplyFont) -> ReplyFont {
+        #if canImport(AppKit)
+        return NSFontManager.shared.convert(f, toHaveTrait: .boldFontMask)
+        #else
+        return f.fontDescriptor.withSymbolicTraits(.traitBold).map { ReplyFont(descriptor: $0, size: f.pointSize) } ?? f
+        #endif
+    }
+
+    /// `a` moved toward `b` by `t`.
+    private static func mix(_ a: ReplyColor, _ b: ReplyColor, _ t: CGFloat) -> ReplyColor {
+        #if canImport(AppKit)
+        return a.blended(withFraction: t, of: b) ?? a
+        #else
+        var (r1, g1, b1, a1, r2, g2, b2, a2): (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0, 0, 0, 0, 0)
+        a.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        b.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        return ReplyColor(red: r1 + (r2 - r1) * t, green: g1 + (g2 - g1) * t, blue: b1 + (b2 - b1) * t, alpha: a1 + (a2 - a1) * t)
+        #endif
     }
 }

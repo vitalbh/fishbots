@@ -6,10 +6,14 @@ import UIKit
 /// the Mac only says who's there and how they are. Touching a fish opens its card.
 struct AquariumView: UIViewRepresentable {
     let mirror: TankMirror
+    var showLabels = true
     var onTap: (String) -> Void
 
     func makeUIView(context: Context) -> AquariumUIView { AquariumUIView(mirror: mirror) }
-    func updateUIView(_ v: AquariumUIView, context: Context) { v.onTap = onTap }
+    func updateUIView(_ v: AquariumUIView, context: Context) {
+        v.onTap = onTap
+        v.showLabels = showLabels
+    }
 }
 
 final class AquariumUIView: UIView {
@@ -19,6 +23,8 @@ final class AquariumUIView: UIView {
     private let labels = CALayer()
     private var layers: [String: CATextLayer] = [:]
     var onTap: ((String) -> Void)?
+    /// The names under the fish (the menu's switch).
+    var showLabels = true { didSet { labels.isHidden = !showLabels } }
 
     init(mirror: TankMirror) {
         self.mirror = mirror
@@ -81,6 +87,7 @@ final class AquariumUIView: UIView {
 
     /// Name and, when it needs you, a colored second line under each fish (as in the screen saver).
     private func updateLabels() {
+        guard showLabels else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         var alive = Set<String>()

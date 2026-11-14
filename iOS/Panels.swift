@@ -104,59 +104,233 @@ private struct FlowButtons: View {
 
 // MARK: - a fish's card
 
-/// What a session is doing, and the line to reply to it (typed into its terminal on the Mac) or to stop it.
+/// A session's card, as on the Mac: the fish behind its window, how it is, what it asked, its last reply laid out
+/// (ReplyText, the Mac's own), and the line to reply to it (typed into its terminal on the Mac) or to stop it.
+/// Dark glass in the fish's color.
 struct FishCard: View {
     @ObservedObject var link: MacLink
     let id: String
     @SwiftUI.State private var text = ""
     @SwiftUI.State private var sending = false
     @SwiftUI.State private var error: String?
+    /// Its last reply, fetched when the card opens and again each time the session changes state.
+    @SwiftUI.State private var said: NSAttributedString?
+    @SwiftUI.State private var portrait: CGImage?
     @Environment(\.dismiss) private var dismiss
+
+    private var fish: Fish? {
+        let parts = id.split(separator: ":", maxSplits: 1).map(String.init)
+        return parts.count == 2 ? link.mirror.tank.fish(source: parts[0], entity: parts[1]) : nil
+    }
+
+    private var tint: Color { fish.map { Color(red: Double($0.color.x), green: Double($0.color.y), blue: Double($0.color.z)) } ?? .teal }
+    private var tintUI: UIColor { fish.map { UIColor(red: CGFloat($0.color.x), green: CGFloat($0.color.y), blue: CGFloat($0.color.z), alpha: 1) } ?? .systemTeal }
 
     var body: some View {
         let d = link.fish[id] ?? [:]
         let can = Set(d["can"] as? [String] ?? [])
         let source = d["source"] as? String ?? "", entity = d["entity"] as? String ?? ""
-        let waitingQuestion = link.permissions.contains { $0.source == source && $0.entity == entity && $0.question != nil }
-        NavigationStack {
-            Form {
+        let state = State(rawValue: d["state"] as? String ?? "")
+        let question = link.permissions.first { $0.source == source && $0.entity == entity }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
                 if d.isEmpty {
-                    Text(tr("Essa sessão saiu do aquário.")).foregroundStyle(.secondary)
+                    Text(tr("Essa sessão saiu do aquário.")).foregroundStyle(.secondary).padding(.top, 30)
                 } else {
-                    Section {
-                        LabeledContent(tr("Estado"), value: State(rawValue: d["state"] as? String ?? "").map(\.label) ?? "")
-                        if let t = d["doing"] as? String, !t.isEmpty { LabeledContent(tr("Fazendo"), value: t) }
-                        if let t = d["detail"] as? String, !t.isEmpty { Text(t).font(.footnote) }
-                        if let b = d["branch"] as? String, !b.isEmpty { LabeledContent("Branch", value: b) }
-                        if let m = d["model"] as? String, !m.isEmpty { LabeledContent(tr("Modelo"), value: m) }
-                        if let w = (d["where"] as? [String: String])?["cwd"] { Text(w).font(.caption.monospaced()).foregroundStyle(.secondary) }
+                    header(d, state)
+                    tags(d)
+                    WaveLine().stroke(tint.opacity(0.35), lineWidth: 1).frame(height: 7)
+                    if state == .busy, let t = d["doing"] as? String, !t.isEmpty {
+                        Text("▸ " + t).font(.subheadline.weight(.medium)).foregroundStyle(tint)
                     }
-                    if can.contains("reply") || waitingQuestion {
-                        Section(tr("Responder")) {
-                            TextField(tr("Escreva para a sessão"), text: $text, axis: .vertical).lineLimit(1...6)
-                            Button(sending ? tr("Enviando…") : tr("Enviar")) {
-                                sending = true
-                                error = nil
-                                link.reply(source: source, entity: entity, text: text) { e in
-                                    sending = false
-                                    if let e { error = e } else { text = ""; dismiss() }
-                                }
-                            }
-                            .disabled(sending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            if let error { Text(error).font(.footnote).foregroundStyle(.red) }
-                        }
+                    if let c = (d["context"] as? NSNumber)?.doubleValue, c >= 0 { gauge(c) }
+                    if let asked = question?.summary ?? (state == .waiting ? fish?.asked : nil), !asked.isEmpty {
+                        Text("✋ " + asked).font(.subheadline.weight(.medium))
+                            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.orange.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.orange.opacity(0.35)))
+                    }
+                    if let said {
+                        Label(tr("Última resposta"), systemImage: "text.bubble").font(.caption).foregroundStyle(.secondary)
+                        RichText(text: said)
+                    }
+                    if can.contains("reply") || question?.question != nil {
+                        WaveLine().stroke(tint.opacity(0.35), lineWidth: 1).frame(height: 7)
+                        replyField(source, entity)
                     }
                     if can.contains("stop") {
-                        Section {
-                            Button(tr("Interromper o agente"), role: .destructive) { link.stop(source: source, entity: entity) }
+                        Button(role: .destructive) { link.stop(source: source, entity: entity) } label: {
+                            Label(tr("Interromper o agente"), systemImage: "stop.circle")
                         }
+                        .buttonStyle(.bordered)
                     }
                 }
             }
-            .navigationTitle((d["title"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? d["label"] as? String ?? "")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button(tr("Fechar")) { dismiss() } } }
+            .padding(18)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .background(glass)
+        .overlay(alignment: .topTrailing) {
+            Button { dismiss() } label: { Image(systemName: "xmark.circle.fill").font(.title2).symbolRenderingMode(.hierarchical) }
+                .foregroundStyle(.secondary).padding(10)
+        }
+        .presentationBackground(.clear)
+        .environment(\.colorScheme, .dark)
+        .task(id: d["state"] as? String ?? "") { load(source: source, entity: entity) }
+        .onAppear { drawPortrait() }
+    }
+
+    /// The fish behind its window, its name, and how it is.
+    private func header(_ d: [String: Any], _ state: State?) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.09, green: 0.24, blue: 0.27), Color(red: 0.05, green: 0.14, blue: 0.17)], startPoint: .top, endPoint: .bottom)
+                if let portrait { Image(decorative: portrait, scale: 1).resizable().scaledToFit().padding(2) }
+                LinearGradient(colors: [.white.opacity(0.16), .clear], startPoint: .top, endPoint: .center)
+            }
+            .frame(width: 84, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(tint.opacity(0.8), lineWidth: 1.5))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title(d)).font(.system(.headline, design: .rounded)).lineLimit(2)
+                let facts = [d["model"] as? String ?? "", d["branch"] as? String ?? ""].filter { !$0.isEmpty }
+                if !facts.isEmpty { Text(facts.joined(separator: "  ·  ")).font(.caption).foregroundStyle(.tertiary) }
+            }
+            Spacer(minLength: 4)
+            if let state {
+                Text(state.label).font(.caption.weight(.semibold)).lineLimit(1)
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .foregroundStyle(Self.color(state))
+                    .background(Self.color(state).opacity(0.18), in: Capsule())
+                    .padding(.trailing, 30)
+            }
+        }
+    }
+
+    private func title(_ d: [String: Any]) -> String {
+        let t = d["title"] as? String ?? ""
+        return t.isEmpty ? d["label"] as? String ?? "" : t
+    }
+
+    /// Where it runs: the agent, the folder.
+    private func tags(_ d: [String: Any]) -> some View {
+        let w = d["where"] as? [String: String] ?? [:]
+        let folder = w["cwd"].map { ($0 as NSString).lastPathComponent }
+        return HStack(spacing: 6) {
+            if let s = d["source"] as? String { tag(s, "sparkles") }
+            if let folder { tag(folder, "folder") }
+            if w["rex_block"] != nil { tag("Rex", "rectangle.split.2x1") } else if w["tmux"] != nil { tag("tmux", "rectangle.split.2x1") }
+        }
+    }
+
+    private func tag(_ t: String, _ icon: String) -> some View {
+        Label(t, systemImage: icon).font(.caption).lineLimit(1)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 7))
+            .foregroundStyle(.secondary)
+    }
+
+    /// How full its context is, as water in a tube.
+    private func gauge(_ c: Double) -> some View {
+        let color: Color = c > 0.9 ? .red : c > 0.7 ? .orange : tint
+        return HStack(spacing: 10) {
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.07))
+                    Capsule().fill(LinearGradient(colors: [color, color.opacity(0.6)], startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(8, g.size.width * c))
+                }
+            }
+            .frame(width: 120, height: 10)
+            Text(String(format: tr("contexto %d%%"), Int((c * 100).rounded()))).font(.caption).foregroundStyle(c > 0.7 ? color : .secondary)
+        }
+    }
+
+    private func replyField(_ source: String, _ entity: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .bottom) {
+                TextField(tr("Escreva para a sessão"), text: $text, axis: .vertical).lineLimit(1...6)
+                    .padding(10).background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+                Button {
+                    sending = true
+                    error = nil
+                    link.reply(source: source, entity: entity, text: text) { e in
+                        sending = false
+                        if let e { error = e } else { text = ""; dismiss() }
+                    }
+                } label: {
+                    Image(systemName: sending ? "ellipsis.circle.fill" : "arrow.up.circle.fill").font(.title)
+                }
+                .tint(tint)
+                .disabled(sending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+        }
+    }
+
+    /// The Mac card's glass: dark, with the fish's color coming down from the top.
+    private var glass: some View {
+        ZStack {
+            Color(red: 0.06, green: 0.07, blue: 0.1).opacity(0.94)
+            LinearGradient(colors: [tint.opacity(0.26), tint.opacity(0.07), .clear], startPoint: .top, endPoint: .center)
+        }
+        .ignoresSafeArea()
+    }
+
+    static func color(_ s: State) -> Color {
+        s == .error ? .red : s == .waiting ? .orange : s == .busy ? .teal : .secondary
+    }
+
+    /// The portrait is drawn once per look, in the background (the first one compiles the shader: a few seconds).
+    private func drawPortrait() {
+        guard let f = fish else { return }
+        if let img = FishPortraits.image(for: f, ready: { drawPortrait() }) { portrait = img }
+    }
+
+    private func load(source: String, entity: String) {
+        guard !source.isEmpty else { return }
+        link.said(source: source, entity: entity) { text, markdown in
+            guard let text, !text.isEmpty else { said = nil; return }
+            said = ReplyText.attributed(text, markdown: markdown, tint: tintUI, size: 15)
+        }
+    }
+}
+
+/// The water's surface between the card's parts.
+struct WaveLine: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        let mid = r.midY, amp = r.height / 2 - 1
+        p.move(to: CGPoint(x: r.minX, y: mid))
+        var x = r.minX
+        while x <= r.maxX {
+            p.addLine(to: CGPoint(x: x, y: mid + sin(x / 18 * 2 * .pi) * amp))
+            x += 2
+        }
+        return p
+    }
+}
+
+/// An attributed text as UIKit lays it out (ReplyText's hanging lists and spacing), as tall as it needs to be.
+struct RichText: UIViewRepresentable {
+    let text: NSAttributedString
+
+    func makeUIView(context: Context) -> UITextView {
+        let v = UITextView()
+        v.isEditable = false
+        v.isScrollEnabled = false
+        v.backgroundColor = .clear
+        v.textContainerInset = .zero
+        v.textContainer.lineFragmentPadding = 0
+        v.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return v
+    }
+
+    func updateUIView(_ v: UITextView, context: Context) { v.attributedText = text }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let w = proposal.width ?? 320
+        return CGSize(width: w, height: uiView.sizeThatFits(CGSize(width: w, height: .greatestFiniteMagnitude)).height)
     }
 }
 
