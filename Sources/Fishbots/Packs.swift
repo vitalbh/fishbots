@@ -146,6 +146,7 @@ enum Packs {
         return parts.sorted().joined(separator: "|")
     }
 
+    #if os(macOS)
     /// Installs a pack from a .fishbotspack (a zip of the pack's folder): unzipped apart, checked (a pack.json with an
     /// id, only data and Metal files), then put in the packs folder under its id, replacing an older copy.
     /// Returns the pack's id.
@@ -212,6 +213,7 @@ enum Packs {
         try fm.copyItem(at: root, to: dest)
         return id
     }
+    #endif
 
     /// An entry's name in the interface's language ("names": {"en": "…"}), or its "name", or its id.
     static func localName(_ d: [String: Any], _ id: String) -> String {

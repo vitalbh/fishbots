@@ -189,7 +189,7 @@ Everything comes in through `POST http://127.0.0.1:7777/event` (local only) with
 States: `born busy idle waiting ok alert error done` (+ `end`). `GET /state` returns the aquarium as JSON, `GET /journal` what happened today (`?hours=N`: in the last hours). Packs:
 `GET /packs` (what's installed and its problems), `POST /packs/reload`, `POST /packs/install` (`{"path": "…/x.fishbotspack"}`).
 
-Other devices (an iPhone app) can see the aquarium and answer it when **Preferências → Geral → Outros aparelhos** is on: a second port (7778, Bonjour `_fishbots._tcp`), encrypted with the key in the QR code shown there, that only watches, answers permission requests and sends replies. See [docs/extensions.md](docs/extensions.md) (13).
+Other devices (an iPhone app) can see the aquarium and answer it when **Preferências → Geral → Outros aparelhos** is on: a second port (7778, Bonjour `_fishbots._tcp`), encrypted with the key in the QR code shown there, that only watches, answers permission requests and sends replies. The iPhone app is in `iOS/`: `scripts/ios.sh sim` runs it in the simulator, `FISHBOTS_TEAM=<team id> scripts/ios.sh device` installs it on a plugged-in iPhone (XcodeGen: `brew install xcodegen`). See [docs/extensions.md](docs/extensions.md) (13).
 
 From the command line (`bin/fishbots`):
 
