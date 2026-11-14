@@ -5,8 +5,8 @@ import UIKit
 /// Mac; this app watches them, answers their permission requests and replies to them.
 @main
 struct FishbotsApp: App {
-    @StateObject private var link = MacLink()
-    @Environment(\.scenePhase) private var phase
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @ObservedObject private var link = MacLink.shared
 
     var body: some SwiftUI.Scene {
         WindowGroup {
@@ -17,7 +17,6 @@ struct FishbotsApp: App {
                     #endif
                     link.pair(url)
                 }
-                .onChange(of: phase) { _, p in if p == .active { link.resume() } else if p == .background { link.pause() } }
                 .onAppear { link.resume() }
                 .preferredColorScheme(.dark)
         }
@@ -73,6 +72,9 @@ struct Aquarium: View {
             }
         }
         #endif
+        .onChange(of: link.openFish) { _, f in
+            if let f { selected = Selected(id: f); link.openFish = nil }
+        }
         .onChange(of: link.permissions.map(\.id)) { old, new in
             if new.contains(where: { !old.contains($0) }) { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
         }

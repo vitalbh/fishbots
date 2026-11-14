@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     lazy var assistantPanel = AssistantPanel(assistant: assistant, tank: tank)
     /// Other devices (the iPhone app): off unless Preferences turns it on (Remote.swift).
     lazy var remote = Remote(tank: tank, permissions: permissions, port: port + 1)
+    /// Notifications on the paired phone when its app isn't open (Push.swift).
+    lazy var push = Push(tank: tank, permissions: permissions, remote: remote)
     lazy var sessionControl = SessionControl(tank: tank, port: { [unowned self] in self.port }) { [unowned self] c, f in self.cards.can(c, f) }
     private(set) var hoverBattery = false
     private(set) var hoverPearl: Pearl?
@@ -876,7 +878,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 return (name, s.ok, s.ok ? when : (s.error ?? "falhou"))
             }
         },
-        remote: { [unowned self] in self.remote }))
+        remote: { [unowned self] in self.remote },
+        push: { [unowned self] in self.push }))
 
     @objc func showPreferences() { preferences.show() }
 

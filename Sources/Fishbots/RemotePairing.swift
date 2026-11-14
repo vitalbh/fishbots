@@ -6,6 +6,8 @@ import SwiftUI
 struct RemotePairingSection: View {
     @ObservedObject var prefs: Prefs
     let remote: Remote
+    let push: Push
+    @SwiftUI.State private var keyError: String?
     /// Looked up when the section shows (Remote.refreshTailscale): "" while unknown.
     @SwiftUI.State var tailscale: String? = nil
 
@@ -41,6 +43,34 @@ struct RemotePairingSection: View {
                     }
                 }
                 .task { tailscale = await remote.refreshTailscale() }
+            }
+        }
+        if Remote.enabled { notifications }
+    }
+
+    /// Push.swift: the account's APNs key, and which phones get notifications.
+    private var notifications: some View {
+        Section(tr("Notificações no iPhone")) {
+            Text(tr("Avisam quando uma sessão pede permissão, para esperando você ou dá erro, e o app do iPhone não está aberto. O Mac manda direto para a Apple, cifrado: a Apple não lê o que a sessão disse. Precisa de uma chave APNs da sua conta de desenvolvedor (developer.apple.com → Keys)."))
+                .font(.footnote).foregroundStyle(.secondary)
+            TextField(tr("Key ID"), text: prefs.bind({ Push.keyId }, { UserDefaults.standard.set($0.trimmingCharacters(in: .whitespaces), forKey: "pushKeyId") }))
+            TextField(tr("Team ID"), text: prefs.bind({ Push.teamId }, { UserDefaults.standard.set($0.trimmingCharacters(in: .whitespaces), forKey: "pushTeamId") }))
+            HStack {
+                Button(tr("Escolher a chave .p8…")) {
+                    let panel = NSOpenPanel()
+                    panel.allowedContentTypes = [.init(filenameExtension: "p8") ?? .data]
+                    guard panel.runModal() == .OK, let url = panel.url else { return }
+                    do { try Push.setKey(from: url); keyError = nil } catch { keyError = tr("Não é uma chave .p8 válida.") }
+                    prefs.refresh()
+                }
+                Text(FileManager.default.fileExists(atPath: Push.keyFile.path) ? tr("chave guardada") : tr("sem chave"))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            if let keyError { Text(keyError).font(.footnote).foregroundStyle(.red) }
+            HStack {
+                Text(String(format: tr("%d aparelho(s) recebem"), push.devices.count)).font(.footnote).foregroundStyle(.secondary)
+                Spacer()
+                Button(tr("Mandar um teste")) { push.test() }.disabled(!push.configured || push.devices.isEmpty)
             }
         }
     }

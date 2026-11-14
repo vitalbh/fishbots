@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Combine
+import UIKit
 
 /// A permission request waiting on the Mac (`GET /permissions`, Remote.swift).
 struct PermissionRequest: Identifiable, Equatable {
@@ -45,6 +46,9 @@ struct PermissionRequest: Identifiable, Equatable {
 /// each event) and short requests for what the person does (answer, reply, stop). Every connection is TLS with the
 /// pairing key (RemoteTLS); the sessions stay on the Mac, nothing runs here.
 final class MacLink: ObservableObject {
+    /// One for the app: the screen and the notifications' buttons (which may run with the app closed) share it.
+    static let shared = MacLink()
+
     enum Status: Equatable {
         case unpaired, connecting, connected, failed(String)
     }
@@ -58,6 +62,10 @@ final class MacLink: ObservableObject {
     @Published var notice: String?
     /// What happened while the app wasn't looking (`GET /journal`), when that was a while: shown once.
     @Published var away: [[String: Any]] = []
+    /// A fish whose card should open (a notification was tapped).
+    @Published var openFish: String?
+    /// This phone's push token, sent to the Mac each time the stream opens (it can change).
+    private var pushToken: String?
     /// When the app last looked at the aquarium (the stream open, in the front).
     private var lastSeen: Date? {
         get { UserDefaults.standard.object(forKey: "lastSeen") as? Date }
@@ -79,12 +87,24 @@ final class MacLink: ObservableObject {
     private var buffer = Data()
     private var headersDone = false
     private var active = false
+    /// A stream is being opened (the race in `open` takes a moment): don't start a second one.
+    private var connecting = false
     private var retry: DispatchWorkItem?
     /// The endpoint that answered last: tried first next time.
     private var lastGood: NWEndpoint?
 
     init() {
+        // in front: the stream open; behind: closed (iOS would freeze it anyway, and the Mac sends notifications
+        // only while nobody is watching)
+        let nc = NotificationCenter.default
+        nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in self?.pause() }
+        nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in self?.resume() }
         pairing = Pairing.load()
+        // paired before notifications existed: the extension's key comes from the pairing already kept
+        if let p = pairing, PushKey.load() == nil {
+            let st = PushKey.keep(pairing: p.key)
+            MacLink.log("push key kept: \(st) group: \(PushKey.group ?? "-")")
+        }
         status = pairing == nil ? .unpaired : .connecting
         mirror.log = { MacLink.log($0) }
         ShaderSheet.failed = { m in DispatchQueue.main.async { MacLink.log(m) } }
@@ -117,7 +137,9 @@ final class MacLink: ObservableObject {
     func pair(_ url: URL) -> Bool {
         guard let p = Pairing(url: url) else { return false }
         p.save()
+        PushKey.keep(pairing: p.key)
         pairing = p
+        Notifications.ask()
         lastGood = nil
         disconnect()
         mirror.clear()
@@ -127,6 +149,7 @@ final class MacLink: ObservableObject {
 
     func forget() {
         Pairing.forget()
+        PushKey.forget()
         disconnect()
         mirror.clear()
         pairing = nil
@@ -148,6 +171,20 @@ final class MacLink: ObservableObject {
         if status == .connected { lastSeen = Date() }
         active = false
         disconnect()
+    }
+
+    func registerPush(_ token: String) {
+        pushToken = token
+        sendPushToken()
+    }
+
+    /// Development builds get their notifications from Apple's sandbox; TestFlight and the App Store from production.
+    private func sendPushToken() {
+        guard let pushToken, pairing != nil else { return }
+        let env = Bundle.main.object(forInfoDictionaryKey: "FishbotsAPNs") as? String ?? "sandbox"
+        request("POST", "/push/register", ["token": pushToken, "env": env]) { status, _ in
+            if status != 200 { MacLink.log("push: the Mac didn't take the token (\(status))") }
+        }
     }
 
     /// The journal since the app last looked, if that was more than 10 minutes ago (only what's worth telling:
@@ -174,10 +211,12 @@ final class MacLink: ObservableObject {
     }
 
     private func connect() {
-        guard let pairing, active else { return }
+        guard let pairing, active, !connecting, stream == nil else { return }
+        connecting = true
         status = .connecting
         open(pairing) { [weak self] c in
             guard let self else { return }
+            self.connecting = false
             guard let c else { self.lost(tr("não achei o Mac")); return }
             guard self.active, self.pairing == pairing else { c.cancel(); return }
             self.stream = c
@@ -223,6 +262,7 @@ final class MacLink: ObservableObject {
             headersDone = true
             status = .connected
             catchUp()
+            sendPushToken()
         }
         let sep = Data("\n\n".utf8)
         while let r = buffer.range(of: sep) {

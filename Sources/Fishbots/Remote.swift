@@ -17,7 +17,7 @@ final class Remote: EventSink {
     let id = "remote"
     static var enabled: Bool { UserDefaults.standard.bool(forKey: "remoteAccess") }
     static let routes = ["GET /state", "GET /stream", "GET /permissions", "POST /permissions/<id>", "GET /said", "POST /reply",
-                         "POST /stop", "POST /theme", "GET /packs", "GET /packs/files", "GET /journal"]
+                         "POST /stop", "POST /theme", "POST /push/register", "GET /packs", "GET /packs/files", "GET /journal"]
 
     let port: UInt16
     private let tank: Tank
@@ -30,6 +30,11 @@ final class Remote: EventSink {
     var can: ((Capability, Fish) -> Bool)?
     /// Changes the Mac's theme, as its menu does.
     var useTheme: ((String) -> Void)?
+    /// Keeps a phone's push token (Push.swift).
+    var registerPush: ((Push.Device) -> Void)?
+
+    /// A device has the stream open (the app in front): it sees everything already, no notifications.
+    var watching: Bool { streams.contains { $0.isOpen } }
 
     private var server: Server?
     private var streams: [Server.Stream] = []
@@ -220,6 +225,12 @@ final class Remote: EventSink {
             // still there: the decision didn't fit the request (an answer to one that isn't a question)
             if permissions.request(id: id) != nil { return (400, Self.error("that request doesn't take this answer")) }
             push()
+            return (200, Data(#"{"ok":true}"#.utf8))
+        case ("POST", "/push/register"):
+            // the phone's APNs token: {"token": "<hex>", "env": "sandbox"|"production"}
+            let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+            guard let t = m["token"] as? String, t.count >= 32, t.allSatisfy(\.isHexDigit) else { return (400, Self.error("send {\"token\": \"…\", \"env\": \"sandbox\"}")) }
+            registerPush?(Push.Device(token: t.lowercased(), env: m["env"] as? String == "production" ? "production" : "sandbox"))
             return (200, Data(#"{"ok":true}"#.utf8))
         case ("POST", "/theme"):
             // the device chose a theme for the Mac too: {"id": "…"}, one the Mac has (built in or from a pack)

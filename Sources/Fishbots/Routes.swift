@@ -35,6 +35,8 @@ extension AppDelegate {
             remote.can = { [unowned self] c, f in self.cards.can(c, f) }
             remote.useTheme = { [unowned self] id in self.themeKeeper.use(id) }
             Outputs.register(remote)
+            remote.registerPush = { [unowned self] d in self.push.register(d) }
+            Outputs.register(push)
             remote.start()
             // a session with no terminal asks leave through its stream: the same request on its fish's card
             Background.tank = tank

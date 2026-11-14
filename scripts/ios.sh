@@ -8,12 +8,16 @@
 #
 # Signing for a device: FISHBOTS_TEAM=<your team id> (Xcode → Settings → Accounts; a free Apple ID works, the app
 # then lasts 7 days). FISHBOTS_IOS_BUNDLE changes the bundle id (it has to be unique to your team).
+# Notifications (Push.swift on the Mac) need a paid developer account: FISHBOTS_PUSH=1 asks for them on a device (the
+# simulator always has them, to try with xcrun simctl push).
 set -e
 cd "$(dirname "$0")/.."
 OUT=build/ios
 mkdir -p "$OUT"
 BUNDLE="${FISHBOTS_IOS_BUNDLE:-io.vitalbh.fishbots.ios}"
 TEAM="${FISHBOTS_TEAM:-}"
+PUSH="${FISHBOTS_PUSH:-}"
+[ "$1" = "sim" ] && PUSH=1
 
 # the project, from the engine's list: nothing to keep in step by hand
 {
@@ -31,6 +35,7 @@ settings:
     MARKETING_VERSION: "0.1"
     CURRENT_PROJECT_VERSION: "1"
     GENERATE_INFOPLIST_FILE: NO
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 targets:
   Fishbots:
     type: application
@@ -46,12 +51,52 @@ targets:
         NSCameraUsageDescription: "To read the pairing code on your Mac."
         NSFaceIDUsageDescription: "To confirm it's you before a session on your Mac runs something."
         CFBundleURLTypes: [{ CFBundleURLName: fishbots, CFBundleURLSchemes: [fishbots] }]
-    sources:
+        FishbotsKeychainGroup: "\$(AppIdentifierPrefix)$BUNDLE.shared"
+        FishbotsAPNs: sandbox
 YML
+  if [ -n "$PUSH" ]; then
+    cat <<YML
+    entitlements:
+      path: Fishbots.entitlements
+      properties:
+        aps-environment: development
+        keychain-access-groups: ["\$(AppIdentifierPrefix)$BUNDLE.shared"]
+    dependencies:
+      - target: FishbotsNotify
+YML
+  fi
+  echo "    sources:"
   grep -v '^#' scripts/engine-files.txt | sed 's#^#      - ../../Sources/Fishbots/#'
   echo "      - ../../Sources/Fishbots/RemoteTLS.swift"
   echo "      - ../../Sources/Fishbots/ReplyText.swift"
-  echo "      - ../../iOS"
+  echo "      - ../../Sources/Fishbots/PushSeal.swift"
+  echo "      - path: ../../iOS"
+  echo "        excludes: [Notify/NotificationService.swift]"
+  if [ -n "$PUSH" ]; then
+    cat <<YML
+  FishbotsNotify:
+    type: app-extension
+    platform: iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $BUNDLE.notify
+    info:
+      path: Notify-Info.plist
+      properties:
+        CFBundleDisplayName: Fishbots
+        FishbotsKeychainGroup: "\$(AppIdentifierPrefix)$BUNDLE.shared"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: "\$(PRODUCT_MODULE_NAME).NotificationService"
+    entitlements:
+      path: Notify.entitlements
+      properties:
+        keychain-access-groups: ["\$(AppIdentifierPrefix)$BUNDLE.shared"]
+    sources:
+      - ../../iOS/Notify
+      - ../../Sources/Fishbots/PushSeal.swift
+YML
+  fi
 } > "$OUT/project.yml"
 xcodegen generate --spec "$OUT/project.yml" --project "$OUT" --quiet
 

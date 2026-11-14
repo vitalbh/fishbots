@@ -1,8 +1,10 @@
 // Draws the app icon (a cute fish with a little robot antenna, in a tank) and builds Resources/AppIcon.icns.
 //   swift scripts/make-icon.swift            (from the repository root)
+//   swift scripts/make-icon.swift --ios      the iPhone's: the same tank filling an opaque square (iOS rounds it)
 import AppKit
 
 let S: CGFloat = 1024
+let square = CommandLine.arguments.contains("--ios")
 
 func color(_ hex: UInt32, _ a: CGFloat = 1) -> CGColor {
     CGColor(srgbRed: CGFloat((hex >> 16) & 255) / 255, green: CGFloat((hex >> 8) & 255) / 255, blue: CGFloat(hex & 255) / 255, alpha: a)
@@ -12,7 +14,8 @@ func draw(_ ctx: CGContext) {
     let space = CGColorSpace(name: CGColorSpace.sRGB)!
     // the macOS icon shape: a rounded square on the 1024 grid (824 wide, centered)
     let tile = CGRect(x: 100, y: 100, width: 824, height: 824)
-    let shape = CGPath(roundedRect: tile, cornerWidth: 186, cornerHeight: 186, transform: nil)
+    // the iPhone's is a plain square: iOS rounds it, and draws no outline
+    let shape = square ? CGPath(rect: tile, transform: nil) : CGPath(roundedRect: tile, cornerWidth: 186, cornerHeight: 186, transform: nil)
 
     // drop shadow under the tile
     ctx.saveGState()
@@ -165,7 +168,7 @@ func draw(_ ctx: CGContext) {
     let shine = CGGradient(colorsSpace: space, colors: [color(0xffffff, 0.16), color(0xffffff, 0)] as CFArray, locations: [0, 1])!
     ctx.drawLinearGradient(shine, start: CGPoint(x: 0, y: tile.maxY), end: CGPoint(x: 0, y: tile.maxY - 260), options: [])
     ctx.restoreGState()
-    ctx.addPath(shape); ctx.setStrokeColor(color(0xffffff, 0.18)); ctx.setLineWidth(4); ctx.strokePath()
+    if !square { ctx.addPath(shape); ctx.setStrokeColor(color(0xffffff, 0.18)); ctx.setLineWidth(4); ctx.strokePath() }
 }
 
 func png(_ size: Int) -> Data {
@@ -176,6 +179,24 @@ func png(_ size: Int) -> Data {
     ctx.setShouldAntialias(true)
     draw(ctx)
     return rep.representation(using: .png, properties: [:])!
+}
+
+if CommandLine.arguments.contains("--ios") {
+    let out = "iOS/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+    let ctx = CGContext(data: nil, width: Int(S), height: Int(S), bitsPerComponent: 8, bytesPerRow: 0,
+                        space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+    ctx.setFillColor(color(0x08304f))
+    ctx.fill(CGRect(x: 0, y: 0, width: S, height: S))
+    // the tile (824 wide, from 100) grows to fill the square
+    let k = S / 824
+    ctx.scaleBy(x: k, y: k)
+    ctx.translateBy(x: -100, y: -100)
+    draw(ctx)
+    let dst = CGImageDestinationCreateWithURL(URL(fileURLWithPath: out) as CFURL, "public.png" as CFString, 1, nil)!
+    CGImageDestinationAddImage(dst, ctx.makeImage()!, nil)
+    CGImageDestinationFinalize(dst)
+    print(out)
+    exit(0)
 }
 
 let fm = FileManager.default
