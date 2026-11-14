@@ -111,13 +111,20 @@ extension AppDelegate {
         case ("GET", "/state"), ("GET", "/estado"):
             return (200, TankProtocol.state(self.tank))
         case ("GET", "/"):
-            let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /journal", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload", "GET /remote", "POST /remote/forget"] + SessionControl.routes
+            let routes = ["POST /event"] + Providers.allRoutes.map { "POST " + $0 } + ["GET /state", "GET /journal", "GET /packs", "POST /packs/reload", "POST /packs/install", "GET /agents", "POST /agents/reload", "GET /remote", "POST /remote/forget", "POST /remote/revoke"] + SessionControl.routes
             return (200, (try? JSONSerialization.data(withJSONObject: ["fishbots": "ok", "routes": routes])) ?? Data())
         case ("GET", "/remote"):
             // pairing another device (Remote.swift): whether it's on, and the link its QR code carries
             return (200, self.remote.pairingJSON)
         case ("POST", "/remote/forget"):
             self.remote.forgetDevices()
+            return (200, self.remote.pairingJSON)
+        case ("POST", "/remote/revoke"):
+            // one paired device out: {"id": "…"} (as in GET /remote's "devices")
+            guard let id = ((try? JSONSerialization.jsonObject(with: body)) as? [String: Any])?["id"] as? String else {
+                return (400, Data(#"{"error":"send {\"id\": \"…\"}"}"#.utf8))
+            }
+            self.remote.revoke(id)
             return (200, self.remote.pairingJSON)
         case ("POST", "/assistant/watch"):
             // the resident assistant asks to be woken when a session stops, to tell the person (`fishbots watch`)

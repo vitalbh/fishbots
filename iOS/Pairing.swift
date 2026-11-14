@@ -13,6 +13,8 @@ struct Pairing: Codable, Equatable {
     /// Its tailnet name (MagicDNS): stays the same when addresses change.
     var tailscale: String
     var key: Data
+    /// This device's identity on that Mac (its key is its own); "fishbots" for a pairing from before devices had one.
+    var id: String = RemoteTLS.pskIdentity
 
     /// `fishbots://pair?v=1&name=…&port=…&hosts=…&ts=…&key=…`
     init?(url: URL) {
@@ -27,6 +29,7 @@ struct Pairing: Codable, Equatable {
         name = value("name")
         hosts = value("hosts").split(separator: ",").map(String.init)
         tailscale = value("ts")
+        if !value("id").isEmpty { id = value("id") }
         guard !name.isEmpty || !hosts.isEmpty else { return nil }
     }
 
@@ -37,6 +40,18 @@ struct Pairing: Codable, Equatable {
         if !tailscale.isEmpty { out.append(.hostPort(host: .init(tailscale), port: .init(rawValue: port)!)) }
         for h in hosts { out.append(.hostPort(host: .init(h), port: .init(rawValue: port)!)) }
         return out
+    }
+
+    private enum CodingKeys: String, CodingKey { case name, port, hosts, tailscale, key, id }
+
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        port = try c.decode(UInt16.self, forKey: .port)
+        hosts = try c.decode([String].self, forKey: .hosts)
+        tailscale = try c.decode(String.self, forKey: .tailscale)
+        key = try c.decode(Data.self, forKey: .key)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? RemoteTLS.pskIdentity
     }
 
     // MARK: - the Keychain

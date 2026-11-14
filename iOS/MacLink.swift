@@ -280,7 +280,7 @@ final class MacLink: ObservableObject {
                 default: break
                 }
             }
-            c.send(content: Data("GET /stream HTTP/1.1\r\nHost: fishbots\r\nAccept: text/event-stream\r\n\r\n".utf8), completion: .contentProcessed { _ in })
+            c.send(content: Data("GET /stream HTTP/1.1\r\nHost: fishbots\r\nAccept: text/event-stream\r\n\(Self.whoAmI(pairing))\r\n".utf8), completion: .contentProcessed { _ in })
             self.read(c)
         }
     }
@@ -431,7 +431,7 @@ final class MacLink: ObservableObject {
         open(pairing) { c in
             guard let c else { done(0, nil); return }
             let payload = body.flatMap { try? JSONSerialization.data(withJSONObject: $0) } ?? Data()
-            var out = Data("\(method) \(path) HTTP/1.1\r\nHost: fishbots\r\nContent-Type: application/json\r\nContent-Length: \(payload.count)\r\nConnection: close\r\n\r\n".utf8)
+            var out = Data("\(method) \(path) HTTP/1.1\r\nHost: fishbots\r\nContent-Type: application/json\r\nContent-Length: \(payload.count)\r\nConnection: close\r\n\(Self.whoAmI(pairing))\r\n".utf8)
             out.append(payload)
             c.send(content: out, completion: .contentProcessed { _ in })
             var acc = Data()
@@ -448,6 +448,12 @@ final class MacLink: ObservableObject {
             }
             read()
         }
+    }
+
+    /// The headers that say which paired device this is, and its name for the Mac's list (RemoteDevices).
+    private static func whoAmI(_ p: Pairing) -> String {
+        let name = UIDevice.current.name.replacingOccurrences(of: "\r", with: " ").replacingOccurrences(of: "\n", with: " ")
+        return "X-Fishbots-Device: \(p.id)\r\nX-Fishbots-Name: \(name)\r\n"
     }
 
     // MARK: - finding the Mac
@@ -474,7 +480,7 @@ final class MacLink: ObservableObject {
             }
         }
         for (i, e) in tries.enumerated() {
-            let c = NWConnection(to: e, using: RemoteTLS.parameters(key: pairing.key))
+            let c = NWConnection(to: e, using: RemoteTLS.parameters(key: pairing.key, identity: pairing.id))
             all.append(c)
             var settled = false
             func settle(_ ok: Bool) {

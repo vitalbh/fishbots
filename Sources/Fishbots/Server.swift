@@ -70,7 +70,7 @@ final class Server {
     }
 
     /// Routes that answer with a stream: given the method and path, the function that takes the open stream.
-    var stream: ((_ method: String, _ path: String) -> ((Stream) -> Void)?)?
+    var stream: ((_ method: String, _ path: String, _ headers: [String: String]) -> ((Stream) -> Void)?)?
     private let local: Bool
 
     /// Looks at each connection once it's ready (its TLS done) before reading a request: false closes it.
@@ -134,7 +134,7 @@ final class Server {
                     let later: (Int, Data) -> Void = { [weak self] st, data in
                         DispatchQueue.main.async { self?.respond(c, st, data) }
                     }
-                    if let open = self.stream?(method, path) { self.openStream(c, open); return }
+                    if let open = self.stream?(method, path, headers) { self.openStream(c, open); return }
                     if self.deferred.contains(where: { $0(method, path, headers, body, later) }) { return }
                     let (status, resp) = self.handler(method, path, headers, body)
                     self.respond(c, status, resp)
