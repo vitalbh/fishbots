@@ -84,6 +84,34 @@ see [docs/remote.md](docs/remote.md)).
 Any agent with hooks can join without changing the app: [docs/agents.md](docs/agents.md).
 Jumping to the session works in Rex, Herdr, iTerm, tmux, Ghostty, Terminal, WezTerm, kitty and VS Code-based editors.
 
+## Customize
+
+Almost everything in the tank can be changed without touching the app's code:
+
+- **Themes, fish and scenery:** a pack is a folder with a `pack.json` and Metal drawings. It can bring a whole theme
+  (water, light, sand, creatures), new kinds of fish, scenery and music styles, and installs with a double-click.
+  `bin/fishbots pack new my-pack` starts one, and `pack dev` reloads it on every save. See [docs/packs.md](docs/packs.md).
+- **Things to watch:** a script that prints one line of JSON per thing puts it in the tank as a fish or a creature:
+  your PRs, a CI build, a cluster, the weather. See [docs/plugins.md](docs/plugins.md) and [docs/scene.md](docs/scene.md).
+- **Another agent:** its hooks post to `/agent/<id>`, and a small manifest names it and picks its fish. See
+  [docs/agents.md](docs/agents.md).
+- **What calls you:** attention rules per source and state, notifications, webhooks and your own items in the fish
+  menu. See [docs/plugins.md](docs/plugins.md).
+
+### Skills for your coding agent
+
+The repository comes with three skills that teach a coding agent (Claude Code, or any agent that reads skills) to do
+this for you. `bin/fishbots skill install` copies them to `~/.claude/skills` (or the folder you pass):
+
+| skill | ask your agent to… |
+|---|---|
+| `fishbots-packs` | "make a Fishbots theme of a coral reef at night", "add a jellyfish to my pack": it writes the pack, checks that its drawings compile and previews them |
+| `fishbots-agents` | "make Aider show up in the aquarium": it writes the hook and the manifest and runs a fake session to test it |
+| `fishbots-orchestrator` | "split this refactor across three sessions": it starts sessions in panes beside it, waits for them, reads their replies and answers them, while you watch them as fish |
+
+The orchestrator needs **Sessions can command other sessions** on (Preferences → General). See
+[docs/orchestration.md](docs/orchestration.md).
+
 ## Documentation
 
 - [Using the aquarium](docs/using.md): every gesture and shortcut, the widget, the cards, the assistant, preferences
