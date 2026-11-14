@@ -17,7 +17,9 @@ final class Remote: EventSink {
     let id = "remote"
     static var enabled: Bool { UserDefaults.standard.bool(forKey: "remoteAccess") }
     static let routes = ["GET /state", "GET /stream", "GET /permissions", "POST /permissions/<id>", "GET /said", "POST /reply",
-                         "POST /stop", "POST /theme", "POST /push/register", "GET /spawn/options", "POST /spawn", "GET /packs", "GET /packs/files", "GET /journal"]
+                         "POST /stop", "POST /theme", "POST /push/register", "GET /spawn/options", "POST /spawn",
+                         "GET /assistant", "POST /assistant/ask", "POST /assistant/decide", "POST /assistant/stop",
+                         "POST /assistant/new", "POST /assistant/seen", "GET /packs", "GET /packs/files", "GET /journal"]
 
     let port: UInt16
     private let tank: Tank
@@ -30,6 +32,10 @@ final class Remote: EventSink {
     var can: ((Capability, Fish) -> Bool)?
     /// Changes the Mac's theme, as its menu does.
     var useTheme: ((String) -> Void)?
+    /// The resident assistant: the device reads the conversation (and gets it on the stream as it changes) and talks
+    /// to it, as its card on the Mac does.
+    weak var assistant: Assistant?
+
     /// Starting a session from the device (it runs here, in a terminal, like one from the eggs): what can be opened
     /// and where, and the opening itself (`done` gets what went wrong, or nil once its fish is born).
     var spawnOptions: (() -> [String: Any])?
@@ -46,6 +52,7 @@ final class Remote: EventSink {
     private var timer: Timer?
     private var sentState = Data()
     private var sentPermissions = Data()
+    private var sentAssistant = Data()
     private var lastPing = Date()
     private var observer: NSObjectProtocol?
 
@@ -243,6 +250,24 @@ final class Remote: EventSink {
             if permissions.request(id: id) != nil { return (400, Self.error("that request doesn't take this answer")) }
             push()
             return (200, Data(#"{"ok":true}"#.utf8))
+        case ("GET", "/assistant"):
+            return (200, assistantJSON())
+        case ("POST", let r) where r.hasPrefix("/assistant/"):
+            guard let a = assistant else { return (404, Self.error("no assistant")) }
+            let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+            switch r {
+            case "/assistant/ask":
+                guard let t = (m["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return (400, Self.error(#"send {"text"}"#)) }
+                guard Assistant.on, a.brain != nil else { return (409, Self.error("the assistant is off (Preferences → Assistant)")) }
+                a.ask(t)
+            case "/assistant/decide": a.decide(allow: m["allow"] as? Bool == true, always: m["always"] as? String)
+            case "/assistant/stop": a.stop()
+            case "/assistant/new": a.newConversation()
+            case "/assistant/seen": a.seen()
+            default: return (404, Self.error("unknown route"))
+            }
+            push()
+            return (200, Data(#"{"ok":true}"#.utf8))
         case ("GET", "/spawn/options"):
             return (200, Self.json(spawnOptions?() ?? [:]))
         case ("POST", "/push/register"):
@@ -293,6 +318,21 @@ final class Remote: EventSink {
         }
     }
 
+    /// The assistant's conversation (its last turns), and what it's asking to use, if anything.
+    private func assistantJSON() -> Data {
+        guard let a = assistant else { return Self.json(["on": false]) }
+        var d: [String: Any] = ["on": Assistant.on, "ready": a.hasBrain == true && a.brain != nil, "thinking": a.thinking,
+                                "model": a.answeringModel ?? "", "brain": a.brain?.name ?? ""]
+        d["turns"] = a.turns.suffix(20).map { t -> [String: Any] in
+            ["q": t.question, "a": String(t.answer.suffix(20_000)), "doing": t.doing ?? "", "failed": t.failed, "mentions": t.mentions]
+        }
+        if let r = a.request {
+            d["request"] = ["tool": Assistant.toolName(r.tool), "summary": r.summary,
+                            "always": Assistant.ruleKeys(r).map { ["key": $0, "label": Assistant.ruleName($0)] }]
+        }
+        return Self.json(d)
+    }
+
     private func permissionsJSON() -> Data {
         let iso = ISO8601DateFormatter()
         func question(_ q: Permissions.Question) -> [String: Any] {
@@ -315,23 +355,26 @@ final class Remote: EventSink {
         streams.append(s)
         s.closed = { [weak self, weak s] in self?.streams.removeAll { $0 === s } }
         // everyone catches up first (the new one with them); if nothing changed, the new one still needs it all
-        let before = (sentState, sentPermissions)
+        let before = (sentState, sentPermissions, sentAssistant)
         push()
         if sentState == before.0 { s.send("state", sentState) }
         if sentPermissions == before.1 { s.send("permissions", sentPermissions) }
+        if sentAssistant == before.2 { s.send("assistant", sentAssistant) }
         if timer == nil {
-            timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.push() }
+            timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.push() }
         }
     }
 
     /// Sends what changed since the last look (the state and the pending requests), to everyone listening.
     private func push() {
         streams.removeAll { !$0.isOpen }
-        guard !streams.isEmpty else { timer?.invalidate(); timer = nil; sentState = Data(); sentPermissions = Data(); return }
+        guard !streams.isEmpty else { timer?.invalidate(); timer = nil; sentState = Data(); sentPermissions = Data(); sentAssistant = Data(); return }
         let state = compact(local?("GET", "/state", [:], Data()).1 ?? Data())
         if state != sentState { sentState = state; for s in streams { s.send("state", state) } }
         let perms = permissionsJSON()
         if perms != sentPermissions { sentPermissions = perms; for s in streams { s.send("permissions", perms) } }
+        let said = assistantJSON()
+        if said != sentAssistant { sentAssistant = said; for s in streams { s.send("assistant", said) } }
         if Date().timeIntervalSince(lastPing) > 15 { lastPing = Date(); for s in streams { s.ping() } }
     }
 

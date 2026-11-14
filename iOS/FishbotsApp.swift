@@ -24,12 +24,16 @@ struct FishbotsApp: App {
 }
 
 private struct Selected: Identifiable { let id: String }
+/// A presence whose card is open (with the rest of its source's).
+private struct Shown: Identifiable { let source: String; let presence: String; var id: String { source + ":" + presence } }
 
 struct Aquarium: View {
     @ObservedObject var link: MacLink
     @SwiftUI.State private var selected: Selected?
     @AppStorage("labels") private var showLabels = true
     @SwiftUI.State private var newSession = false
+    @SwiftUI.State private var talking = false
+    @SwiftUI.State private var shown: Shown?
 
     var body: some View {
         ZStack {
@@ -38,15 +42,14 @@ struct Aquarium: View {
                 case .fish(let id): selected = Selected(id: id)
                 case .eggs: if link.status == .connected { newSession = true }
                 case .chest: link.recent(hours: 3)
+                case .assistant: talking = true
                 case .knock(let x): link.sound.knock(x: x)
-                case .presence(let label, let detail, let url):
-                    if let url, let u = URL(string: url), ["http", "https"].contains(u.scheme ?? "") { UIApplication.shared.open(u) }
-                    else { link.notice = detail.map { label + ": " + $0 } ?? label }
+                case .presence(let source, let id): shown = Shown(source: source, presence: id)
                 }
             }
                 .ignoresSafeArea()
             VStack {
-                if link.pairing != nil { StatusPill(link: link, showLabels: $showLabels, newSession: $newSession) }
+                if link.pairing != nil { StatusPill(link: link, showLabels: $showLabels, newSession: $newSession, talking: $talking) }
                 if !link.away.isEmpty && link.pairing != nil { AwayCard(link: link) { selected = Selected(id: $0) } }
                 Spacer()
                 if let n = link.notice {
@@ -61,8 +64,13 @@ struct Aquarium: View {
         }
         .sheet(item: $selected) { s in FishCard(link: link, id: s.id).presentationDetents([.medium, .large]) }
         .sheet(isPresented: $newSession) { NewSessionSheet(link: link) }
+        .sheet(item: $shown) { s in SourceSheet(link: link, source: s.source, first: s.presence).presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $talking) {
+            AssistantSheet(link: link) { id in talking = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { selected = Selected(id: id) } }
+                .presentationDetents([.medium, .large])
+        }
         #if DEBUG
-        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off|away:<hours>|new, so a script
+        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off|away:<hours>|new|assistant, so a script
         // can press what a finger would (the simulator can't be tapped from the terminal)
         .onReceive(NotificationCenter.default.publisher(for: .fishbotsTest)) { n in
             guard let url = n.object as? URL, let d = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "do" })?.value else { return }
@@ -73,8 +81,9 @@ struct Aquarium: View {
             else if d.hasPrefix("reply:"), let id = selected?.id, let f = link.fish[id] {
                 link.reply(source: f["source"] as? String ?? "", entity: f["entity"] as? String ?? "", text: String(d.dropFirst(6))) { e in link.notice = e ?? "sent" }
             }
-            else if d == "close" { selected = nil; newSession = false }
+            else if d == "close" { selected = nil; newSession = false; shown = nil; talking = false }
             else if d == "new" { newSession = true }
+            else if d == "assistant" { talking = true }
             else if d.hasPrefix("theme:") { link.theme = String(d.dropFirst(6)) }
             else if d == "themeMac" { link.useThemeOnMac() }
             else if d.hasPrefix("labels:") { showLabels = d.hasSuffix("on") }
@@ -99,6 +108,7 @@ private struct StatusPill: View {
     @ObservedObject var link: MacLink
     @Binding var showLabels: Bool
     @Binding var newSession: Bool
+    @Binding var talking: Bool
     @AppStorage("soundOn") private var soundOn = true
     /// Music.swift reads this key itself (the Mac's own).
     @AppStorage("ambientMusic") private var ambientMusic = false
@@ -107,6 +117,9 @@ private struct StatusPill: View {
         Menu {
             Button { newSession = true } label: { Label(tr("Nova sessão…"), systemImage: "plus.bubble") }
                 .disabled(link.status != .connected)
+            if link.assistant["on"] as? Bool == true {
+                Button { talking = true } label: { Label(tr("Falar com o assistente"), systemImage: "bubble.left.and.text.bubble.right") }
+            }
             Divider()
             Picker(tr("Tema"), selection: $link.theme) {
                 Text(tr("Igual ao Mac")).tag("")

@@ -34,6 +34,7 @@ extension AppDelegate {
             remote.decide = { [unowned self] id, action in self.cards.decide(id, action) }
             remote.can = { [unowned self] c, f in self.cards.can(c, f) }
             remote.useTheme = { [unowned self] id in self.themeKeeper.use(id) }
+            remote.assistant = assistant
             Outputs.register(remote)
             remote.registerPush = { [unowned self] d in self.push.register(d) }
             remote.spawnOptions = { [unowned self] in self.spawnOptions() }

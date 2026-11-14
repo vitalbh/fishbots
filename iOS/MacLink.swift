@@ -58,6 +58,10 @@ final class MacLink: ObservableObject {
     /// The fish as `/state` has them (for the card: title, what it's doing, what can be done with it).
     @Published private(set) var fish: [String: [String: Any]] = [:]
     @Published private(set) var permissions: [PermissionRequest] = []
+    /// The presences as `/state` has them (for their card: label, state, detail, link, value).
+    @Published private(set) var presences: [[String: Any]] = []
+    /// The resident assistant's conversation (`GET /assistant`, then the stream): turns, thinking, what it asks.
+    @Published private(set) var assistant: [String: Any] = [:]
     /// A short line for the person (a reply that didn't go, a decision that failed).
     @Published var notice: String?
     /// What happened while the app wasn't looking (`GET /journal`), when that was a while: shown once.
@@ -305,8 +309,11 @@ final class MacLink: ObservableObject {
                 if let s = d["source"] as? String, let e = d["entity"] as? String { f["\(s):\(e)"] = d }
             }
             fish = f
+            presences = obj["presences"] as? [[String: Any]] ?? []
         case "permissions":
             permissions = (obj["permissions"] as? [[String: Any]] ?? []).compactMap(PermissionRequest.init)
+        case "assistant":
+            assistant = obj
         case "event":
             onEvent?(obj)
         default:
@@ -342,6 +349,13 @@ final class MacLink: ObservableObject {
         request("GET", c.string ?? "/said") { status, data in
             let d = status == 200 ? data.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } : nil
             done(d?["text"] as? String, d?["markdown"] as? Bool ?? false)
+        }
+    }
+
+    /// Talks to the resident assistant: "ask" {text}, "decide" {allow, always}, "stop", "new", "seen".
+    func assistant(_ what: String, _ body: [String: Any] = [:]) {
+        request("POST", "/assistant/" + what, body) { [weak self] status, data in
+            if status != 200 { self?.notice = Self.error(data) ?? tr("o assistente não respondeu") }
         }
     }
 

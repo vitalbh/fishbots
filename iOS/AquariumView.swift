@@ -26,7 +26,7 @@ final class AquariumUIView: UIView {
     /// Something in the water was touched that opens something: a fish's card, the eggs (a new session), the chest
     /// (the last hours), a presence (its text or link), or a knock on the glass (its sound).
     enum Touch {
-        case fish(String), eggs, chest, presence(label: String, detail: String?, link: String?), knock(x: Float)
+        case fish(String), eggs, chest, assistant, presence(source: String, id: String), knock(x: Float)
     }
     var touched: ((Touch) -> Void)?
     /// The names under the fish (the menu's switch).
@@ -38,6 +38,7 @@ final class AquariumUIView: UIView {
         super.init(frame: .zero)
         backgroundColor = .black
         mtk.colorPixelFormat = .bgra8Unorm
+        mtk.autoResizeDrawable = true
         mtk.preferredFramesPerSecond = 60
         mtk.isUserInteractionEnabled = false
         addSubview(mtk)
@@ -49,7 +50,7 @@ final class AquariumUIView: UIView {
             mtk.delegate = r
             r.frame = { [weak self] dt in
                 guard let self else { return (Uniforms(res: .zero, time: 0, turbidity: 0, light: 1, alert: 0, pix: .zero), []) }
-                let out = self.mirror.frame(dt: dt, size: [Float(self.bounds.width), Float(self.bounds.height)])
+                let out = self.mirror.frame(dt: dt, size: [Float(self.mtk.bounds.width), Float(self.mtk.bounds.height)])
                 self.updateLabels()
                 return out
             }
@@ -86,17 +87,36 @@ final class AquariumUIView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
+    /// The Mac's tank is made for a window a thousand points wide and more; a phone held upright is under 400, and
+    /// the scenery, the presences and the assistant's burrow crowd into it. So the tank here is a wider one (560
+    /// points at least), drawn shrunk to fit: everything gets its room. On its side, the phone draws it as it is.
+    /// The names stay at their size (they're drawn over it, not in it).
+    private var zoom: CGFloat { bounds.width > 0 ? min(1, bounds.width / 560) : 1 }
+
     override func layoutSubviews() {
         super.layoutSubviews()
-        mtk.frame = bounds
+        let z = zoom
+        mtk.transform = .identity
+        mtk.bounds = CGRect(x: 0, y: 0, width: bounds.width / z, height: bounds.height / z)
+        mtk.center = CGPoint(x: bounds.midX, y: bounds.midY)
+        mtk.transform = CGAffineTransform(scaleX: z, y: z)
+        // the drawable at the screen's own pixels, not the bigger tank's
+        mtk.contentScaleFactor = traitCollection.displayScale * z
         labels.frame = bounds
     }
 
-    /// The tank's y grows upward (as on the Mac); UIKit's grows downward.
-    private func point(_ p: SIMD2<Float>) -> CGPoint { CGPoint(x: CGFloat(p.x), y: bounds.height - CGFloat(p.y)) }
+    /// The tank's y grows upward (as on the Mac); UIKit's grows downward. The tank is the bigger one (`zoom`).
+    private func point(_ p: SIMD2<Float>) -> CGPoint {
+        CGPoint(x: CGFloat(p.x) * zoom, y: (mtk.bounds.height - CGFloat(p.y)) * zoom)
+    }
+
+    /// A label's center, kept on screen (a fish or a presence near the side glass would cut its name in half).
+    private func onScreen(_ p: CGPoint, _ size: CGSize) -> CGPoint {
+        CGPoint(x: max(size.width / 2 + 4, min(bounds.width - size.width / 2 - 4, p.x)), y: p.y)
+    }
 
     /// A point of the view in the tank's coordinates.
-    private func tank(_ p: CGPoint) -> SIMD2<Float> { [Float(p.x), Float(bounds.height - p.y)] }
+    private func tank(_ p: CGPoint) -> SIMD2<Float> { [Float(p.x / zoom), Float(mtk.bounds.height - p.y / zoom)] }
 
     /// The Mac's click (AppDelegate.click), on the phone: a fish opens its card; a presence, its text or link; the
     /// eggs, a new session; the chest, the last hours; the water, food (or a start, near fish).
@@ -109,7 +129,7 @@ final class AquariumUIView: UIView {
             touched?(.fish(f.id))
         } else if let p = t.scene.presence(at: q) {
             t.ring(at: q, color: [1, 1, 1], size: p.kind.size * 0.4, grow: 120, life: 0.6)
-            touched?(.presence(label: p.label, detail: p.detail, link: p.link))
+            touched?(p.id == "fishbots:assistant" ? .assistant : .presence(source: p.source, id: String(p.id.dropFirst(p.source.count + 1))))
         } else if t.scenery.eggsHit(t, at: q) {
             touched?(.eggs)
         } else if t.scenery.chestHit(t, at: q) {
@@ -123,7 +143,7 @@ final class AquariumUIView: UIView {
     private func nearestFish(_ q: SIMD2<Float>) -> Fish? {
         mirror.tank.fish.filter { !$0.decor && !$0.leaving }
             .map { ($0, simd_distance($0.pos, q)) }
-            .filter { $0.1 < max(44, $0.0.size * 0.9) }
+            .filter { $0.1 < max(44 / Float(zoom), $0.0.size * 0.9) }
             .min { $0.1 < $1.1 }?.0
     }
 
@@ -188,6 +208,8 @@ final class AquariumUIView: UIView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         var alive = Set<String>()
+        // who gets a place first when names would overlap: what needs you, then the sessions, then the rest
+        var placing: [(layer: CATextLayer, rank: Int)] = []
         for f in mirror.tank.fish where !f.decor {
             alive.insert(f.id)
             let l = label(f.id)
@@ -204,11 +226,14 @@ final class AquariumUIView: UIView {
             let sz = s.size()
             l.bounds = CGRect(x: 0, y: 0, width: ceil(sz.width) + 6, height: ceil(sz.height) + 2)
             let at = point([f.pos.x, f.pos.y - f.size * 0.75])
-            l.position = CGPoint(x: at.x, y: at.y + l.bounds.height / 2)
+            l.position = onScreen(CGPoint(x: at.x, y: at.y + l.bounds.height / 2), l.bounds.size)
             l.opacity = f.leaving ? 0.3 : 1
+            placing.append((l, f.state == .waiting || f.state == .error ? 0 : 1))
         }
         for p in mirror.tank.scene.presences {
             let key = "presence:" + p.id
+            // a light on the glass that's fine says it with its color: its name only when it needs you
+            if p.kind.motion == .glass && !p.needsYou { continue }
             alive.insert(key)
             let l = label(key)
             let name = p.label.count > 24 ? String(p.label.prefix(23)) + "…" : p.label
@@ -226,8 +251,16 @@ final class AquariumUIView: UIView {
             l.bounds = CGRect(x: 0, y: 0, width: ceil(sz.width) + 6, height: ceil(sz.height) + 2)
             let (anchor, above) = mirror.tank.scene.labelAnchor(p)
             let at = point(anchor)
-            l.position = CGPoint(x: at.x, y: at.y + (above ? -1 : 1) * l.bounds.height / 2)
+            l.position = onScreen(CGPoint(x: at.x, y: at.y + (above ? -1 : 1) * l.bounds.height / 2), l.bounds.size)
             l.opacity = p.alpha
+            placing.append((l, p.needsYou ? 0 : 2))
+        }
+        // a name that would land on one already placed waits for room (what needs you always shows)
+        var taken: [CGRect] = []
+        for (l, rank) in placing.sorted(by: { $0.rank < $1.rank }) {
+            let r = l.frame.insetBy(dx: 2, dy: 1)
+            if rank > 0 && taken.contains(where: { $0.intersects(r) }) { l.opacity = 0; continue }
+            if l.opacity > 0 { taken.append(r) }
         }
         for (id, l) in layers where !alive.contains(id) {
             l.removeFromSuperlayer()

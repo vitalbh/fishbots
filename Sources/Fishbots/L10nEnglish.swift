@@ -728,4 +728,12 @@ let english: [String: String] = [
     "não consegui abrir a sessão": "couldn't open the session",
     "Nada nas últimas horas.": "Nothing in the last hours.",
     "🧰 Últimas %d horas": "🧰 The last %d hours",
+    "O assistente está desligado no Mac (Preferências → Assistente).": "The assistant is off on the Mac (Settings → Assistant).",
+    "Pergunte qualquer coisa sobre o aquário: quem está esperando, o que cada sessão fez, ou peça para ele cuidar de algo.": "Ask anything about the aquarium: who's waiting, what each session did, or ask it to take care of something.",
+    "Permitir que o assistente use": "Let the assistant use",
+    "Sempre permitir %@": "Always allow %@",
+    "Pergunte ao assistente": "Ask the assistant",
+    "Falar com o assistente": "Talk to the assistant",
+    "o assistente não respondeu": "the assistant didn't answer",
+    "Isso saiu do aquário.": "That left the aquarium.",
 ]

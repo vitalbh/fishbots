@@ -340,6 +340,175 @@ struct RichText: UIViewRepresentable {
     }
 }
 
+// MARK: - a source's presences
+
+/// A presence's card, as the Mac's source card: everything its source keeps in the tank (a CI's builds, a cluster's
+/// pods…), the touched one first, each with how it is, what it says, and its link.
+struct SourceSheet: View {
+    @ObservedObject var link: MacLink
+    let source: String
+    let first: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let all = link.presences.filter { $0["source"] as? String == source }
+            .sorted { a, b in (a["presence"] as? String == first ? 0 : 1, rank(a)) < (b["presence"] as? String == first ? 0 : 1, rank(b)) }
+        NavigationStack {
+            List {
+                if all.isEmpty { Text(tr("Isso saiu do aquário.")).foregroundStyle(.secondary) }
+                ForEach(all.indices, id: \.self) { i in row(all[i]) }
+            }
+            .navigationTitle(source)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button(tr("Fechar")) { dismiss() } } }
+        }
+    }
+
+    /// Who needs you first.
+    private func rank(_ p: [String: Any]) -> Int {
+        switch p["state"] as? String { case "error": 0; case "waiting": 1; case "alert": 2; case "busy": 3; default: 4 }
+    }
+
+    private func row(_ p: [String: Any]) -> some View {
+        let state = State(rawValue: p["state"] as? String ?? "")
+        let url = (p["link"] as? String).flatMap(URL.init(string:)).flatMap { ["http", "https"].contains($0.scheme ?? "") ? $0 : nil }
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(p["label"] as? String ?? "").font(.headline)
+                Spacer()
+                if let state {
+                    Text(state.label).font(.caption.weight(.semibold))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .foregroundStyle(FishCard.color(state)).background(FishCard.color(state).opacity(0.18), in: Capsule())
+                }
+            }
+            if let d = p["detail"] as? String, !d.isEmpty { Text(d).font(.subheadline).foregroundStyle(.secondary) }
+            if let v = (p["value"] as? NSNumber)?.doubleValue, v >= 0 { ProgressView(value: min(1, v)) }
+            if let url { Link(destination: url) { Label(url.host ?? url.absoluteString, systemImage: "arrow.up.right.square").font(.footnote) } }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - the resident assistant
+
+/// The assistant's card, as on the Mac: the conversation (its answers laid out by ReplyText), what it's doing while
+/// it thinks, what it asks to use, and the line to ask it something. It runs on the Mac; this only talks to it.
+struct AssistantSheet: View {
+    @ObservedObject var link: MacLink
+    var open: (String) -> Void
+    @SwiftUI.State private var text = ""
+    @Environment(\.dismiss) private var dismiss
+
+    private let tint = UIColor(red: 0.95, green: 0.62, blue: 0.3, alpha: 1)
+
+    var body: some View {
+        let a = link.assistant
+        let turns = a["turns"] as? [[String: Any]] ?? []
+        let thinking = a["thinking"] as? Bool == true
+        NavigationStack {
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        if a["on"] as? Bool != true {
+                            Text(tr("O assistente está desligado no Mac (Preferências → Assistente).")).foregroundStyle(.secondary)
+                        } else if turns.isEmpty {
+                            Text(tr("Pergunte qualquer coisa sobre o aquário: quem está esperando, o que cada sessão fez, ou peça para ele cuidar de algo.")).foregroundStyle(.secondary)
+                        }
+                        ForEach(turns.indices, id: \.self) { i in turn(turns[i], last: i == turns.count - 1, thinking: thinking) }
+                        if let r = a["request"] as? [String: Any] { request(r) }
+                        Color.clear.frame(height: 1).id("end")
+                    }
+                    .padding()
+                }
+                .onChange(of: (turns.last?["a"] as? String)?.count ?? 0) { _, _ in withAnimation { scroll.scrollTo("end", anchor: .bottom) } }
+                .onAppear { scroll.scrollTo("end", anchor: .bottom) }
+            }
+            .safeAreaInset(edge: .bottom) { field(thinking: thinking) }
+            .navigationTitle(tr("assistente"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { link.assistant("new") } label: { Image(systemName: "square.and.pencil") }.disabled(turns.isEmpty)
+                }
+                ToolbarItem(placement: .confirmationAction) { Button(tr("Fechar")) { dismiss() } }
+            }
+        }
+        .onAppear { link.assistant("seen") }
+    }
+
+    private func turn(_ t: [String: Any], last: Bool, thinking: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let q = t["q"] as? String, !q.isEmpty {
+                Text(q).font(.callout).padding(10)
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            let answer = t["a"] as? String ?? ""
+            if !answer.isEmpty { RichText(text: ReplyText.attributed(answer, markdown: true, tint: tint, size: 15)) }
+            if last && thinking {
+                let doing = t["doing"] as? String ?? ""
+                Label(doing.isEmpty ? tr("pensando…") : doing, systemImage: "ellipsis").font(.footnote).foregroundStyle(.secondary)
+            }
+            if t["failed"] as? Bool == true { Text(tr("não consegui responder")).font(.footnote).foregroundStyle(.red) }
+            let mentions = t["mentions"] as? [String] ?? []
+            if !mentions.isEmpty {
+                HStack {
+                    ForEach(mentions.prefix(4), id: \.self) { id in
+                        Button((link.fish[id]?["label"] as? String) ?? id) { open(id) }.buttonStyle(.bordered).font(.caption)
+                    }
+                }
+            }
+        }
+    }
+
+    /// It wants to use something: allow once, always (the rules it offers, narrowest first), or deny.
+    private func request(_ r: [String: Any]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("✋ " + tr("quer usar") + " " + (r["tool"] as? String ?? "")).font(.subheadline.weight(.medium))
+            if let s = r["summary"] as? String, !s.isEmpty {
+                Text(s).font(.system(.footnote, design: .monospaced)).lineLimit(5)
+                    .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+            }
+            HStack {
+                Button(tr("Negar"), role: .destructive) { link.assistant("decide", ["allow": false]) }.buttonStyle(.bordered)
+                Button(tr("Permitir")) { confirmOwner(tr("Permitir que o assistente use") + " " + (r["tool"] as? String ?? "")) { link.assistant("decide", ["allow": true]) } }
+                    .buttonStyle(.borderedProminent)
+            }
+            ForEach(r["always"] as? [[String: String]] ?? [], id: \.self) { k in
+                Button(String(format: tr("Sempre permitir %@"), k["label"] ?? "")) {
+                    confirmOwner(tr("Permitir sempre")) { link.assistant("decide", ["allow": true, "always": k["key"] ?? ""]) }
+                }
+                .font(.footnote)
+            }
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func field(thinking: Bool) -> some View {
+        HStack(alignment: .bottom) {
+            TextField(tr("Pergunte ao assistente"), text: $text, axis: .vertical).lineLimit(1...5)
+                .padding(10).background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+            if thinking {
+                Button { link.assistant("stop") } label: { Image(systemName: "stop.circle.fill").font(.title) }.tint(.red)
+            } else {
+                Button {
+                    let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !t.isEmpty else { return }
+                    link.assistant("ask", ["text": t])
+                    text = ""
+                } label: { Image(systemName: "arrow.up.circle.fill").font(.title) }
+                .tint(Color(tint))
+                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(.horizontal).padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+    }
+}
+
 // MARK: - a new session
 
 /// "Nova sessão": what it should do, with which agent, in which folder of the Mac. It runs there, in a terminal,

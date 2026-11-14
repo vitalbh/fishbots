@@ -637,6 +637,7 @@ Only these routes answer on the remote listener. The others stay local: events a
 | `GET /said?source=…&entity=…` | the session's last reply (`text`, `markdown`: whether it's the agent's own markdown, `asked`), up to 20,000 characters; kept out of `/state` because it can be long |
 | `POST /reply` | `{"source", "entity", "text"}`: a question with a menu waiting on that fish takes it as its answer; otherwise the session gets it, if it `can` take a reply (409 if not) |
 | `GET /spawn/options`, `POST /spawn` | what can be opened (agents, recent folders) and opening a session on the Mac: `{"agent", "cwd", "task"}`, answered once its fish is born |
+| `GET /assistant`, `POST /assistant/ask`, `/decide`, `/stop`, `/new`, `/seen` | the resident assistant: its last turns, whether it's thinking, what it asks to use (with the "always" rules it offers); ask it `{"text"}`, decide `{"allow", "always"?}`. The stream sends `assistant` each time the conversation changes (the answer as it comes) |
 | `POST /theme` | `{"id": "…"}`: the Mac takes that theme, as if chosen in its menu (the device can also keep one of its own without telling the Mac) |
 | `POST /stop` | `{"source", "entity"}`: interrupts the agent, if it `can` |
 
@@ -673,6 +674,12 @@ answers from Attention, NowPlaying and InView, the phone keeps the defaults. And
 (`GET /spawn/options`: the agents that start from the aquarium, recent folders; `POST /spawn {agent, cwd, task}`,
 answered once its fish is born or with what went wrong): it opens in a terminal there, like one from the eggs, after
 Face ID on the phone.
+
+On the phone the tank is drawn as a wider one (560 points at least) shrunk to fit, so a phone held upright isn't a
+third of the Mac's tank crowded with its scenery; the names are drawn over it at their own size, placed by
+importance (what needs you, then the sessions, then the rest), and a name that would land on another waits for room.
+A light on the glass that's fine shows no name. Touching a presence opens its source's card (all its presences);
+touching the assistant, the conversation with it.
 
 Still open: a key per device.
 
