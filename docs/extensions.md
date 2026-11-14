@@ -636,6 +636,7 @@ Only these routes answer on the remote listener. The others stay local: events a
 | `POST /permissions/<id>` | `{"decision": "allow"\|"deny"}`, `{"answer": "…"}` (a question with a menu: its number or label, or free text) or `{"answers": {"question": "answer"}}` (a form) |
 | `GET /said?source=…&entity=…` | the session's last reply (`text`, `markdown`: whether it's the agent's own markdown, `asked`), up to 20,000 characters; kept out of `/state` because it can be long |
 | `POST /reply` | `{"source", "entity", "text"}`: a question with a menu waiting on that fish takes it as its answer; otherwise the session gets it, if it `can` take a reply (409 if not) |
+| `GET /spawn/options`, `POST /spawn` | what can be opened (agents, recent folders) and opening a session on the Mac: `{"agent", "cwd", "task"}`, answered once its fish is born |
 | `POST /theme` | `{"id": "…"}`: the Mac takes that theme, as if chosen in its menu (the device can also keep one of its own without telling the Mac) |
 | `POST /stop` | `{"source", "entity"}`: interrupts the agent, if it `can` |
 
@@ -664,6 +665,14 @@ closed. Each session's newest notification replaces its older one (`apns-collaps
 `FISHBOTS_PUSH_DUMP=<folder>` writes the payloads instead of sending them, for `xcrun simctl push booted <file>`
 (the simulator shows them without running the extension). Push needs a paid developer account: `FISHBOTS_PUSH=1
 scripts/ios.sh device` adds the entitlements and the extension (the simulator always has them).
+
+The phone has **sound** too (`iOS/Sound.swift`): the Mac's Synth and `Music` on the mirrored tank, so each fish calls
+when it changes and the ambient music plays if it's on; the packs' sounds come along (`GET /packs/files?sounds=1`,
+base64). `Music` asks about the person through closures (`focus`, `userMusic`, `loudness`, `checkInView`): the Mac
+answers from Attention, NowPlaying and InView, the phone keeps the defaults. And it can **start a session** on the Mac
+(`GET /spawn/options`: the agents that start from the aquarium, recent folders; `POST /spawn {agent, cwd, task}`,
+answered once its fish is born or with what went wrong): it opens in a terminal there, like one from the eggs, after
+Face ID on the phone.
 
 Still open: a key per device.
 

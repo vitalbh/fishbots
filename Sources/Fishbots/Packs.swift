@@ -80,22 +80,34 @@ enum Packs {
 
     /// Every pack's text files (pack.json and the Metal drawings), for the screen saver to copy:
     /// {"signature": …, "packs": {"<folder>": {"<file>": "<text>"}}}. Recorded sounds and pictures stay out (it's silent).
-    static func filesJSON() -> Data {
+    /// `sounds`: the packs' sound files too (base64), for a mirror that plays them (the iPhone; the screen saver is silent).
+    static func filesJSON(sounds: Bool = false) -> Data {
         let fm = FileManager.default
         var packs: [String: [String: String]] = [:]
+        var audio: [String: [String: String]] = [:]
         for dir in ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []) {
             var files: [String: String] = [:]
-            for f in ((try? fm.contentsOfDirectory(at: dir.resolvingSymlinksInPath(), includingPropertiesForKeys: nil)) ?? [])
-            where ["json", "metal"].contains(f.pathExtension.lowercased()) {
-                if let t = try? String(contentsOf: f, encoding: .utf8) { files[f.lastPathComponent] = t }
+            var sound: [String: String] = [:]
+            for f in ((try? fm.contentsOfDirectory(at: dir.resolvingSymlinksInPath(), includingPropertiesForKeys: nil)) ?? []) {
+                let ext = f.pathExtension.lowercased()
+                if ["json", "metal"].contains(ext), let t = try? String(contentsOf: f, encoding: .utf8) { files[f.lastPathComponent] = t }
+                if sounds, soundExtensions.contains(ext), let d = try? Data(contentsOf: f), d.count < 5_000_000 {
+                    sound[f.lastPathComponent] = d.base64EncodedString()
+                }
             }
-            if files["pack.json"] != nil { packs[dir.lastPathComponent] = files }
+            if files["pack.json"] != nil {
+                packs[dir.lastPathComponent] = files
+                if !sound.isEmpty { audio[dir.lastPathComponent] = sound }
+            }
         }
-        let obj: [String: Any] = ["signature": signature(), "packs": packs]
+        var obj: [String: Any] = ["signature": signature(), "packs": packs]
+        if sounds { obj["sounds"] = audio }
         return (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
     }
 
-    /// The screen saver: writes the app's packs (from filesJSON) into its own folder and reads them.
+    static let soundExtensions = ["wav", "aif", "aiff", "caf"]
+
+    /// A mirror (the screen saver, the iPhone): writes the app's packs (from filesJSON) into its own folder and reads them.
     /// Folder and file names come from the app, checked anyway (no paths, only pack files).
     @discardableResult
     static func mirror(_ data: Data, into dir: URL) -> Bool {
@@ -110,6 +122,10 @@ enum Packs {
             try? fm.createDirectory(at: pd, withIntermediateDirectories: true)
             for (file, text) in files where safe(file) && ["json", "metal"].contains((file as NSString).pathExtension.lowercased()) {
                 try? text.write(to: pd.appendingPathComponent(file), atomically: true, encoding: .utf8)
+            }
+            for (file, b64) in (obj["sounds"] as? [String: [String: String]])?[name] ?? [:]
+            where safe(file) && soundExtensions.contains((file as NSString).pathExtension.lowercased()) {
+                try? Data(base64Encoded: b64)?.write(to: pd.appendingPathComponent(file))
             }
         }
         folderOverride = dir

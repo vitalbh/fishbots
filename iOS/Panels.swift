@@ -340,6 +340,92 @@ struct RichText: UIViewRepresentable {
     }
 }
 
+// MARK: - a new session
+
+/// "Nova sessão": what it should do, with which agent, in which folder of the Mac. It runs there, in a terminal,
+/// like one from the eggs; its fish shows up here once it's born.
+struct NewSessionSheet: View {
+    @ObservedObject var link: MacLink
+    @SwiftUI.State private var task = ""
+    @SwiftUI.State private var agents: [(id: String, name: String)] = []
+    @SwiftUI.State private var agent = ""
+    @SwiftUI.State private var folders: [String] = []
+    @SwiftUI.State private var folder = ""
+    @SwiftUI.State private var typed = ""
+    @SwiftUI.State private var canOpen = true
+    @SwiftUI.State private var loaded = false
+    @SwiftUI.State private var opening = false
+    @SwiftUI.State private var error: String?
+    @Environment(\.dismiss) private var dismiss
+
+    private var where_: String { folder == "…" ? typed.trimmingCharacters(in: .whitespaces) : folder }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if !loaded {
+                    ProgressView()
+                } else if !canOpen || agents.isEmpty {
+                    Text(tr("O aquário abre sessões no Rex, no Herdr, no iTerm ou no tmux, e nenhum deles está instalado.")).foregroundStyle(.secondary)
+                } else {
+                    Section(tr("O que fazer")) {
+                        TextField(tr("Descreva a tarefa (ou deixe em branco)"), text: $task, axis: .vertical).lineLimit(3...8)
+                    }
+                    Section {
+                        Picker(tr("Agente"), selection: $agent) { ForEach(agents, id: \.id) { Text($0.name).tag($0.id) } }
+                        Picker(tr("Pasta"), selection: $folder) {
+                            ForEach(folders, id: \.self) { Text(($0 as NSString).abbreviatingWithTildeInPath).tag($0) }
+                            Text(tr("Outra…")).tag("…")
+                        }
+                        if folder == "…" {
+                            TextField("~/Dev/projeto", text: $typed).textInputAutocapitalization(.never).autocorrectionDisabled()
+                                .font(.body.monospaced())
+                        }
+                    } footer: {
+                        Text(tr("Ela roda no Mac, num terminal de lá, como uma aberta pelos ovos.")).font(.footnote)
+                    }
+                    if let error { Text(error).foregroundStyle(.red).font(.footnote) }
+                }
+            }
+            .navigationTitle(tr("Nova sessão"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button(tr("Cancelar")) { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(opening ? tr("Abrindo…") : tr("Abrir")) { open() }
+                        .disabled(!loaded || !canOpen || opening || agent.isEmpty || where_.isEmpty)
+                }
+            }
+        }
+        .task { load() }
+    }
+
+    private func load() {
+        link.spawnOptions { o in
+            loaded = true
+            guard let o else { error = tr("não achei o Mac"); return }
+            agents = (o["agents"] as? [[String: String]] ?? []).compactMap { d in d["id"].map { ($0, d["name"] ?? $0) } }
+            agent = o["agent"] as? String ?? agents.first?.id ?? ""
+            if !agents.contains(where: { $0.id == agent }) { agent = agents.first?.id ?? "" }
+            folders = o["folders"] as? [String] ?? []
+            folder = folders.first ?? "…"
+            canOpen = o["canOpen"] as? Bool ?? true
+        }
+    }
+
+    /// It starts an agent on the Mac: the owner asks for it.
+    private func open() {
+        confirmOwner(tr("Abrir uma sessão no Mac")) {
+            opening = true
+            error = nil
+            link.spawn(agent: agent, cwd: where_, task: task) { e in
+                opening = false
+                if let e { error = e } else { link.notice = tr("Sessão aberta no Mac"); dismiss() }
+            }
+        }
+    }
+}
+
 // MARK: - while you were away
 
 /// What happened since the app last looked: how many finished, broke, waited, and the latest of each.

@@ -52,6 +52,18 @@ final class Music {
     var onUserMusicPaused: (() -> Void)?
     var onUserMusicPlays: (() -> Void)?
 
+    // What it asks about the person. The Mac answers from Attention, NowPlaying and InView (AppDelegate); the iPhone,
+    // which runs this too, keeps these: no focus mode, no music of yours to yield to, everyone may call.
+    /// Focus mode: only what needs attention plays.
+    var focus: () -> Bool = { false }
+    /// Your own music is playing (Spotify, Music): the ambient music steps aside.
+    var userMusic: () -> Bool = { false }
+    /// How loudly this source may call in this state (Attention's level, as its order: 0 ambient … up).
+    var loudness: (String, State) -> Int = { _, _ in 1 }
+    /// Asks whether you're looking at the session's place (it answers on the fish: inView, lookedAt); nil: it can't
+    /// know, the fish just calls.
+    var checkInView: ((Fish) -> Void)?
+
     init(synth: Synth, tank: Tank) {
         self.synth = synth
         self.tank = tank
@@ -215,16 +227,17 @@ final class Music {
         let s = step % 16
         let bar = step / 16
         let active = tank.fish.filter { !$0.decor && !$0.leaving }
-        let focus = Attention.focus
+        let focus = self.focus()
         // the ambient music steps aside while Spotify or the Music app is playing, and doesn't come back by itself when
         // it pauses (the pause may be for silence: a meeting): the aquarium asks, and ⌘A brings it back
         let wanted = UserDefaults.standard.bool(forKey: "ambientMusic")
-        if NowPlaying.playing != lastUserMusic {
-            lastUserMusic = NowPlaying.playing
-            if NowPlaying.playing { yielded = true; onUserMusicPlays?() }
+        let theirs = userMusic()
+        if theirs != lastUserMusic {
+            lastUserMusic = theirs
+            if theirs { yielded = true; onUserMusicPlays?() }
             else if yielded && wanted { onUserMusicPaused?() }
         }
-        let ambient = wanted && !focus && !NowPlaying.playing && !yielded
+        let ambient = wanted && !focus && !theirs && !yielded
 
         if ambient {
             playAmbient(step: step, s: s, bar: bar, t: t, now: now, active: active)
@@ -253,7 +266,7 @@ final class Music {
         for f in active where !Motifs.muted(f.projectKey) {
             f.step = step
             // in focus mode, only those in a state that needs attention play
-            if focus && Attention.level(f.source, f.state) == .ambient { f.intro = false; continue }
+            if focus && loudness(f.source, f.state) == 0 { f.intro = false; continue }
             playFish(f, s: s, t: t, now: now)
         }
     }
@@ -424,7 +437,7 @@ final class Music {
         // still asking whether you're looking at its session: it calls on the next bar
         if f.looking { return }
         // a call for a new state: first ask (InView) whether you're looking at its session
-        if f.changed, [.waiting, .error, .alert].contains(f.state), f.lookedSince != f.since { InView.check(f); return }
+        if let checkInView, f.changed, [.waiting, .error, .alert].contains(f.state), f.lookedSince != f.since { checkInView(f); return }
         let changed = f.changed
         f.changed = false
         switch f.state {
@@ -433,20 +446,20 @@ final class Music {
         case .waiting:
             guard changed || tank.time - f.reminder > 150 else { return }
             // a reminder: ask again first (you may have gone to the session, or left it)
-            if !changed && Date().timeIntervalSince(f.lookedAt) > 10 { InView.check(f); return }
+            if let checkInView, !changed && Date().timeIntervalSince(f.lookedAt) > 10 { checkInView(f); return }
             f.reminder = tank.time
             // you're looking at its session: it knocks without sound, and the question isn't read
             let quiet = f.inView
             if !quiet { motif(f, at: t, now: now, vel: 0.42, octave: 0, only: 2) }
             var end = t + 4 * samplesPerStep
-            if Attention.level(f.source, .waiting) >= .attention {
+            if loudness(f.source, .waiting) >= 1 {
                 knock(f, at: t + 12 * samplesPerStep, now: now, silent: quiet)
                 knock(f, at: t + 14 * samplesPerStep, now: now, silent: quiet)
                 end = t + 15 * samplesPerStep
             }
             if changed && !quiet { called?(f, (end - now) / sr + 0.35) }
         case .error, .alert:
-            if changed && !f.inView && Attention.level(f.source, f.state) >= .attention {
+            if changed && !f.inView && loudness(f.source, f.state) >= 1 {
                 motif(f, at: t, now: now, vel: 0.42, octave: 0, lastShift: 1)
             }
         default:

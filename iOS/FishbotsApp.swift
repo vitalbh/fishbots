@@ -29,13 +29,14 @@ struct Aquarium: View {
     @ObservedObject var link: MacLink
     @SwiftUI.State private var selected: Selected?
     @AppStorage("labels") private var showLabels = true
+    @SwiftUI.State private var newSession = false
 
     var body: some View {
         ZStack {
             AquariumView(mirror: link.mirror, showLabels: showLabels) { selected = Selected(id: $0) }
                 .ignoresSafeArea()
             VStack {
-                if link.pairing != nil { StatusPill(link: link, showLabels: $showLabels) }
+                if link.pairing != nil { StatusPill(link: link, showLabels: $showLabels, newSession: $newSession) }
                 if !link.away.isEmpty && link.pairing != nil { AwayCard(link: link) { selected = Selected(id: $0) } }
                 Spacer()
                 if let n = link.notice {
@@ -49,8 +50,9 @@ struct Aquarium: View {
             if link.pairing == nil { PairingView(link: link) }
         }
         .sheet(item: $selected) { s in FishCard(link: link, id: s.id).presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $newSession) { NewSessionSheet(link: link) }
         #if DEBUG
-        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off|away:<hours>, so a script
+        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off|away:<hours>|new, so a script
         // can press what a finger would (the simulator can't be tapped from the terminal)
         .onReceive(NotificationCenter.default.publisher(for: .fishbotsTest)) { n in
             guard let url = n.object as? URL, let d = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "do" })?.value else { return }
@@ -61,7 +63,8 @@ struct Aquarium: View {
             else if d.hasPrefix("reply:"), let id = selected?.id, let f = link.fish[id] {
                 link.reply(source: f["source"] as? String ?? "", entity: f["entity"] as? String ?? "", text: String(d.dropFirst(6))) { e in link.notice = e ?? "sent" }
             }
-            else if d == "close" { selected = nil }
+            else if d == "close" { selected = nil; newSession = false }
+            else if d == "new" { newSession = true }
             else if d.hasPrefix("theme:") { link.theme = String(d.dropFirst(6)) }
             else if d == "themeMac" { link.useThemeOnMac() }
             else if d.hasPrefix("labels:") { showLabels = d.hasSuffix("on") }
@@ -85,9 +88,16 @@ struct Aquarium: View {
 private struct StatusPill: View {
     @ObservedObject var link: MacLink
     @Binding var showLabels: Bool
+    @Binding var newSession: Bool
+    @AppStorage("soundOn") private var soundOn = true
+    /// Music.swift reads this key itself (the Mac's own).
+    @AppStorage("ambientMusic") private var ambientMusic = false
 
     var body: some View {
         Menu {
+            Button { newSession = true } label: { Label(tr("Nova sessão…"), systemImage: "plus.bubble") }
+                .disabled(link.status != .connected)
+            Divider()
             Picker(tr("Tema"), selection: $link.theme) {
                 Text(tr("Igual ao Mac")).tag("")
                 ForEach(Themes.all, id: \.id) { Text($0.displayName).tag($0.id) }
@@ -97,6 +107,8 @@ private struct StatusPill: View {
                 Button(tr("Usar este tema no Mac também")) { link.useThemeOnMac() }
             }
             Toggle(tr("Nomes dos peixes"), isOn: $showLabels)
+            Toggle(tr("Som"), isOn: Binding(get: { soundOn }, set: { soundOn = $0; link.sound.setOn($0) }))
+            Toggle(tr("Música ambiente"), isOn: $ambientMusic)
             Divider()
             Button(tr("Esquecer este Mac"), role: .destructive) { link.forget() }
         } label: {

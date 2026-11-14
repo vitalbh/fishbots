@@ -280,6 +280,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         synth.start()
         music = Music(synth: synth, tank: tank)
         music.visual = visual
+        // what the music asks about you, answered from your attention rules, your own music and what's on screen
+        music.focus = { Attention.focus }
+        music.userMusic = { NowPlaying.playing }
+        music.loudness = { s, e in [.ambient: 0, .attention: 1, .urgent: 2][Attention.level(s, e)] ?? 1 }
+        music.checkInView = { InView.check($0) }
         // your music paused while the aquarium's was yielding: the music fish offers it, like an agent asking (but
         // quietly: no notification, nothing read aloud), and the offer goes away when your music plays again
         music.onUserMusicPaused = { [unowned self] in

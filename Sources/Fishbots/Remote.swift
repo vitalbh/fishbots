@@ -17,7 +17,7 @@ final class Remote: EventSink {
     let id = "remote"
     static var enabled: Bool { UserDefaults.standard.bool(forKey: "remoteAccess") }
     static let routes = ["GET /state", "GET /stream", "GET /permissions", "POST /permissions/<id>", "GET /said", "POST /reply",
-                         "POST /stop", "POST /theme", "POST /push/register", "GET /packs", "GET /packs/files", "GET /journal"]
+                         "POST /stop", "POST /theme", "POST /push/register", "GET /spawn/options", "POST /spawn", "GET /packs", "GET /packs/files", "GET /journal"]
 
     let port: UInt16
     private let tank: Tank
@@ -30,6 +30,11 @@ final class Remote: EventSink {
     var can: ((Capability, Fish) -> Bool)?
     /// Changes the Mac's theme, as its menu does.
     var useTheme: ((String) -> Void)?
+    /// Starting a session from the device (it runs here, in a terminal, like one from the eggs): what can be opened
+    /// and where, and the opening itself (`done` gets what went wrong, or nil once its fish is born).
+    var spawnOptions: (() -> [String: Any])?
+    var spawn: ((_ agent: String, _ cwd: String, _ task: String, _ done: @escaping (String?) -> Void) -> Void)?
+
     /// Keeps a phone's push token (Push.swift).
     var registerPush: ((Push.Device) -> Void)?
 
@@ -75,6 +80,18 @@ final class Remote: EventSink {
             s.stream = { [weak self] method, path in
                 guard let self, method == "GET", path.split(separator: "?").first == "/stream" else { return nil }
                 return { self.add($0) }
+            }
+            // a new session answers once its fish is born, or with what went wrong: later
+            s.deferred.append { [weak self] method, path, _, body, reply in
+                guard let self, method == "POST", path.split(separator: "?").first == "/spawn" else { return false }
+                let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+                guard let agent = m["agent"] as? String, let cwd = m["cwd"] as? String, let spawn = self.spawn else {
+                    reply(400, Self.error(#"send {"agent", "cwd", "task"}"#)); return true
+                }
+                spawn(agent, cwd, (m["task"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)) { failure in
+                    reply(failure == nil ? 200 : 409, failure.map { Self.error($0) } ?? Data(#"{"ok":true}"#.utf8))
+                }
+                return true
             }
             server = s
             Task { await refreshTailscale() }
@@ -226,6 +243,8 @@ final class Remote: EventSink {
             if permissions.request(id: id) != nil { return (400, Self.error("that request doesn't take this answer")) }
             push()
             return (200, Data(#"{"ok":true}"#.utf8))
+        case ("GET", "/spawn/options"):
+            return (200, Self.json(spawnOptions?() ?? [:]))
         case ("POST", "/push/register"):
             // the phone's APNs token: {"token": "<hex>", "env": "sandbox"|"production"}
             let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]

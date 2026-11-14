@@ -46,6 +46,36 @@ extension AppDelegate {
         newSessionCard = pop
     }
 
+    // MARK: - from another device (Remote.swift)
+
+    /// What a device may open: the agents that start from the aquarium, and folders to pick from (the last one used,
+    /// then where the sessions in the tank work, newest first).
+    func spawnOptions() -> [String: Any] {
+        let agents = Providers.all.values.filter { $0.launchCommand(prompt: nil, model: nil) != nil }.sorted { $0.name < $1.name }
+        let defaults = UserDefaults.standard
+        var folders: [String] = []
+        let recent = tank.fish.filter { $0.isAgent && !$0.decor }.sorted { $0.bornAt > $1.bornAt }.compactMap { $0.whereabouts["cwd"] }
+        for d in [defaults.string(forKey: "newSessionFolder")].compactMap({ $0 }) + recent where !folders.contains(d) { folders.append(d) }
+        return ["agents": agents.map { ["id": $0.id, "name": $0.name] },
+                "agent": defaults.string(forKey: "newSessionAgent") ?? agents.first?.id ?? "",
+                "folders": Array(folders.prefix(12)),
+                "canOpen": Launchers.pick(nil, near: nil) != nil]
+    }
+
+    /// A session asked for by a paired device: it opens here, in a terminal, as one from the eggs does.
+    func spawnFromDevice(agent: String, cwd: String, task: String, done: @escaping (String?) -> Void) {
+        guard let chosen = Providers.of(agent), chosen.launchCommand(prompt: nil, model: nil) != nil else { done(tr("esse agente não abre pelo aquário")); return }
+        let dir = (cwd as NSString).expandingTildeInPath
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue else { done(tr("essa pasta não existe no Mac")); return }
+        guard Launchers.pick(nil, near: nil) != nil else { done(tr("Não há onde abrir uma sessão")); return }
+        UserDefaults.standard.set(dir, forKey: "newSessionFolder")
+        UserDefaults.standard.set(chosen.id, forKey: "newSessionAgent")
+        let words = task.split(whereSeparator: { $0.isWhitespace }).prefix(5).joined(separator: " ")
+        sessionControl.open(agent: chosen.id, cwd: dir, prompt: task.isEmpty ? nil : task, model: nil,
+                            label: words.isEmpty ? nil : String(words.prefix(32)), done: done)
+    }
+
     func open(_ chosen: SessionProvider, in dir: String, task: String, model: String?, leading: Bool) {
         let defaults = UserDefaults.standard
         let words = task.trimmingCharacters(in: .whitespacesAndNewlines)

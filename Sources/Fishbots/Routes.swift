@@ -36,6 +36,8 @@ extension AppDelegate {
             remote.useTheme = { [unowned self] id in self.themeKeeper.use(id) }
             Outputs.register(remote)
             remote.registerPush = { [unowned self] d in self.push.register(d) }
+            remote.spawnOptions = { [unowned self] in self.spawnOptions() }
+            remote.spawn = { [unowned self] agent, cwd, task, done in self.spawnFromDevice(agent: agent, cwd: cwd, task: task, done: done) }
             Outputs.register(push)
             remote.start()
             // a session with no terminal asks leave through its stream: the same request on its fish's card
@@ -90,7 +92,7 @@ extension AppDelegate {
             return (200, ThemeKeeper.packsJSON())
         case ("GET", "/packs/files"):
             // the screen saver copies the packs from here (it can't read the app's folder)
-            return (200, Packs.filesJSON())
+            return (200, Packs.filesJSON(sounds: path.contains("sounds=1")))
         case ("POST", "/packs/install"):
             // {"path": "/…/x.fishbotspack"}: installs it and reloads
             guard let j = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any], let p = j["path"] as? String else {

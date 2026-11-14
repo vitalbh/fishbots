@@ -70,6 +70,7 @@ YML
   echo "      - ../../Sources/Fishbots/RemoteTLS.swift"
   echo "      - ../../Sources/Fishbots/ReplyText.swift"
   echo "      - ../../Sources/Fishbots/PushSeal.swift"
+  echo "      - ../../Sources/Fishbots/Music.swift"
   echo "      - path: ../../iOS"
   echo "        excludes: [Notify/NotificationService.swift]"
   if [ -n "$PUSH" ]; then

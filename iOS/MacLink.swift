@@ -73,6 +73,8 @@ final class MacLink: ObservableObject {
     }
 
     let mirror = TankMirror()
+    /// The aquarium's sound here (iOS/Sound.swift): on while the app is in front.
+    private(set) lazy var sound = AquariumSound(mirror: mirror)
     /// The theme this phone shows: "" follows the Mac's.
     @Published var theme = UserDefaults.standard.string(forKey: "theme") ?? "" {
         didSet {
@@ -117,7 +119,7 @@ final class MacLink: ObservableObject {
         mirror.themeOverride = theme.isEmpty ? nil : theme
         mirror.packsFolder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("packs", isDirectory: true)
         mirror.fetchPacks = { [weak self] done in
-            self?.request("GET", "/packs/files") { status, data in done(status == 200 ? data : nil) }
+            self?.request("GET", "/packs/files?sounds=1") { status, data in done(status == 200 ? data : nil) }
         }
     }
 
@@ -163,6 +165,7 @@ final class MacLink: ObservableObject {
     /// The app came to the front: open the stream (and keep reopening it).
     func resume() {
         active = true
+        sound.start()
         if stream == nil { connect() }
     }
 
@@ -170,6 +173,7 @@ final class MacLink: ObservableObject {
     func pause() {
         if status == .connected { lastSeen = Date() }
         active = false
+        sound.stop()
         disconnect()
     }
 
@@ -324,6 +328,21 @@ final class MacLink: ObservableObject {
         request("GET", c.string ?? "/said") { status, data in
             let d = status == 200 ? data.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } : nil
             done(d?["text"] as? String, d?["markdown"] as? Bool ?? false)
+        }
+    }
+
+    /// What can be opened on the Mac (agents, recent folders), for the new session sheet.
+    func spawnOptions(done: @escaping ([String: Any]?) -> Void) {
+        request("GET", "/spawn/options") { status, data in
+            done(status == 200 ? data.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } : nil)
+        }
+    }
+
+    /// Opens a session on the Mac (in a terminal there, like the eggs do); `done` gets what went wrong, or nil once
+    /// its fish is born.
+    func spawn(agent: String, cwd: String, task: String, done: @escaping (String?) -> Void) {
+        request("POST", "/spawn", ["agent": agent, "cwd": cwd, "task": task]) { status, data in
+            done(status == 200 ? nil : Self.error(data) ?? tr("não consegui abrir a sessão"))
         }
     }
 
