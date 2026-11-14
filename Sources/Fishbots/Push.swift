@@ -23,6 +23,8 @@ final class Push: EventSink {
         let token: String
         /// "sandbox" for builds signed for development, "production" for TestFlight and the App Store.
         let env: String
+        /// The paired device it belongs to (RemoteDevices): its notifications are sealed with that device's key.
+        var device: String? = nil
     }
 
     private(set) var devices: [Device] = []
@@ -122,22 +124,33 @@ final class Push: EventSink {
     // MARK: - APNs
 
     private func deliver(_ content: [String: Any], category: String, collapse: String) {
-        guard let sealed = PushSeal.seal(content, key: PushSeal.key(pairing: remote.key())) else { return }
         // what Apple sees: that something came, of which kind; the extension replaces the text with the sealed one
         var aps: [String: Any] = ["alert": ["title": "Fishbots", "body": tr("Uma sessão precisa de você")],
                                   "mutable-content": 1, "category": category, "sound": "default",
                                   "thread-id": Self.tag(collapse)]
         if category == "permission" || category == "question" { aps["interruption-level"] = "time-sensitive" }
-        var payload: [String: Any] = ["aps": aps, "fb": sealed]
+        /// The payload for one paired device: sealed with its own key (nil: it isn't paired anymore).
+        func payload(for device: String) -> [String: Any]? {
+            guard let k = remote.devices.key(of: device), let sealed = PushSeal.seal(content, key: PushSeal.key(pairing: k)) else { return nil }
+            return ["aps": aps, "fb": sealed]
+        }
         if let dir = Self.dump {
-            payload["Simulator Target Bundle"] = Self.topic
-            sent += 1
+            // one file per paired device (the simulator's included), named after it
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]).write(to: dir.appendingPathComponent("push-\(sent).apns"))
+            sent += 1
+            for d in remote.devices.paired {
+                guard var p = payload(for: d.id) else { continue }
+                p["Simulator Target Bundle"] = Self.topic
+                try? JSONSerialization.data(withJSONObject: p, options: [.prettyPrinted]).write(to: dir.appendingPathComponent("push-\(sent)-\(d.id).apns"))
+            }
             return
         }
-        guard let body = try? JSONSerialization.data(withJSONObject: payload), let auth = bearer() else { return }
+        guard let auth = bearer() else { return }
+        // tokens of devices no longer paired go
+        let gone = devices.filter { remote.devices.key(of: $0.device ?? RemoteTLS.pskIdentity) == nil }
+        if !gone.isEmpty { devices.removeAll { gone.contains($0) }; save() }
         for d in devices {
+            guard let p = payload(for: d.device ?? RemoteTLS.pskIdentity), let body = try? JSONSerialization.data(withJSONObject: p) else { continue }
             let host = d.env == "production" ? "api.push.apple.com" : "api.sandbox.push.apple.com"
             guard let url = URL(string: "https://\(host)/3/device/\(d.token)") else { continue }
             var req = URLRequest(url: url, timeoutInterval: 15)

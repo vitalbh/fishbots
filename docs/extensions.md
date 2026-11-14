@@ -614,13 +614,24 @@ Off unless **Preferences → General → Other devices** turns it on (`remoteAcc
 every interface, on the local port + 1 (7778), announced over Bonjour as `_fishbots._tcp`. It speaks plain HTTP inside
 TLS 1.2 with a pre-shared key (`TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256`, identity `fishbots`, the PSK being
 HMAC-SHA256(key, "fishbots-psk-v1")): no certificates, a device without the key fails the handshake, and ECDHE gives
-each connection a key of its own (forward secrecy). `Remote.parameters(key:)` builds the connection on both sides.
+each connection a key of its own (forward secrecy). `RemoteTLS.parameters` builds the connection on both sides.
+
+**Each device has a key of its own** (`RemoteDevices.swift`, `remote-devices.json`, 0600): the listener holds every
+paired device's key, each under its identity, and TLS picks the one the device names. The QR code carries a key no
+device has yet (its `id` and `key`); the first request with it pairs that device under the name it sends
+(`X-Fishbots-Name`), and the QR moves on to a fresh key. Revoking a device (Preferences, or `POST /remote/revoke
+{"id"}` on the local server) takes its key out: the listener opens again with the rest, its streams close, and its
+handshake fails from then on. TLS doesn't say which of its keys was used, so each request names its device in
+`X-Fishbots-Device`; that only decides how it's listed and whose key seals its notifications (every device that
+can connect is one the person paired). The single key of earlier versions became the device `fishbots`, so a phone
+paired before stays paired.
+
 Listing the suite doesn't stop the server from agreeing to plain PSK, so `Remote.admits` checks the agreed suite
 after the handshake, and also the address: only private networks get in (10/8, 172.16/12, 192.168/16, Tailscale's
-100.64/10, link-local, fc00::/7), so a forwarded port or a global IPv6 address doesn't open it to the internet. The 32-byte key lives in `remote.key` (0600, next to
-fish.json) and survives restarts, so a paired phone stays paired; **Forget devices** (or `POST /remote/forget` on
-the local server) makes a new one. The QR code carries
-`fishbots://pair?v=1&name=<Mac>&port=7778&hosts=<IPv4,…>&ts=<MagicDNS name>&key=<base64url>`: Bonjour finds the Mac
+100.64/10, link-local, fc00::/7), so a forwarded port or a global IPv6 address doesn't open it to the internet. The keys survive restarts, so a
+paired phone stays paired; **Forget all** (or `POST /remote/forget` on the local server) takes every device out.
+The QR code carries
+`fishbots://pair?v=1&name=<Mac>&port=7778&hosts=<IPv4,…>&ts=<MagicDNS name>&id=<device>&key=<base64url>`: Bonjour finds the Mac
 on the same network; away from it the device tries `ts` (the Mac's tailnet name, found by a reverse lookup of its
 100.x address, stable when addresses change) and then `hosts`. That needs the Tailscale app on the Mac: Tailscale built
 into another app runs its own node inside that process and makes no address on the Mac, so it can't reach this
@@ -681,7 +692,7 @@ importance (what needs you, then the sessions, then the rest), and a name that w
 A light on the glass that's fine shows no name. Touching a presence opens its source's card (all its presences);
 touching the assistant, the conversation with it.
 
-Still open: a key per device.
+Still open: a widget on the phone's home screen (it needs the notifications to stay up to date).
 
 ## Order of work
 

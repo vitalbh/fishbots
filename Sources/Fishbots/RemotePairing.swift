@@ -37,15 +37,39 @@ struct RemotePairingSection: View {
                             Text(tr("Para usar de fora, instale o app Tailscale no Mac e no iPhone, com a mesma conta. O Tailscale embutido em outro app (como o do Rex) não serve: ele não cria um endereço no Mac."))
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
-                        Button(tr("Esquecer aparelhos")) { remote.forgetDevices(); prefs.refresh() }
-                        Text(tr("Troca a chave: os aparelhos pareados precisam ler o código de novo."))
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
                 .task { tailscale = await remote.refreshTailscale() }
+                devicesList
             }
         }
         if Remote.enabled { notifications }
+    }
+
+    /// The paired devices, each with a key of its own (RemoteDevices): revoking one leaves the others paired.
+    @ViewBuilder private var devicesList: some View {
+        let paired = remote.devices.paired
+        if paired.isEmpty {
+            Text(tr("Nenhum aparelho pareado ainda. Cada aparelho que lê o código ganha uma chave só dele.")).font(.footnote).foregroundStyle(.secondary)
+        } else {
+            ForEach(paired, id: \.id) { d in
+                HStack {
+                    Image(systemName: d.name.lowercased().contains("ipad") ? "ipad" : "iphone").foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(d.name.isEmpty ? tr("aparelho") : d.name)
+                        Text(d.seen.map { String(format: tr("visto %@"), RelativeDateTimeFormatter().localizedString(for: $0, relativeTo: Date())) } ?? tr("ainda não visto"))
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(tr("Revogar")) { remote.revoke(d.id); prefs.refresh() }
+                }
+            }
+            HStack {
+                Text(tr("Revogar tira a chave do aparelho: ele não conecta mais, e os outros seguem pareados.")).font(.footnote).foregroundStyle(.secondary)
+                Spacer()
+                Button(tr("Esquecer todos")) { remote.forgetDevices(); prefs.refresh() }
+            }
+        }
     }
 
     /// Push.swift: the account's APNs key, and which phones get notifications.

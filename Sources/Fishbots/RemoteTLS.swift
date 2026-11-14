@@ -11,12 +11,18 @@ enum RemoteTLS {
     /// TLS 1.2 with a pre-shared key (the same on both sides: the iPhone app builds its connection with this). The key
     /// proves who's who; ECDHE makes a fresh key for each connection, so a key that leaks one day doesn't open
     /// traffic someone recorded before (forward secrecy).
-    static func parameters(key: Data) -> NWParameters {
+    /// A device's side: its key, under its identity (`fishbots` for one paired before devices had their own keys).
+    static func parameters(key: Data, identity: String = pskIdentity) -> NWParameters { parameters(keys: [(identity, key)]) }
+
+    /// The Mac's side: every paired device's key, each under its identity; TLS picks the one the device names.
+    static func parameters(keys: [(id: String, key: Data)]) -> NWParameters {
         let tls = NWProtocolTLS.Options()
-        let psk = Data(HMAC<SHA256>.authenticationCode(for: Data("fishbots-psk-v1".utf8), using: SymmetricKey(data: key)))
         let sec = tls.securityProtocolOptions
-        sec_protocol_options_add_pre_shared_key(sec, psk.withUnsafeBytes { DispatchData(bytes: $0) } as __DispatchData,
-                                                Data(pskIdentity.utf8).withUnsafeBytes { DispatchData(bytes: $0) } as __DispatchData)
+        for (id, key) in keys {
+            let psk = Data(HMAC<SHA256>.authenticationCode(for: Data("fishbots-psk-v1".utf8), using: SymmetricKey(data: key)))
+            sec_protocol_options_add_pre_shared_key(sec, psk.withUnsafeBytes { DispatchData(bytes: $0) } as __DispatchData,
+                                                    Data(id.utf8).withUnsafeBytes { DispatchData(bytes: $0) } as __DispatchData)
+        }
         sec_protocol_options_append_tls_ciphersuite(sec, tls_ciphersuite_t(rawValue: suite)!)
         sec_protocol_options_set_min_tls_protocol_version(sec, .TLSv12)
         sec_protocol_options_set_max_tls_protocol_version(sec, .TLSv12)

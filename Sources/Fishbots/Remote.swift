@@ -8,9 +8,9 @@ import Security
 /// typed into the session's terminal here, the same way the card does it. Nothing is started on the device.
 ///
 /// Off unless Preferences turns it on. Then a second listener opens on every interface (port + 1: 7778), announced
-/// over Bonjour as `_fishbots._tcp`, speaking HTTP inside TLS with a pre-shared key: a device holding the pairing
-/// key (the QR code in Preferences) gets in, anyone else fails the handshake. No certificates, nothing in the clear.
-/// The key is kept across launches so a paired phone stays paired; "Forget devices" makes a new one.
+/// over Bonjour as `_fishbots._tcp`, speaking HTTP inside TLS with pre-shared keys: each paired device has a key of
+/// its own (RemoteDevices.swift; the QR code in Preferences carries the next one), anyone else fails the handshake.
+/// No certificates, nothing in the clear. Keys are kept across launches; revoking a device takes its key out.
 ///
 /// Only a few routes answer there (`routes`); everything else is the local server's business.
 final class Remote: EventSink {
@@ -47,8 +47,14 @@ final class Remote: EventSink {
     /// A device has the stream open (the app in front): it sees everything already, no notifications.
     var watching: Bool { streams.contains { $0.isOpen } }
 
+    /// The paired devices and their keys.
+    let devices: RemoteDevices
     private var server: Server?
+    /// Listeners replaced when the keys changed, kept a moment for the requests they were still answering.
+    private var retired: [Server] = []
     private var streams: [Server.Stream] = []
+    /// Which device opened each stream (to close them when it's revoked).
+    private var streamDevice: [ObjectIdentifier: String] = [:]
     private var timer: Timer?
     private var sentState = Data()
     private var sentPermissions = Data()
@@ -60,6 +66,8 @@ final class Remote: EventSink {
         self.tank = tank
         self.permissions = permissions
         self.port = port
+        devices = RemoteDevices(port: port)
+        devices.keysChanged = { [weak self] in self?.reopen() }
     }
 
     /// Follows the Preferences switch from now on.
@@ -77,16 +85,17 @@ final class Remote: EventSink {
 
     private func open() {
         do {
-            let params = RemoteTLS.parameters(key: key())
+            let params = RemoteTLS.parameters(keys: devices.keys)
             let listener = try NWListener(using: params, on: NWEndpoint.Port(rawValue: port)!)
             listener.service = NWListener.Service(name: Host.current().localizedName, type: RemoteTLS.serviceType)
             let s = try Server(listener: listener, local: false) { [weak self] method, path, headers, body in
                 self?.respond(method, path, headers, body) ?? (404, Data())
             }
             s.admit = { RemoteTLS.admits($0) }
-            s.stream = { [weak self] method, path in
+            s.stream = { [weak self] method, path, headers in
                 guard let self, method == "GET", path.split(separator: "?").first == "/stream" else { return nil }
-                return { self.add($0) }
+                let device = self.heard(headers)
+                return { self.add($0, device: device) }
             }
             // a new session answers once its fish is born, or with what went wrong: later
             s.deferred.append { [weak self] method, path, _, body, reply in
@@ -116,39 +125,37 @@ final class Remote: EventSink {
         timer = nil
     }
 
-    /// A new pairing key: every paired device has to scan the code again.
-    func forgetDevices() {
-        try? FileManager.default.removeItem(at: Self.keyFile(port: port))
-        if server != nil { close(); open() }
+    /// Every device out: each has to scan the code again.
+    func forgetDevices() { devices.forgetAll() }
+
+    /// One device out (its key leaves the listener; its streams close).
+    func revoke(_ id: String) { devices.revoke(id) }
+
+    /// The keys changed: a listener with the new set takes the port. The old one stays a moment for the answers it
+    /// still owes; streams of devices no longer paired close.
+    private func reopen() {
+        guard let old = server else { return }
+        old.stop()
+        retired.append(old)
+        server = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self, Self.enabled, self.server == nil else { return }
+            self.open()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in self?.retired.removeAll { $0 === old } }
+        for s in streams where devices.key(of: streamDevice[ObjectIdentifier(s)] ?? "") == nil { s.end() }
     }
 
-    // MARK: - the transport
-
-    static func keyFile(port: UInt16) -> URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Fishbots/" + (port == 7778 ? "remote.key" : "remote-\(port).key"))
-    }
-
-    /// The pairing key, made the first time (32 random bytes, 0600 next to fish.json).
-    func key() -> Data {
-        let url = Self.keyFile(port: port)
-        if let hex = try? String(contentsOf: url, encoding: .utf8), let d = Data(hex: hex.trimmingCharacters(in: .whitespacesAndNewlines)), d.count == 32 {
-            return d
-        }
-        var bytes = [UInt8](repeating: 0, count: 32)
-        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { fatalError("fishbots: no random bytes for the pairing key") }
-        let d = Data(bytes)
-        do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try ControlTokens.writePrivately(Data((d.map { String(format: "%02x", $0) }.joined() + "\n").utf8), to: url)
-        } catch {
-            FileHandle.standardError.write("fishbots: couldn't write \(url.path): \(error)\n".data(using: .utf8)!)
-        }
-        return d
+    /// The device a request comes from (its header), marked as seen; nil: it didn't say.
+    @discardableResult
+    private func heard(_ headers: [String: String]) -> String? {
+        guard let id = headers["x-fishbots-device"], devices.key(of: id) != nil else { return nil }
+        devices.heard(from: id, name: headers["x-fishbots-name"])
+        return id
     }
 
     /// What the QR code carries: where to find this Mac (Bonjour name, and its addresses for when Bonjour can't
-    /// reach, like over Tailscale) and the key.
+    /// reach, like over Tailscale), and the next device's identity and key.
     var pairingURL: String {
         var c = URLComponents()
         c.scheme = "fishbots"
@@ -158,7 +165,8 @@ final class Remote: EventSink {
                         URLQueryItem(name: "port", value: String(port)),
                         URLQueryItem(name: "hosts", value: Self.addresses().joined(separator: ",")),
                         URLQueryItem(name: "ts", value: tailscaleName ?? ""),
-                        URLQueryItem(name: "key", value: key().base64EncodedString()
+                        URLQueryItem(name: "id", value: devices.pending.id),
+                        URLQueryItem(name: "key", value: devices.pending.key.base64EncodedString()
                             .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
                             .replacingOccurrences(of: "=", with: ""))]
         return c.string ?? ""
@@ -166,7 +174,8 @@ final class Remote: EventSink {
 
     var pairingJSON: Data {
         Self.json(["enabled": Self.enabled, "listening": server != nil, "port": Int(port), "service": RemoteTLS.serviceType,
-                   "url": Self.enabled ? pairingURL : "", "devices": streams.count,
+                   "url": Self.enabled ? pairingURL : "", "watching": streams.count,
+                   "devices": devices.paired.map { ["id": $0.id, "name": $0.name, "seen": $0.seen.map { ISO8601DateFormatter().string(from: $0) } ?? ""] },
                    "tailscale": Self.tailscaleAddress() ?? "", "tailscaleName": tailscaleName ?? ""])
     }
 
@@ -229,6 +238,7 @@ final class Remote: EventSink {
 
     private func respond(_ method: String, _ path: String, _ headers: [String: String], _ body: Data) -> (Int, Data) {
         let route = path.split(separator: "?").first.map(String.init) ?? path
+        let device = heard(headers)
         switch (method, route) {
         case ("GET", "/"):
             return (200, Self.json(["fishbots": "ok", "remote": true, "name": Host.current().localizedName ?? "Mac", "routes": Self.routes]))
@@ -274,7 +284,7 @@ final class Remote: EventSink {
             // the phone's APNs token: {"token": "<hex>", "env": "sandbox"|"production"}
             let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
             guard let t = m["token"] as? String, t.count >= 32, t.allSatisfy(\.isHexDigit) else { return (400, Self.error("send {\"token\": \"…\", \"env\": \"sandbox\"}")) }
-            registerPush?(Push.Device(token: t.lowercased(), env: m["env"] as? String == "production" ? "production" : "sandbox"))
+            registerPush?(Push.Device(token: t.lowercased(), env: m["env"] as? String == "production" ? "production" : "sandbox", device: device))
             return (200, Data(#"{"ok":true}"#.utf8))
         case ("POST", "/theme"):
             // the device chose a theme for the Mac too: {"id": "…"}, one the Mac has (built in or from a pack)
@@ -351,9 +361,14 @@ final class Remote: EventSink {
     // MARK: - the stream
 
     /// A device listening: it gets the whole state right away, then each change.
-    private func add(_ s: Server.Stream) {
+    private func add(_ s: Server.Stream, device: String?) {
         streams.append(s)
-        s.closed = { [weak self, weak s] in self?.streams.removeAll { $0 === s } }
+        streamDevice[ObjectIdentifier(s)] = device ?? RemoteTLS.pskIdentity
+        s.closed = { [weak self, weak s] in
+            guard let self, let s else { return }
+            self.streams.removeAll { $0 === s }
+            self.streamDevice[ObjectIdentifier(s)] = nil
+        }
         // everyone catches up first (the new one with them); if nothing changed, the new one still needs it all
         let before = (sentState, sentPermissions, sentAssistant)
         push()
@@ -393,19 +408,4 @@ final class Remote: EventSink {
 
     private static func json(_ o: Any) -> Data { (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys])) ?? Data() }
     private static func error(_ text: String) -> Data { json(["error": text]) }
-}
-
-private extension Data {
-    init?(hex: String) {
-        guard hex.count % 2 == 0 else { return nil }
-        var out = Data(capacity: hex.count / 2)
-        var i = hex.startIndex
-        while i < hex.endIndex {
-            let j = hex.index(i, offsetBy: 2)
-            guard let b = UInt8(hex[i..<j], radix: 16) else { return nil }
-            out.append(b)
-            i = j
-        }
-        self = out
-    }
 }
