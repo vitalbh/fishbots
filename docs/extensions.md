@@ -605,6 +605,84 @@ Still open: the token for the control routes (the assistant acts through them), 
 were away" told by the assistant, holding the shortcut to talk, and a background session surviving the app (today
 its agent goes when the app quits).
 
+### 13. Other devices (Remote.swift)
+The aquarium seen from another device, like an iPhone app. The sessions keep running on the Mac: the device
+watches, answers permission requests and replies, and nothing is started on it. A reply goes into the session's
+terminal through the provider, exactly as the card sends it (`Cards.sendReply`, `Cards.decide`).
+
+Off unless **Preferences → General → Other devices** turns it on (`remoteAccess`). Then a second listener opens on
+every interface, on the local port + 1 (7778), announced over Bonjour as `_fishbots._tcp`. It speaks plain HTTP inside
+TLS 1.2 with a pre-shared key (`TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256`, identity `fishbots`, the PSK being
+HMAC-SHA256(key, "fishbots-psk-v1")): no certificates, a device without the key fails the handshake, and ECDHE gives
+each connection a key of its own (forward secrecy). `Remote.parameters(key:)` builds the connection on both sides.
+Listing the suite doesn't stop the server from agreeing to plain PSK, so `Remote.admits` checks the agreed suite
+after the handshake, and also the address: only private networks get in (10/8, 172.16/12, 192.168/16, Tailscale's
+100.64/10, link-local, fc00::/7), so a forwarded port or a global IPv6 address doesn't open it to the internet. The 32-byte key lives in `remote.key` (0600, next to
+fish.json) and survives restarts, so a paired phone stays paired; **Forget devices** (or `POST /remote/forget` on
+the local server) makes a new one. The QR code carries
+`fishbots://pair?v=1&name=<Mac>&port=7778&hosts=<IPv4,…>&ts=<MagicDNS name>&key=<base64url>`: Bonjour finds the Mac
+on the same network; away from it the device tries `ts` (the Mac's tailnet name, found by a reverse lookup of its
+100.x address, stable when addresses change) and then `hosts`. That needs the Tailscale app on the Mac: Tailscale built
+into another app runs its own node inside that process and makes no address on the Mac, so it can't reach this
+listener. Preferences says which case it is. `GET /remote` on the local server returns the same link.
+
+Only these routes answer on the remote listener. The others stay local: events and hooks never come from a device.
+
+| Route | |
+|---|---|
+| `GET /state`, `/packs`, `/packs/files`, `/journal` | the same as locally |
+| `GET /stream` | Server-Sent Events: `state` (the whole `/state`, one line, when it changes), `permissions` (the pending list, when it changes) and `event` (each `TankEvent`, as it happens; `Remote` is an `EventSink`). Both snapshots come first, on connecting |
+| `GET /permissions` | `{"permissions": [{id, source, entity, label, tool, summary, since, question?, questions?}]}` |
+| `POST /permissions/<id>` | `{"decision": "allow"\|"deny"}`, `{"answer": "…"}` (a question with a menu: its number or label, or free text) or `{"answers": {"question": "answer"}}` (a form) |
+| `GET /said?source=…&entity=…` | the session's last reply (`text`, `markdown`: whether it's the agent's own markdown, `asked`), up to 20,000 characters; kept out of `/state` because it can be long |
+| `POST /reply` | `{"source", "entity", "text"}`: a question with a menu waiting on that fish takes it as its answer; otherwise the session gets it, if it `can` take a reply (409 if not) |
+| `GET /spawn/options`, `POST /spawn` | what can be opened (agents, recent folders) and opening a session on the Mac: `{"agent", "cwd", "task"}`, answered once its fish is born |
+| `GET /assistant`, `POST /assistant/ask`, `/decide`, `/stop`, `/new`, `/seen` | the resident assistant: its last turns, whether it's thinking, what it asks to use (with the "always" rules it offers); ask it `{"text"}`, decide `{"allow", "always"?}`. The stream sends `assistant` each time the conversation changes (the answer as it comes) |
+| `POST /theme` | `{"id": "…"}`: the Mac takes that theme, as if chosen in its menu (the device can also keep one of its own without telling the Mac) |
+| `POST /stop` | `{"source", "entity"}`: interrupts the agent, if it `can` |
+
+**The iPhone app** (`iOS/`, built by `scripts/ios.sh project|sim|device`) is the engine (`scripts/engine-files.txt`,
+the same list the screen saver builds) plus `RemoteTLS.swift` and its own files: `MacLink` keeps the stream open and
+makes the requests, trying Bonjour, then the tailnet name, then each address; `TankMirror` (shared with the screen
+saver) applies each `state` to a tank of its own, so the fish swim there and only who's there comes from the Mac;
+`Pairing` keeps the link in the Keychain (this device only). Allowing a tool asks for Face ID first. A fish's card is
+the Mac's, drawn with the same pieces: its portrait (`Portraits.swift`: `FishPortraits` on `ShaderSheet`, also behind
+the pack previews and the theme swatches) and its last reply laid out by `ReplyText`, which builds on AppKit or UIKit.
+The phone can keep a theme of its own (`TankMirror.themeOverride`) or hand it to the Mac (`POST /theme`), and hide the
+fish's names. Its log (packs it mirrored, drawings that didn't compile there) is `Library/Caches/fishbots.log`. The Xcode
+project is generated by XcodeGen into `build/ios/` from the engine's list, so there's nothing to keep in step by hand.
+In Debug builds `fishbots://test?do=allow|deny|answer:<text>|open:<fish>|reply:<text>|close` presses the buttons,
+for testing in the simulator (`xcrun simctl openurl booted …`).
+
+**Notifications** (`Push.swift`, an `EventSink`): when a session asks permission, stops and waits, or breaks, and no
+device has the stream open, the Mac sends a notification to each registered phone (`POST /push/register` on the
+remote listener) straight to APNs, signing its provider token with the account's .p8 key (Preferences → General →
+Notifications on the iPhone: Key ID, Team ID, the key). There's no server of ours in between. What it says goes sealed
+(`PushSeal`: ChaChaPoly, the key derived from the pairing key by HKDF): Apple sees "A session needs you" and its
+category; the phone's notification service extension (`iOS/Notify`) opens it with the derived key, kept in a Keychain
+group it shares with the app, so it never holds the key that talks to the Mac. The categories carry buttons: Allow and
+Deny (they need the phone unlocked), Reply with a text field; they go to the Mac from the notification, the app
+closed. Each session's newest notification replaces its older one (`apns-collapse-id`, a hash of the fish's id).
+`FISHBOTS_PUSH_DUMP=<folder>` writes the payloads instead of sending them, for `xcrun simctl push booted <file>`
+(the simulator shows them without running the extension). Push needs a paid developer account: `FISHBOTS_PUSH=1
+scripts/ios.sh device` adds the entitlements and the extension (the simulator always has them).
+
+The phone has **sound** too (`iOS/Sound.swift`): the Mac's Synth and `Music` on the mirrored tank, so each fish calls
+when it changes and the ambient music plays if it's on; the packs' sounds come along (`GET /packs/files?sounds=1`,
+base64). `Music` asks about the person through closures (`focus`, `userMusic`, `loudness`, `checkInView`): the Mac
+answers from Attention, NowPlaying and InView, the phone keeps the defaults. And it can **start a session** on the Mac
+(`GET /spawn/options`: the agents that start from the aquarium, recent folders; `POST /spawn {agent, cwd, task}`,
+answered once its fish is born or with what went wrong): it opens in a terminal there, like one from the eggs, after
+Face ID on the phone.
+
+On the phone the tank is drawn as a wider one (560 points at least) shrunk to fit, so a phone held upright isn't a
+third of the Mac's tank crowded with its scenery; the names are drawn over it at their own size, placed by
+importance (what needs you, then the sessions, then the rest), and a name that would land on another waits for room.
+A light on the glass that's fine shows no name. Touching a presence opens its source's card (all its presences);
+touching the assistant, the conversation with it.
+
+Still open: a key per device.
+
 ## Order of work
 
 1. **Session providers:** move Claude Code, Codex and the generic source behind `SessionProvider`. Biggest win for the

@@ -4,13 +4,15 @@
 set -e
 cd "$(dirname "$0")/.."
 SRC=Sources/Fishbots
+# the engine (scripts/engine-files.txt), the same files the iPhone app builds
+ENGINE=$(grep -v "^#" scripts/engine-files.txt | sed "s#^#$SRC/#" | tr "\n" " ")
 OUT="build/Fishbots.saver"   # keep the file name ASCII (the settings pane got lost with "Aquário.saver"); the name in the list is CFBundleName
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 swiftc -O -swift-version 5 -module-name FishbotsSaver -emit-library -Xlinker -bundle \
   -target "$(uname -m)-apple-macos15.0" \
   -o "$OUT/Contents/MacOS/FishbotsSaver" \
-  $SRC/Renderer.swift $SRC/Shaders.swift $SRC/ShaderCommon.swift $SRC/ShaderBackground.swift $SRC/ShaderSprites.swift $SRC/ShaderCreatures.swift $SRC/ShaderScenery.swift $SRC/ShaderPresences.swift $SRC/ShaderPost.swift $SRC/Tank.swift $SRC/TankSprites.swift $SRC/Steering.swift $SRC/Schools.swift $SRC/Crowding.swift $SRC/SmallTank.swift $SRC/Fish.swift $SRC/Math.swift $SRC/Sky.swift $SRC/Pearls.swift $SRC/Gauges.swift $SRC/Motes.swift $SRC/Dust.swift $SRC/Weeds.swift $SRC/Scenery.swift $SRC/Motifs.swift $SRC/Synth.swift $SRC/Visual.swift $SRC/Fauna.swift $SRC/Scene.swift $SRC/Presence.swift $SRC/SceneEffects.swift $SRC/SceneSprites.swift $SRC/Env.swift $SRC/Theme.swift $SRC/Visualizers.swift $SRC/FishKinds.swift $SRC/ToolBehaviors.swift $SRC/PackFauna.swift $SRC/Packs.swift $SRC/Generator.swift $SRC/L10n.swift $SRC/L10nEnglish.swift \
+  $ENGINE \
   Saver/FishbotsSaver.swift \
   -framework ScreenSaver -framework MetalKit -framework Metal -framework AppKit -framework AVFoundation
 cat > "$OUT/Contents/Info.plist" <<PLIST

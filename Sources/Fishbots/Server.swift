@@ -10,11 +10,19 @@ final class Server {
     var deferred: [(_ method: String, _ path: String, _ headers: [String: String], _ body: Data,
                     _ reply: @escaping (Int, Data) -> Void) -> Bool] = []
 
-    init(port: UInt16, handler: @escaping (_ method: String, _ path: String, _ headers: [String: String], _ body: Data) -> (Int, Data)) throws {
+    /// The tank's own: on 127.0.0.1 only, for hooks, `fishbots` and the screen saver.
+    convenience init(port: UInt16, handler: @escaping (_ method: String, _ path: String, _ headers: [String: String], _ body: Data) -> (Int, Data)) throws {
         let params = NWParameters.tcp
         params.acceptLocalOnly = true
         params.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!)
-        listener = try NWListener(using: params)
+        try self.init(listener: NWListener(using: params), local: true, handler: handler)
+    }
+
+    /// Any other listener (Remote.swift: other devices, over TLS with a pre-shared key). `local` false: the
+    /// browser and Host checks are off, since whoever holds the key already proved who they are.
+    init(listener: NWListener, local: Bool, handler: @escaping (_ method: String, _ path: String, _ headers: [String: String], _ body: Data) -> (Int, Data)) throws {
+        self.listener = listener
+        self.local = local
         self.handler = handler
         listener.newConnectionHandler = { [weak self] c in self?.accept(c) }
         listener.stateUpdateHandler = { state in
@@ -25,9 +33,66 @@ final class Server {
         listener.start(queue: .main)
     }
 
+    func stop() { listener.cancel() }
+
+    /// A response that stays open and carries events as they happen (Server-Sent Events: `event:` and `data:` lines).
+    final class Stream {
+        fileprivate let c: NWConnection
+        private(set) var isOpen = true
+        /// Called once, when the other side goes away or a write fails.
+        var closed: (() -> Void)?
+
+        fileprivate init(_ c: NWConnection) { self.c = c }
+
+        func send(_ event: String, _ data: Data) {
+            guard isOpen else { return }
+            var out = Data("event: \(event)\n".utf8)
+            for line in String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false) {
+                out.append(Data("data: \(line)\n".utf8))
+            }
+            out.append(Data("\n".utf8))
+            write(out)
+        }
+
+        /// A comment line: keeps proxies and the other side from taking a quiet stream for a dead one.
+        func ping() { write(Data(": ping\n\n".utf8)) }
+
+        fileprivate func write(_ d: Data) {
+            c.send(content: d, completion: .contentProcessed { [weak self] e in if e != nil { self?.end() } })
+        }
+
+        func end() {
+            guard isOpen else { return }
+            isOpen = false
+            c.cancel()
+            closed?()
+        }
+    }
+
+    /// Routes that answer with a stream: given the method and path, the function that takes the open stream.
+    var stream: ((_ method: String, _ path: String) -> ((Stream) -> Void)?)?
+    private let local: Bool
+
+    /// Looks at each connection once it's ready (its TLS done) before reading a request: false closes it.
+    var admit: ((NWConnection) -> Bool)?
+
     private func accept(_ c: NWConnection) {
+        guard let admit else {
+            c.start(queue: .main)
+            receive(c, Data(), continued: false)
+            return
+        }
+        c.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                c.stateUpdateHandler = nil
+                if admit(c) { self?.receive(c, Data(), continued: false) } else { c.cancel() }
+            case .failed, .waiting:
+                c.cancel()
+            default: break
+            }
+        }
         c.start(queue: .main)
-        receive(c, Data(), continued: false)
     }
 
     private func receive(_ c: NWConnection, _ acc: Data, continued: Bool) {
@@ -54,7 +119,7 @@ final class Server {
                     if k == "content-length" { len = Int(v) ?? 0 }
                     if k == "expect" && v.lowercased() == "100-continue" { expect = true }
                 }
-                if !self.allowed(headers) {
+                if self.local && !self.allowed(headers) {
                     self.respond(c, 403, Data(#"{"error":"local clients only (curl, hooks), not browsers"}"#.utf8))
                     return
                 }
@@ -69,6 +134,7 @@ final class Server {
                     let later: (Int, Data) -> Void = { [weak self] st, data in
                         DispatchQueue.main.async { self?.respond(c, st, data) }
                     }
+                    if let open = self.stream?(method, path) { self.openStream(c, open); return }
                     if self.deferred.contains(where: { $0(method, path, headers, body, later) }) { return }
                     let (status, resp) = self.handler(method, path, headers, body)
                     self.respond(c, status, resp)
@@ -97,6 +163,22 @@ final class Server {
             if !["127.0.0.1", "localhost", "[::1]"].contains(name) { return false }
         }
         return true
+    }
+
+    private func openStream(_ c: NWConnection, _ open: (Stream) -> Void) {
+        let s = Stream(c)
+        s.write(Data("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n".utf8))
+        c.stateUpdateHandler = { [weak s] state in
+            switch state { case .failed, .cancelled: s?.end(); default: break }
+        }
+        // nothing more comes from the other side: a read that ends means it hung up
+        func drain() {
+            c.receive(minimumIncompleteLength: 1, maximumLength: 1 << 12) { [weak s] _, _, done, err in
+                if done || err != nil { s?.end() } else { drain() }
+            }
+        }
+        drain()
+        open(s)
     }
 
     private func respond(_ c: NWConnection, _ status: Int, _ body: Data) {

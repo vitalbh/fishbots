@@ -7,7 +7,7 @@ lit = re.compile(r'(?<!#)"((?:\\.|[^"\\])*)"')
 table = open(os.path.join(root, 'Sources/Fishbots/L10nEnglish.swift')).read()
 known = {m.group(1) for m in re.finditer(r'^\s*"((?:\\.|[^"\\])*)":', table, re.M)}
 missing = []
-for f in sorted(glob.glob(os.path.join(root, 'Sources/Fishbots/*.swift')) + glob.glob(os.path.join(root, 'Saver/*.swift'))):
+for f in sorted(glob.glob(os.path.join(root, 'Sources/Fishbots/*.swift')) + glob.glob(os.path.join(root, 'Saver/*.swift')) + glob.glob(os.path.join(root, 'iOS/*.swift'))):
     if f.endswith('L10nEnglish.swift'):
         continue
     for n, line in enumerate(open(f), 1):

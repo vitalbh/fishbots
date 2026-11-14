@@ -6,3 +6,8 @@ build/
 
 # pack previews (fishbots pack preview)
 packs/**/preview*.png
+
+# signing keys and certificates (never commit)
+*.p12
+*.p8
+*.cer

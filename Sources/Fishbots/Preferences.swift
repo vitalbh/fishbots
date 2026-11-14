@@ -29,6 +29,9 @@ final class Prefs: ObservableObject {
         /// The assistant was turned on or off, or got another brain: its creature comes or goes.
         var assistantChanged: () -> Void
         var plugins: () -> [(name: String, ok: Bool, detail: String)]
+        /// Other devices: their switch is a plain flag, the pairing comes from here.
+        var remote: () -> Remote
+        var push: () -> Push
     }
     let a: Actions
     /// The tab shown.
@@ -145,6 +148,7 @@ private struct GeneralTab: View {
                 Text(tr("Uma sessão que o aquário abre recebe uma chave só dela e comanda apenas as que ela mesma abriu. As outras sessões usam a chave do arquivo control.token, a mesma do comando fishbots no seu terminal, que alcança todas. Desligado, essa chave é recusada quando quem pede é uma dessas sessões; seu terminal continua podendo."))
                     .font(.footnote).foregroundStyle(.secondary)
             }
+            RemotePairingSection(prefs: prefs, remote: a.remote(), push: a.push())
             Section(tr("Atalhos")) {
                 ForEach(HotkeyAction.allCases, id: \.self) { ShortcutRecorder(prefs: prefs, action: $0) }
                 Text(tr("Funcionam em qualquer app, sempre com quem espera por você há mais tempo. Use ao menos uma tecla modificadora (⌃ ⌥ ⇧ ⌘); Esc cancela a gravação. No campo de resposta, Enter envia."))

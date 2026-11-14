@@ -9,4 +9,4 @@ itself, stop before writing it and say so: what you'd refactor, why, and the bol
 The shaders are text until the app opens, so `swift build` passing says nothing about them: after touching a
 `Shader*.swift` file, run `.build/release/Fishbots --check-shaders`.
 
-The screen saver lists its source files by name in scripts/saver.sh: a new file the engine needs goes there too.
+The screen saver and the iPhone app build the engine from the list in scripts/engine-files.txt: a new file the engine needs goes there too.

@@ -50,6 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// The resident assistant (Assistant.swift) and its card.
     lazy var assistant = Assistant(tank: tank, journal: journal)
     lazy var assistantPanel = AssistantPanel(assistant: assistant, tank: tank)
+    /// Other devices (the iPhone app): off unless Preferences turns it on (Remote.swift).
+    lazy var remote = Remote(tank: tank, permissions: permissions, port: port + 1)
+    /// Notifications on the paired phone when its app isn't open (Push.swift).
+    lazy var push = Push(tank: tank, permissions: permissions, remote: remote)
     lazy var sessionControl = SessionControl(tank: tank, port: { [unowned self] in self.port }) { [unowned self] c, f in self.cards.can(c, f) }
     private(set) var hoverBattery = false
     private(set) var hoverPearl: Pearl?
@@ -276,6 +280,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         synth.start()
         music = Music(synth: synth, tank: tank)
         music.visual = visual
+        // what the music asks about you, answered from your attention rules, your own music and what's on screen
+        music.focus = { Attention.focus }
+        music.userMusic = { NowPlaying.playing }
+        music.loudness = { s, e in [.ambient: 0, .attention: 1, .urgent: 2][Attention.level(s, e)] ?? 1 }
+        music.checkInView = { InView.check($0) }
         // your music paused while the aquarium's was yielding: the music fish offers it, like an agent asking (but
         // quietly: no notification, nothing read aloud), and the offer goes away when your music plays again
         music.onUserMusicPaused = { [unowned self] in
@@ -873,7 +882,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                 let when = s.lastRun.map { tr("rodou %@", fmt.localizedString(for: $0, relativeTo: Date())) } ?? ""
                 return (name, s.ok, s.ok ? when : (s.error ?? "falhou"))
             }
-        }))
+        },
+        remote: { [unowned self] in self.remote },
+        push: { [unowned self] in self.push }))
 
     @objc func showPreferences() { preferences.show() }
 
