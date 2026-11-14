@@ -726,4 +726,6 @@ let english: [String: String] = [
     "Abrir uma sessão no Mac": "Open a session on the Mac",
     "Sessão aberta no Mac": "Session opened on the Mac",
     "não consegui abrir a sessão": "couldn't open the session",
+    "Nada nas últimas horas.": "Nothing in the last hours.",
+    "🧰 Últimas %d horas": "🧰 The last %d hours",
 ]

@@ -50,6 +50,9 @@ final class AquariumSound {
         synth.engine.pause()
     }
 
+    /// A knock on the glass (the Mac's own sound for it).
+    func knock(x: Float) { music?.sceneSound("glass", cue: .effect, x: x) }
+
     func setOn(_ on: Bool) {
         Self.on = on
         synth.muted.store(!on, ordering: .relaxed)

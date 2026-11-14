@@ -33,7 +33,17 @@ struct Aquarium: View {
 
     var body: some View {
         ZStack {
-            AquariumView(mirror: link.mirror, showLabels: showLabels) { selected = Selected(id: $0) }
+            AquariumView(mirror: link.mirror, showLabels: showLabels) { touch in
+                switch touch {
+                case .fish(let id): selected = Selected(id: id)
+                case .eggs: if link.status == .connected { newSession = true }
+                case .chest: link.recent(hours: 3)
+                case .knock(let x): link.sound.knock(x: x)
+                case .presence(let label, let detail, let url):
+                    if let url, let u = URL(string: url), ["http", "https"].contains(u.scheme ?? "") { UIApplication.shared.open(u) }
+                    else { link.notice = detail.map { label + ": " + $0 } ?? label }
+                }
+            }
                 .ignoresSafeArea()
             VStack {
                 if link.pairing != nil { StatusPill(link: link, showLabels: $showLabels, newSession: $newSession) }

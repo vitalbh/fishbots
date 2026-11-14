@@ -438,7 +438,7 @@ struct AwayCard: View {
         let count = { (k: String) in link.away.filter { $0["kind"] as? String == k }.count }
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(tr("🌙 Enquanto você estava fora…")).font(.headline)
+                Text(link.awayTitle).font(.headline)
                 Spacer()
                 Button { link.away = [] } label: { Image(systemName: "xmark.circle.fill").font(.title3).symbolRenderingMode(.hierarchical) }
                     .foregroundStyle(.secondary)

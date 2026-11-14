@@ -62,6 +62,8 @@ final class MacLink: ObservableObject {
     @Published var notice: String?
     /// What happened while the app wasn't looking (`GET /journal`), when that was a while: shown once.
     @Published var away: [[String: Any]] = []
+    /// What the summary card says it is: while you were away, or the last hours (the chest).
+    @Published var awayTitle = ""
     /// A fish whose card should open (a notification was tapped).
     @Published var openFish: String?
     /// This phone's push token, sent to the Mac each time the stream opens (it can change).
@@ -203,7 +205,19 @@ final class MacLink: ObservableObject {
                 guard let w = ($0["when"] as? String).flatMap(iso.date(from:)), w > since else { return false }
                 return ["done", "error", "waiting", "merge"].contains($0["kind"] as? String ?? "")
             }
+            self.awayTitle = tr("🌙 Enquanto você estava fora…")
             self.lastSeen = Date()
+        }
+    }
+
+    /// The chest: what happened in the last hours, on the same card.
+    func recent(hours: Double) {
+        request("GET", "/journal?hours=\(hours)") { [weak self] status, data in
+            guard let self, status == 200, let d = data.flatMap({ (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }) else { return }
+            let items = (d["journal"] as? [[String: Any]] ?? []).filter { ["done", "error", "waiting", "merge"].contains($0["kind"] as? String ?? "") }
+            if items.isEmpty { self.notice = tr("Nada nas últimas horas."); return }
+            self.awayTitle = String(format: tr("🧰 Últimas %d horas"), Int(hours))
+            self.away = items
         }
     }
 
