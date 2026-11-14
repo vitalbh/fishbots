@@ -34,6 +34,10 @@ struct Aquarium: View {
     @SwiftUI.State private var newSession = false
     @SwiftUI.State private var talking = false
     @SwiftUI.State private var shown: Shown?
+    @Environment(\.horizontalSizeClass) private var width
+
+    /// A card's heights: half the screen or all of it on a phone; on an iPad (a sheet in the middle) all of it.
+    private var detents: Set<PresentationDetent> { width == .regular ? [.large] : [.medium, .large] }
 
     var body: some View {
         ZStack {
@@ -62,12 +66,12 @@ struct Aquarium: View {
             .padding(.bottom, 8)
             if link.pairing == nil { PairingView(link: link) }
         }
-        .sheet(item: $selected) { s in FishCard(link: link, id: s.id).presentationDetents([.medium, .large]) }
+        .sheet(item: $selected) { s in FishCard(link: link, id: s.id).presentationDetents(detents) }
         .sheet(isPresented: $newSession) { NewSessionSheet(link: link) }
-        .sheet(item: $shown) { s in SourceSheet(link: link, source: s.source, first: s.presence).presentationDetents([.medium, .large]) }
+        .sheet(item: $shown) { s in SourceSheet(link: link, source: s.source, first: s.presence).presentationDetents(detents) }
         .sheet(isPresented: $talking) {
             AssistantSheet(link: link) { id in talking = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { selected = Selected(id: id) } }
-                .presentationDetents([.medium, .large])
+                .presentationDetents(detents)
         }
         #if DEBUG
         // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off|away:<hours>|new|assistant, so a script

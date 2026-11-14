@@ -76,6 +76,7 @@ struct PermissionCard: View {
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .frame(maxWidth: 520)
         .padding(.horizontal)
     }
 
@@ -157,10 +158,6 @@ struct FishCard: View {
                         Label(tr("Última resposta"), systemImage: "text.bubble").font(.caption).foregroundStyle(.secondary)
                         RichText(text: said)
                     }
-                    if can.contains("reply") || question?.question != nil {
-                        WaveLine().stroke(tint.opacity(0.35), lineWidth: 1).frame(height: 7)
-                        replyField(source, entity)
-                    }
                     if can.contains("stop") {
                         Button(role: .destructive) { link.stop(source: source, entity: entity) } label: {
                             Label(tr("Interromper o agente"), systemImage: "stop.circle")
@@ -172,6 +169,17 @@ struct FishCard: View {
             .padding(18)
         }
         .scrollDismissesKeyboard(.interactively)
+        .scrollIndicators(.visible)
+        // the line to reply stays in sight, under the text however long it is
+        .safeAreaInset(edge: .bottom) {
+            if !d.isEmpty && (can.contains("reply") || question?.question != nil) {
+                VStack(spacing: 0) {
+                    WaveLine().stroke(tint.opacity(0.35), lineWidth: 1).frame(height: 7).padding(.horizontal, 18)
+                    replyField(source, entity).padding(.horizontal, 18).padding(.vertical, 10)
+                }
+                .background(Color(red: 0.06, green: 0.07, blue: 0.1).opacity(0.96))
+            }
+        }
         .background(glass)
         .overlay(alignment: .topTrailing) {
             Button { dismiss() } label: { Image(systemName: "xmark.circle.fill").font(.title2).symbolRenderingMode(.hierarchical) }
@@ -636,6 +644,7 @@ struct AwayCard: View {
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .frame(maxWidth: 520)
         .padding(.horizontal)
     }
 
@@ -675,6 +684,7 @@ struct PairingView: View {
         }
         .padding(28)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .frame(maxWidth: 460)
         .padding()
         .sheet(isPresented: $scanning) {
             QRScanner { s in

@@ -3,7 +3,7 @@
 # Mac's aquarium over the remote listener (Sources/Fishbots/Remote.swift); nothing runs sessions on the phone.
 #
 #   scripts/ios.sh project   generate build/ios/Fishbots.xcodeproj (XcodeGen: brew install xcodegen) and open it
-#   scripts/ios.sh sim       build for the simulator, install and launch it there
+#   scripts/ios.sh sim       build for the simulator, install and launch it there (FISHBOTS_SIM=<name>: which one)
 #   scripts/ios.sh device    build for the iPhone plugged in (or on the same network) and install it
 #
 # Signing for a device: FISHBOTS_TEAM=<your team id> (Xcode → Settings → Accounts; a free Apple ID works, the app
@@ -46,6 +46,7 @@ targets:
         CFBundleDisplayName: Fishbots
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSLocalNetworkUsageDescription: "To find your Mac's aquarium on this network."
         NSBonjourServices: [_fishbots._tcp]
         NSCameraUsageDescription: "To read the pairing code on your Mac."
@@ -105,7 +106,8 @@ case "$1" in
   project)
     open "$OUT/Fishbots.xcodeproj" ;;
   sim)
-    PICK='import json,sys; d=[x for k,v in json.load(sys.stdin)["devices"].items() if ".iOS-" in k for x in v if x["name"].startswith("iPhone") and x.get("isAvailable")]; b=[x for x in d if x["state"]=="Booted"]; print((b or d[-1:] or [{"udid":""}])[0]["udid"])'
+    # FISHBOTS_SIM="iPad Pro 13-inch (M5)": that one; otherwise an iPhone already booted, or the last one listed
+    PICK='import json,sys,os; want=os.environ.get("FISHBOTS_SIM",""); d=[x for k,v in json.load(sys.stdin)["devices"].items() if ".iOS-" in k for x in v if x.get("isAvailable") and (x["name"]==want if want else x["name"].startswith("iPhone"))]; b=[x for x in d if x["state"]=="Booted"]; print((b or d[-1:] or [{"udid":""}])[0]["udid"])'
     SIM=$(xcrun simctl list devices -j | python3 -c "$PICK")
     [ -n "$SIM" ] || { echo "no iPhone simulator (Xcode → Settings → Components)"; exit 1; }
     xcrun simctl boot "$SIM" 2>/dev/null || true
