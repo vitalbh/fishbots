@@ -61,6 +61,7 @@ struct Pairing: Codable, Equatable {
                                                kSecAttrAccount as String: "mac"]
 
     static func load() -> Pairing? {
+        _ = forgetIfReinstalled
         var q = query
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -80,4 +81,25 @@ struct Pairing: Codable, Equatable {
     }
 
     static func forget() { SecItemDelete(query as CFDictionary) }
+
+    /// Deleting the app keeps its Keychain items, so a reinstall would come back paired with the old key (and the
+    /// extension with its push key). The app's own defaults do go with it: a marker in the Keychain without the flag
+    /// in the defaults means this is a reinstall, and the pairing goes. Neither one is the first launch of this
+    /// version on a phone paired before it (an update, not a reinstall): that pairing stays.
+    private static let forgetIfReinstalled: Void = {
+        let marker: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                     kSecAttrService as String: "fishbots.installed", kSecAttrAccount as String: "app"]
+        guard !UserDefaults.standard.bool(forKey: "installed") else { return }
+        if SecItemCopyMatching(marker as CFDictionary, nil) == errSecSuccess {
+            forget()
+            PushKey.forget()
+            NSLog("fishbots: reinstalled, the old pairing is gone")
+        } else {
+            var q = marker
+            q[kSecValueData as String] = Data([1])
+            q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            SecItemAdd(q as CFDictionary, nil)
+        }
+        UserDefaults.standard.set(true, forKey: "installed")
+    }()
 }
