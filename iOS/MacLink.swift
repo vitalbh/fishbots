@@ -96,6 +96,8 @@ final class MacLink: ObservableObject {
     private var retry: DispatchWorkItem?
     /// The endpoint that answered last: tried first next time.
     private var lastGood: NWEndpoint?
+    /// The demo's Mac, while it's on: the stream and the requests go to it.
+    private(set) var demo: DemoMac?
 
     init() {
         // in front: the stream open; behind: closed (iOS would freeze it anyway, and the Mac sends notifications
@@ -151,7 +153,18 @@ final class MacLink: ObservableObject {
         return true
     }
 
+    /// Demo mode (DemoMac.swift): a make-believe Mac answers instead of the network, until `forget`. Nothing is kept.
+    func startDemo() {
+        disconnect()
+        mirror.clear()
+        demo = DemoMac { [weak self] event, obj in self?.handle(event, obj) }
+        pairing = DemoMac.pairing
+        connecting = false                                 // a real Mac still being looked for is let go (see connect)
+        if active { connect() }
+    }
+
     func forget() {
+        if demo != nil { leaveDemo(); return }
         Pairing.forget()
         PushKey.forget()
         disconnect()
@@ -160,6 +173,18 @@ final class MacLink: ObservableObject {
         fish = [:]
         permissions = []
         status = .unpaired
+    }
+
+    private func leaveDemo() {
+        disconnect()
+        demo = nil
+        mirror.clear()
+        pairing = Pairing.load()
+        fish = [:]
+        permissions = []
+        away = []
+        status = pairing == nil ? .unpaired : .connecting
+        if active, pairing != nil { connect() }
     }
 
     // MARK: - the stream
@@ -224,16 +249,19 @@ final class MacLink: ObservableObject {
     private func disconnect() {
         retry?.cancel()
         retry = nil
+        demo?.stop()
         stream?.cancel()
         stream = nil
     }
 
     private func connect() {
         guard let pairing, active, !connecting, stream == nil else { return }
+        if let demo { status = .connected; catchUp(); demo.start(); return }
         connecting = true
         status = .connecting
         open(pairing) { [weak self] c in
             guard let self else { return }
+            guard self.demo == nil else { c?.cancel(); return }
             self.connecting = false
             guard let c else { self.lost(tr("não achei o Mac")); return }
             guard self.active, self.pairing == pairing else { c.cancel(); return }
@@ -382,6 +410,7 @@ final class MacLink: ObservableObject {
     /// One request on a connection of its own (the Mac closes it after answering). `done` runs on the main queue;
     /// status 0: no answer.
     func request(_ method: String, _ path: String, _ body: [String: Any]? = nil, done: @escaping (Int, Data?) -> Void) {
+        if let demo { demo.request(method, path, body, done: done); return }
         guard let pairing else { done(0, nil); return }
         open(pairing) { c in
             guard let c else { done(0, nil); return }
