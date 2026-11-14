@@ -74,7 +74,7 @@ struct Aquarium: View {
                 .presentationDetents(detents)
         }
         #if DEBUG
-        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off|away:<hours>|new|assistant, so a script
+        // Debug builds only: fishbots://test?do=allow|deny|answer:<text>|open:<fish id>|reply:<text>|close|theme:<id>|themeMac|labels:on|off|away:<hours>|new|assistant|demo|forget, so a script
         // can press what a finger would (the simulator can't be tapped from the terminal)
         .onReceive(NotificationCenter.default.publisher(for: .fishbotsTest)) { n in
             guard let url = n.object as? URL, let d = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "do" })?.value else { return }
@@ -88,6 +88,8 @@ struct Aquarium: View {
             else if d == "close" { selected = nil; newSession = false; shown = nil; talking = false }
             else if d == "new" { newSession = true }
             else if d == "assistant" { talking = true }
+            else if d == "demo" { link.startDemo() }
+            else if d == "forget" { link.forget() }
             else if d.hasPrefix("theme:") { link.theme = String(d.dropFirst(6)) }
             else if d == "themeMac" { link.useThemeOnMac() }
             else if d.hasPrefix("labels:") { showLabels = d.hasSuffix("on") }
@@ -137,7 +139,8 @@ private struct StatusPill: View {
             Toggle(tr("Som"), isOn: Binding(get: { soundOn }, set: { soundOn = $0; link.sound.setOn($0) }))
             Toggle(tr("Música ambiente"), isOn: $ambientMusic)
             Divider()
-            Button(tr("Esquecer este Mac"), role: .destructive) { link.forget() }
+            if link.demo != nil { Button(tr("Sair da demonstração")) { link.forget() } }
+            else { Button(tr("Esquecer este Mac"), role: .destructive) { link.forget() } }
         } label: {
             HStack(spacing: 6) {
                 Circle().fill(color).frame(width: 8, height: 8)

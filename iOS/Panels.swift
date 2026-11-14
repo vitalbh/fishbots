@@ -681,6 +681,8 @@ struct PairingView: View {
             } label: { Label(tr("Colar o link"), systemImage: "doc.on.clipboard").frame(maxWidth: .infinity) }
                 .buttonStyle(.bordered).controlSize(.large)
             if failed { Text(tr("Isso não é um código do Fishbots.")).font(.footnote).foregroundStyle(.red) }
+            Button(tr("Sem Mac por perto? Veja uma demonstração")) { link.startDemo() }
+                .font(.footnote)
         }
         .padding(28)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
