@@ -215,6 +215,7 @@ private struct GeneralTab: View {
                 }
                 Text(tr("Outros agentes entram mandando eventos para /agent/<id>; um manifesto aqui dá nome, peixe e timbre. Depois de mudar um, Recarregar (ou POST /agents/reload). Veja o README."))
                     .font(.footnote).foregroundStyle(.secondary)
+                DisconnectAgentsRow()
             }
             Section(tr("Foco")) {
                 Toggle(tr("Modo foco (só o que pede atenção)"), isOn: prefs.bind({ Attention.focus }, { Attention.focus = $0 }))
@@ -429,6 +430,34 @@ private struct ExtrasTab: View {
 }
 
 /// One agent's command line (AgentCLIs): the binary, extra parameters and variables.
+/// Takes Fishbots' hooks out of every agent (AgentHooks.swift): for leaving the aquarium, before deleting the app.
+private struct DisconnectAgentsRow: View {
+    @SwiftUI.State private var files = AgentHooks.connected()
+    @SwiftUI.State private var asking = false
+    @SwiftUI.State private var report: [String] = []
+
+    var body: some View {
+        HStack {
+            Text(files.isEmpty ? tr("Nenhum agente com os hooks do aquário")
+                 : String(format: tr("Hooks do aquário em %d arquivo(s)"), files.count))
+            Spacer()
+            Button(tr("Desconectar agentes…")) { asking = true }.disabled(files.isEmpty)
+        }
+        .confirmationDialog(tr("Tirar os hooks do aquário dos agentes?"), isPresented: $asking) {
+            Button(tr("Desconectar"), role: .destructive) {
+                report = AgentHooks.disconnect()
+                files = AgentHooks.connected()
+            }
+        } message: {
+            Text(files.map { $0.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") }.joined(separator: "\n")
+                 + "\n\n" + tr("Os agentes param de mandar eventos para o aquário. Cada arquivo ganha um backup ao lado (.bak-fishbots-…). Reinicie os agentes abertos."))
+        }
+        ForEach(report, id: \.self) { Text($0).font(.footnote).foregroundStyle(.secondary) }
+        Text(tr("Antes de apagar o app: sem isso, os hooks continuam chamando um script que não existe mais. Para voltar, scripts/install-hooks.sh."))
+            .font(.footnote).foregroundStyle(.secondary)
+    }
+}
+
 private struct AgentCLIRow: View {
     static let agents: [(id: String, name: String, usual: String)] = [("claude-code", "Claude Code", "claude"), ("codex", "Codex", "codex")]
     @ObservedObject var prefs: Prefs

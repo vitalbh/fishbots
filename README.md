@@ -38,6 +38,8 @@ To avoid the automation permission prompt on every build, create a self-signed *
 
 To hand the app out, `scripts/release.sh` signs the app and the screen saver with a Developer ID certificate and builds `build/Fishbots.dmg`, notarized and stapled (setup in the script's header).
 
+**Uninstalling:** the agents' hooks point at this clone, so take them out before deleting it, or every session keeps calling a script that isn't there: `scripts/uninstall.sh` removes them from every agent (each settings file keeps a backup next to it), then asks before deleting the data in `~/Library/Application Support/Fishbots`, the screen saver and the app. One agent alone: `scripts/install-hooks.sh <agent> --remove`. Without a terminal, Preferences → General → Agents → **Disconnect agents…** removes the hooks. On the iPhone, deleting the app is enough: a reinstall starts unpaired (the Keychain outlives the app, so the app forgets the old pairing itself), and revoking the device on the Mac (Preferences → General → Other devices) shuts it out from that side.
+
 ## Mechanics: the living aquarium
 
 - **Error = sick fish:** it fades, turns nose-down and slowly sinks. Fish from the same project gather around it. When it recovers, it does a little lap. If the error lasts more than 12 min, the water around it clouds and it becomes an urgent alert (once).
