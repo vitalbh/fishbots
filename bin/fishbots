@@ -1,5 +1,5 @@
 #!/bin/sh
-# fishbots: talks to the running Fishbots (127.0.0.1, port FISHBOTS_PORT or 7777). bin/aquario is the old name.
+# fishbots: talks to the running Fishbots (127.0.0.1, port FISHBOTS_PORT or 7777).
 #
 #   fishbots state <source> <entity> <state> [label]   states: born busy idle waiting ok alert error done end
 #   fishbots tool  <source> <entity> <name>            activity pulse (a short note)

@@ -11,10 +11,10 @@
 #   FISHBOTS_K8S_CONTEXTS="ctx1 ctx2"   which clusters (default: every kubectl context)
 #   FISHBOTS_K8S_HELMS="ctx1"            the ones you want to see as a wheel on the sand (default: none, all are lights)
 #   FISHBOTS_K8S_TRIM="^my-company-"     a regex cut from the names on the labels
-#   FISHBOTS_KUBECTL                     which kubectl (default: the first one on the PATH, rex8s' wrapper included)
+#   FISHBOTS_KUBECTL                     which kubectl (default: the first one on the PATH; point it at a wrapper if you use one)
 ENV="$HOME/Library/Application Support/Fishbots/plugins.env"
 [ -f "$ENV" ] && . "$ENV"
-PATH="$HOME/.config/rex/rex8s/bin:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 KUBECTL="${FISHBOTS_KUBECTL:-kubectl}"
 command -v "$KUBECTL" >/dev/null || { echo "kubectl not found" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }

@@ -4,7 +4,7 @@ import Foundation
 /// Preferences, for whoever is leaving the aquarium. Once the clone is gone those hooks would run a script that isn't
 /// there on every prompt and tool. scripts/uninstall.sh does the same from the terminal (install-hooks.sh --remove).
 ///
-/// A hook is Fishbots' when it runs …/plugins/<agent>/hook.sh or permission.sh (permissao.sh before), from any clone.
+/// A hook is Fishbots' when it runs …/plugins/<agent>/hook.sh or permission.sh, from any clone.
 /// Every file it changes gets a backup next to it first (.bak-fishbots-…).
 enum AgentHooks {
     struct Place {
@@ -68,7 +68,7 @@ enum AgentHooks {
     }
 
     static func isOurs(command: String, agent: String) -> Bool {
-        ["hook", "permission", "permissao"].contains { name in
+        ["hook", "permission"].contains { name in
             guard let r = command.range(of: "/plugins/\(agent)/\(name).sh") else { return false }
             return r.upperBound == command.endIndex || command[r.upperBound].isWhitespace
         }

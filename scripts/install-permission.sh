@@ -3,13 +3,12 @@
 # to the Claude Code settings, with a backup. Run it yourself: the hook can approve tools on your behalf.
 #   scripts/install-permission.sh ~/.claude/settings.json   (one or more settings files)
 HOOK="$(cd "$(dirname "$0")/.." && pwd)/plugins/claude-code/permission.sh"
-LEGACY="$(dirname "$HOOK")/permissao.sh"
 for f in "$@"; do
-  python3 -I - "$f" "$HOOK" "$LEGACY" <<'PY'
+  python3 -I - "$f" "$HOOK" <<'PY'
 import json, shutil, sys, time
-f, hook, legacy = sys.argv[1], sys.argv[2], sys.argv[3]
+f, hook = sys.argv[1], sys.argv[2]
 d = json.load(open(f)); lst = d.setdefault("hooks", {}).setdefault("PermissionRequest", [])
-if any(hook in h.get("command", "") or legacy in h.get("command", "") for e in lst for h in e.get("hooks", [])):
+if any(hook in h.get("command", "") for e in lst for h in e.get("hooks", [])):
     print(f, "already there"); sys.exit()
 shutil.copy(f, f + ".bak-fishbots-" + time.strftime("%Y%m%d-%H%M%S"))
 lst.append({"matcher": "*", "hooks": [{"type": "command", "command": hook, "timeout": 300}]})

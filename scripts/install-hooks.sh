@@ -64,8 +64,8 @@ def save(message):
     print(f"{target}: {message}"); sys.exit()
 
 if remove:
-    # Fishbots' scripts from any clone: …/plugins/<agent>/hook.sh, permission.sh (permissao.sh before)
-    ours = re.compile(r"/plugins/" + re.escape(agent) + r"/(hook|permission|permissao)\.sh(\s|$)")
+    # Fishbots' scripts from any clone: …/plugins/<agent>/hook.sh, permission.sh
+    ours = re.compile(r"/plugins/" + re.escape(agent) + r"/(hook|permission)\.sh(\s|$)")
     def theirs(c): return not ours.search(c)
     removed = 0
     if agent == "antigravity" and "fishbots" in data:
