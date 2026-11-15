@@ -42,6 +42,10 @@ each session's state as music. Answer them from the fish, from the notch, or fro
   <img src="docs/media/themes.webp" width="960" alt="Six themes: a coral reef, a kelp forest, a night sky of constellations, a koi pond, a tank on a desk and the deep trench.">
 </p>
 
+> [!NOTE]
+> Fishbots is free software, made for learning and for fun. It isn't a commercial product and comes with no
+> warranty of any kind: use it at your own risk.
+
 ## How it works
 
 ```
