@@ -19,6 +19,14 @@ To avoid the automation permission prompt on every build, create a self-signed *
 
 To hand the app out, `scripts/release.sh` signs the app and the screen saver with a Developer ID certificate and builds `build/Fishbots.dmg`, notarized and stapled (setup in the script's header).
 
+## Signing for iCloud
+
+`FISHBOTS_TEAM=<team id> scripts/app.sh` (remembered in `build/signing-team`) signs the app with Apple's development
+certificate and a provisioning profile with the iCloud container, which the iPhone's notifications need
+(CloudNotes.swift). `scripts/mac-signing.sh` gets the profile by building a one-file Xcode project with the same bundle
+id once, and again when it's a week from expiring. Without a team the app is signed as before ("Fishbots Dev" or ad
+hoc) and has no iCloud. Changing how it's signed makes macOS ask for its permissions again, once.
+
 ## Uninstalling
 
 **Uninstalling:** the agents' hooks point at this clone, so take them out before deleting it, or every session keeps calling a script that isn't there: `scripts/uninstall.sh` removes them from every agent (each settings file keeps a backup next to it), then asks before deleting the data in `~/Library/Application Support/Fishbots`, the screen saver and the app. One agent alone: `scripts/install-hooks.sh <agent> --remove`. Without a terminal, Preferences → General → Agents → **Disconnect agents…** removes the hooks. On the iPhone, deleting the app is enough: a reinstall starts unpaired (the Keychain outlives the app, so the app forgets the old pairing itself), and revoking the device on the Mac (Preferences → General → Other devices) shuts it out from that side.

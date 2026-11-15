@@ -4,8 +4,10 @@ import Foundation
 /// Notifications on the paired iPhone when the app there isn't open (docs/extensions.md, 13): a session asks
 /// permission, stops and waits for you, or breaks. An output (EventSink) like the webhooks.
 ///
-/// The Mac sends them to Apple's push service itself (APNs, HTTP/2 with a token signed by the account's .p8 key, set
-/// in Preferences), so there's no server of ours in between. What a notification says goes sealed (PushSeal) with a
+/// Two ways, neither with a server of ours in between: through the person's iCloud (CloudNotes.swift: a note the
+/// phone is subscribed to, the default, no setup), or straight to Apple's push service (APNs, HTTP/2 with a token
+/// signed by a developer account's .p8 key, set in Preferences: for whoever builds the phone app with their own
+/// account). A phone with a push token gets them the second way; the others the first. What a notification says goes sealed (PushSeal) with a
 /// key derived from the pairing: Apple carries it without reading it, and the phone's notification extension opens it.
 /// Each session's newest notification replaces its older one (collapse id).
 ///
@@ -28,6 +30,7 @@ final class Push: EventSink {
     }
 
     private(set) var devices: [Device] = []
+    let cloud = CloudNotes()
     private var jwt: (token: String, made: Date)?
     private var sent = 0
 
@@ -47,8 +50,17 @@ final class Push: EventSink {
     private static var devicesFile: URL { folder.appendingPathComponent("push-devices.json") }
     static var dump: URL? { Env.value("PUSH_DUMP").map { URL(fileURLWithPath: $0, isDirectory: true) } }
 
-    /// Ready to send: a key, its id and the team (or the dump folder, for trying).
+    /// Notifications on at all (Preferences → General → Notifications on the iPhone).
+    static var enabled: Bool { UserDefaults.standard.object(forKey: "pushEnabled") as? Bool ?? true }
+
+    /// Straight to APNs: a key, its id and the team (or the dump folder, for trying).
     var configured: Bool { Self.dump != nil || (!Self.keyId.isEmpty && !Self.teamId.isEmpty && signingKey() != nil) }
+
+    /// Some phone would get one now, either way.
+    var reachable: Bool { (configured && (!devices.isEmpty || Self.dump != nil)) || (CloudNotes.available && !cloud.devices.isEmpty) }
+
+    /// How many phones get notifications.
+    var receiving: Int { Set((configured ? devices.map { $0.device ?? RemoteTLS.pskIdentity } : []) + (CloudNotes.available ? Array(cloud.devices) : [])).count }
 
     /// Keeps a copy of the .p8 the person chose, readable by them only.
     static func setKey(from url: URL) throws {
@@ -83,7 +95,7 @@ final class Push: EventSink {
     // MARK: - what's worth a notification
 
     func send(_ e: TankEvent) {
-        guard Remote.enabled, configured, !remote.watching, !devices.isEmpty || Self.dump != nil,
+        guard Remote.enabled, Self.enabled, reachable, !remote.watching,
               let f = tank.fish(source: e.source, entity: e.entity) else { return }
         let name = f.nickname ?? f.displayTitle ?? f.label
         var content: [String: Any] = ["t": name, "f": f.id, "s": e.source, "e": e.entity]
@@ -134,6 +146,15 @@ final class Push: EventSink {
             guard let k = remote.devices.key(of: device), let sealed = PushSeal.seal(content, key: PushSeal.key(pairing: k)) else { return nil }
             return ["aps": aps, "fb": sealed]
         }
+        // through iCloud: the subscribed phones that don't get them straight from APNs
+        let direct = configured ? Set(devices.map { $0.device ?? RemoteTLS.pskIdentity }) : []
+        if CloudNotes.available {
+            for d in cloud.devices where !direct.contains(d) {
+                guard let k = remote.devices.key(of: d) else { cloud.forget(d); continue }
+                if let sealed = PushSeal.seal(content, key: PushSeal.key(pairing: k)) { cloud.send(sealed: sealed, to: d) }
+            }
+        }
+        guard configured else { return }
         if let dir = Self.dump {
             // one file per paired device (the simulator's included), named after it
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

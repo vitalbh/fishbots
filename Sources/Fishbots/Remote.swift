@@ -43,6 +43,7 @@ final class Remote: EventSink {
 
     /// Keeps a phone's push token (Push.swift).
     var registerPush: ((Push.Device) -> Void)?
+    var registerCloud: ((String) -> Void)?
 
     /// A device has the stream open (the app in front): it sees everything already, no notifications.
     var watching: Bool { streams.contains { $0.isOpen } }
@@ -283,6 +284,11 @@ final class Remote: EventSink {
         case ("POST", "/push/register"):
             // the phone's APNs token: {"token": "<hex>", "env": "sandbox"|"production"}
             let m = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+            // or {"cloud": true}: this phone is subscribed to its notes in iCloud (CloudNotes.swift)
+            if m["cloud"] as? Bool == true {
+                registerCloud?(device ?? RemoteTLS.pskIdentity)
+                return (200, Data(#"{"ok":true}"#.utf8))
+            }
             guard let t = m["token"] as? String, t.count >= 32, t.allSatisfy(\.isHexDigit) else { return (400, Self.error("send {\"token\": \"…\", \"env\": \"sandbox\"}")) }
             registerPush?(Push.Device(token: t.lowercased(), env: m["env"] as? String == "production" ? "production" : "sandbox", device: device))
             return (200, Data(#"{"ok":true}"#.utf8))

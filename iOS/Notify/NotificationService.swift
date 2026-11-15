@@ -5,13 +5,16 @@ import UserNotifications
 final class NotificationService: UNNotificationServiceExtension {
     override func didReceive(_ request: UNNotificationRequest, withContentHandler done: @escaping (UNNotificationContent) -> Void) {
         guard let content = request.content.mutableCopy() as? UNMutableNotificationContent else { done(request.content); return }
-        if let sealed = content.userInfo["fb"] as? String, let key = PushKey.load(), let m = PushSeal.open(sealed, key: key) {
+        let sealed = PushKey.sealed(in: content.userInfo)
+        if let sealed, let key = PushKey.load(), let m = PushSeal.open(sealed, key: key) {
             if let t = m["t"] as? String { content.title = t }
             if let b = m["b"] as? String { content.body = b }
             if let options = m["o"] as? [String], !options.isEmpty {
                 content.body += "\n" + options.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "  ")
             }
             if let f = m["f"] as? String { content.threadIdentifier = f }
+            // through iCloud the category (its buttons) comes inside the sealed text
+            if let k = m["k"] as? String { content.categoryIdentifier = k }
         }
         done(content)
     }

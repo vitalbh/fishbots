@@ -217,6 +217,14 @@ final class MacLink: ObservableObject {
 
     /// Development builds get their notifications from Apple's sandbox; TestFlight and the App Store from production.
     private func sendPushToken() {
+        // through iCloud: once this phone is subscribed, the Mac writes its notes there (no token needed)
+        if let id = pairing?.id, demo == nil {
+            Cloud.subscribe(device: id) { [weak self] in
+                self?.request("POST", "/push/register", ["cloud": true]) { status, _ in
+                    if status != 200 { MacLink.log("cloud: the Mac didn't take it (\(status))") }
+                }
+            }
+        }
         guard let pushToken, pairing != nil else { return }
         let env = Bundle.main.object(forInfoDictionaryKey: "FishbotsAPNs") as? String ?? "sandbox"
         request("POST", "/push/register", ["token": pushToken, "env": env]) { status, _ in

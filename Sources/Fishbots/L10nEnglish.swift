@@ -795,4 +795,9 @@ let english: [String: String] = [
     "Desconectar": "Disconnect",
     "Os agentes param de mandar eventos para o aquário. Cada arquivo ganha um backup ao lado (.bak-fishbots-…). Reinicie os agentes abertos.": "The agents stop sending events to the aquarium. Each file gets a backup next to it (.bak-fishbots-…). Restart the agents that are open.",
     "Antes de apagar o app: sem isso, os hooks continuam chamando um script que não existe mais. Para voltar, scripts/install-hooks.sh.": "Before deleting the app: otherwise the hooks keep calling a script that no longer exists. To come back, scripts/install-hooks.sh.",
+    "Avisar no iPhone quando uma sessão precisa de você": "Notify the iPhone when a session needs you",
+    "Quando uma sessão pede permissão, para esperando você ou dá erro, e o app do iPhone não está aberto. Vai cifrado pelo seu iCloud: nem a Apple lê o que a sessão disse. O Mac e o iPhone precisam estar no mesmo Apple ID.": "When a session asks permission, stops to wait for you or breaks, and the iPhone app isn't open. It goes encrypted through your iCloud: not even Apple reads what the session said. The Mac and the iPhone need the same Apple ID.",
+    "Este build do app não tem o iCloud: as notificações só vão com uma chave própria (abaixo).": "This build of the app has no iCloud: notifications only go with a key of your own (below).",
+    "Chave própria da Apple (avançado)": "Your own Apple key (advanced)",
+    "Para quem compila o app do iPhone com a própria conta de desenvolvedor: o Mac manda direto para a Apple com uma chave APNs dessa conta (developer.apple.com → Keys). Um iPhone com essa chave não usa o iCloud.": "For whoever builds the iPhone app with their own developer account: the Mac sends straight to Apple with that account's APNs key (developer.apple.com → Keys). An iPhone with that key doesn't use iCloud.",
 ]

@@ -8,8 +8,8 @@
 #
 # Signing for a device: FISHBOTS_TEAM=<your team id> (Xcode → Settings → Accounts; a free Apple ID works, the app
 # then lasts 7 days). FISHBOTS_IOS_BUNDLE changes the bundle id (it has to be unique to your team).
-# Notifications (Push.swift on the Mac) need a paid developer account: FISHBOTS_PUSH=1 asks for them on a device (the
-# simulator always has them, to try with xcrun simctl push).
+# Notifications (Push.swift and CloudNotes.swift on the Mac) need a paid developer account: FISHBOTS_PUSH=1 asks for
+# them on a device, through iCloud and Apple's push service (the simulator always has push, to try with xcrun simctl push).
 set -e
 cd "$(dirname "$0")/.."
 OUT=build/ios
@@ -18,6 +18,11 @@ BUNDLE="${FISHBOTS_IOS_BUNDLE:-io.vitalbh.fishbots.ios}"
 TEAM="${FISHBOTS_TEAM:-}"
 PUSH="${FISHBOTS_PUSH:-}"
 [ "$1" = "sim" ] && PUSH=1
+# with notifications on a device they also come through the person's iCloud (iOS/Cloud.swift), in the container
+# shared with the Mac app: no push key needed (FISHBOTS_CLOUD=0 leaves it out; the simulator has no iCloud to try)
+CLOUD=""
+[ "$1" = "device" ] && [ -n "$PUSH" ] && [ "${FISHBOTS_CLOUD:-1}" != 0 ] && CLOUD=1
+CONTAINER="${FISHBOTS_CLOUD_CONTAINER:-iCloud.io.vitalbh.fishbots}"
 
 # the project, from the engine's list: nothing to keep in step by hand
 {
@@ -54,6 +59,7 @@ targets:
         CFBundleURLTypes: [{ CFBundleURLName: fishbots, CFBundleURLSchemes: [fishbots] }]
         FishbotsKeychainGroup: "\$(AppIdentifierPrefix)$BUNDLE.shared"
         FishbotsAPNs: sandbox
+        FishbotsCloud: "${CLOUD:+$CONTAINER}"
 YML
   if [ -n "$PUSH" ]; then
     cat <<YML
@@ -62,6 +68,12 @@ YML
       properties:
         aps-environment: development
         keychain-access-groups: ["\$(AppIdentifierPrefix)$BUNDLE.shared"]
+YML
+    [ -n "$CLOUD" ] && cat <<YML
+        com.apple.developer.icloud-container-identifiers: [$CONTAINER]
+        com.apple.developer.icloud-services: [CloudKit]
+YML
+    cat <<YML
     dependencies:
       - target: FishbotsNotify
 YML
