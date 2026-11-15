@@ -69,19 +69,23 @@ of their own. The app has no AI model in it: the assistant is your own Claude Co
 
 ## Getting started
 
-Requires macOS 15 and Swift 6 (Xcode or the command line tools).
+**Download** [Fishbots.dmg](https://github.com/vitalbh/fishbots/releases/latest/download/Fishbots.dmg) (macOS 15 or
+later, Apple Silicon), open it and drag Fishbots to Applications. The first time it opens, a window connects your
+agents (Claude Code, Codex, Cursor…), and from then on each session you start drops into the tank as a fish. Press
+**D** for a demo with fake sessions. The window comes back from the app menu (**Welcome and agents…**), and so do the
+same buttons in Preferences → General → Agents.
+
+Answering permission requests from the aquarium is a separate switch there: it lets the app approve tools on your
+behalf, so it's never on by default.
+
+**From source** (macOS 15 and Swift 6, from Xcode or the command line tools):
 
 ```sh
 git clone https://github.com/vitalbh/fishbots && cd fishbots
 scripts/app.sh && open build/Fishbots.app      # builds build/Fishbots.app
-scripts/install-hooks.sh claude-code           # or codex, cursor, antigravity, opencode
+scripts/install-hooks.sh claude-code           # or connect from the app; codex, cursor, antigravity, opencode
+scripts/install-hooks.sh claude-code --permission   # optional: answering permissions from the aquarium
 ```
-
-Or connect them from the app: Preferences → General → Agents → **Connect** (the app brings the hooks with it).
-That's it: start a session and its fish drops into the tank. Press **D** for a demo with fake sessions.
-
-To answer permission requests from the aquarium, add the permission hook too (it can approve tools on your behalf,
-so it's never on by default): `scripts/install-hooks.sh claude-code --permission`.
 
 **iPhone and iPad:** the app isn't on the App Store yet, so it's built from here too. With Xcode, an iPhone plugged in
 (Developer Mode on) and your Apple ID in Xcode → Settings → Accounts:
@@ -96,7 +100,8 @@ Then turn on Preferences → General → Other devices on the Mac and scan the Q
 (the app then lasts 7 days); notifications on the phone need a paid developer account. More in
 [docs/remote.md](docs/remote.md).
 
-**Uninstall:** `scripts/uninstall.sh` takes the hooks out of every agent, then asks before deleting the app's data.
+**Uninstall:** Preferences → General → Agents → **Disconnect agents…** before moving the app to the Trash (or
+`scripts/uninstall.sh` from a clone, which also asks before deleting the app's data).
 
 ## Supported agents
 
