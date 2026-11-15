@@ -28,11 +28,21 @@ final class NowPlaying {
     private static let players = [("Spotify", "com.spotify.client"), ("Music", "com.apple.Music")]
 
     /// On by default; Preferências → Geral.
+    /// Off until the person turns it on (the welcome window or Preferences): asking a player what it plays makes macOS
+    /// ask for permission to control it, which on a first launch, unexplained, is odd. Installs from before that
+    /// keep it on (keepForEarlierInstalls).
     static var enabled: Bool {
-        get { UserDefaults.standard.flag("nowPlaying") }
+        get { UserDefaults.standard.flag("nowPlaying", default: false) }
         set { UserDefaults.standard.set(newValue, forKey: "nowPlaying"); if !newValue { shared?.clear() } else { shared?.askOnce() } }
     }
     private static weak var shared: NowPlaying?
+
+    /// It used to be on unless turned off: an install that already has its tank (fish.json) keeps it on.
+    static func keepForEarlierInstalls() {
+        guard UserDefaults.standard.object(forKey: "nowPlaying") == nil else { return }
+        let tank = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Fishbots/fish.json")
+        if FileManager.default.fileExists(atPath: tank.path) { UserDefaults.standard.set(true, forKey: "nowPlaying") }
+    }
 
     init(tank: Tank) {
         self.tank = tank

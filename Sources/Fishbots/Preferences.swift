@@ -433,7 +433,7 @@ private struct ExtrasTab: View {
 /// One agent's command line (AgentCLIs): the binary, extra parameters and variables.
 /// Each coding agent connected to the aquarium or not (AgentHooks.swift): its hooks go into its settings, pointing
 /// at scripts the app keeps in ~/.local/share/fishbots, so whoever installed the app from the DMG needs no clone.
-private struct AgentConnectionRows: View {
+struct AgentConnectionRows: View {
     @SwiftUI.State private var tick = 0
     @SwiftUI.State private var problem: String?
 
