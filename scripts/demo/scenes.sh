@@ -1,7 +1,7 @@
 #!/bin/bash
 # Acts out and records the demo video's scenes, one clip each (picture + the app's own sound), in an isolated
 # instance (its own home, port and made-up sessions): nothing of yours shows up.
-#   scripts/demo/scenes.sh <out dir> [scene…]      scenes: intro tools fry permission sick play themes hours visuals presences visitors widget packs
+#   scripts/demo/scenes.sh <out dir> [scene…]      scenes: orchestra (the README's) intro tools fry permission sick play themes hours visuals presences visitors widget packs
 # Needs Screen Recording permission for the terminal (the recorder). The clips are <out>/<scene>.mp4.
 set -e
 cd "$(dirname "$0")/../.."
@@ -28,6 +28,11 @@ transcript() {
   printf '{"type":"ai-title","aiTitle":"%s"}\n{"type":"assistant","gitBranch":"main","message":{"usage":{"input_tokens":%s,"output_tokens":800}}}\n' "$2" "$3" > "$T/$1.jsonl"
 }
 tool() { hook "$1" "$2" PreToolUse "\"tool_name\":\"$3\""; }
+# hookp <session> <project> <event> <leader session>: a session another one launched (its fish swims in the leader's school)
+hookp() {
+  curl -s -m 2 -H 'Content-Type: application/json' -H "X-Where-Parent: claude-code:$4" -X POST "$U/claude-code" \
+    -d "{\"session_id\":\"$1\",\"cwd\":\"/Users/demo/$2\",\"hook_event_name\":\"$3\",\"transcript_path\":\"$T/$1.jsonl\"}" >/dev/null
+}
 endall() { for s in "$@"; do hook "$s" x SessionEnd; done; }
 
 stop_app() { for p in $(pgrep -x Fishbots); do ps -o command= -p "$p" | grep -q "^.build/release/Fishbots" && kill "$p"; done; nap 1; }
@@ -64,6 +69,35 @@ start_app
 set +e   # a scene that hiccups shouldn't stop the others
 
 for scene in $SCENES; do case $scene in
+
+orchestra)  # the README's: in the deep sea, a session launches three others and leads them; one asks to run something,
+            # it's allowed; a song plays (the betta); a flag of sites and lights of clusters on the glass, one breaks and
+            # comes back; they finish one by one, then the leader
+  do_ "window=1280,860&hour=13&theme=abyss"
+  transcript o0 "Ship checkout v2" 60000
+  transcript o1 "Payments API: retries" 30000; transcript o2 "Checkout screens" 25000; transcript o3 "Migration guide" 20000
+  ev '{"source":"uptime","presence":"sites","kind":"flag","state":"ok","label":"12 sites up"}'
+  for c in prod staging dev; do ev "{\"source\":\"k8s\",\"presence\":\"$c\",\"kind\":\"pilot\",\"state\":\"ok\",\"label\":\"$c\"}"; done
+  hook o0 checkout SessionStart; hook o0 checkout UserPromptSubmit
+  curl -s -m 2 -X POST "$U/test/now-playing?title=Low%20Tide&artist=The%20Driftwoods" >/dev/null
+  nap 5
+  rec orchestra 30
+  nap 1; tool o0 checkout Read; nap 1.5
+  for c in "o1 payments-api" "o2 checkout-web" "o3 docs"; do set -- $c; hookp $1 $2 SessionStart o0; nap 0.4; hookp $1 $2 UserPromptSubmit o0; nap 1.2; done
+  nap 1; tool o1 payments-api Edit; tool o3 docs Read; nap 1
+  ev '{"source":"k8s","presence":"staging","kind":"pilot","state":"error","label":"staging","detail":"2 pods in CrashLoopBackOff"}'
+  nap 1; tool o2 checkout-web Bash; nap 2
+  tool o1 payments-api Bash; tool o3 docs Edit; nap 1.5
+  curl -s -m 30 -H 'Content-Type: application/json' -H "X-Where-Parent: claude-code:o0" -X POST "$U/claude-code/permission" -d "{\"session_id\":\"o2\",\"cwd\":\"/Users/demo/checkout-web\",\"hook_event_name\":\"PermissionRequest\",\"transcript_path\":\"$T/o2.jsonl\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm run e2e\",\"description\":\"Run the end-to-end tests\"}}" >/dev/null &
+  nap 4; do_ "key=%E2%87%A5"; nap 2.5; do_ "key=a"; nap 1.5
+  tool o2 checkout-web Bash; nap 1; hook o3 docs Stop; nap 1
+  ev '{"source":"k8s","presence":"staging","kind":"pilot","state":"ok","label":"staging","detail":"healthy again"}'
+  ev '{"source":"k8s","effect":"fireworks","label":"staging is back"}'
+  nap 1; hook o1 payments-api Stop; nap 1.5; hook o2 checkout-web Stop
+  nap 1.5; hook o0 checkout Stop
+  finish; endall o1 o2 o3 o0
+  for c in prod staging dev; do ev "{\"source\":\"k8s\",\"presence\":\"$c\",\"state\":\"end\"}"; done
+  ev '{"source":"uptime","presence":"sites","state":"end"}'; nap 3 ;;
 
 intro)  # night, a few sessions at work, the music
   do_ "hour=22&theme=classic"

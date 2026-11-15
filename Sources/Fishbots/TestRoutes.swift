@@ -25,6 +25,11 @@ extension AppDelegate {
                 if path.contains("pin=1") { self.cards.pinHoverCardForTest() }
             }
             return (200, Data(#"{"ok":true}"#.utf8))
+        case "/test/now-playing":
+            // the music fish with a made-up track, only in this app (no other app hears it): ?title=…&artist=…[&paused=1]
+            func q(_ k: String) -> String { path.components(separatedBy: k + "=").dropFirst().first?.components(separatedBy: "&").first?.removingPercentEncoding ?? "" }
+            self.nowPlaying?.pretend(title: q("title"), artist: q("artist"), playing: !path.contains("paused=1"))
+            return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/welcome":
             // the first launch's window, to check it without a fresh install
             self.welcome.show()
