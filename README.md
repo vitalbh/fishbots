@@ -1,8 +1,8 @@
 # Fishbots
 
-**Your coding agents, as an aquarium.** Every Claude Code, Codex or Cursor session on your Mac becomes a fish. You see
-at a glance who's working, who finished and who's waiting for you — and you hear it, because the aquarium plays
-each session's state as music. Answer them from the fish, from the notch, or from your iPhone.
+**Your coding agents, as an aquarium.** Every agent session on your Mac becomes a fish. You see at a glance who's
+working, who finished and who's waiting for you — and you hear it, because the aquarium plays each session's state
+as music. Answer them from the fish, from the notch, or from your iPhone.
 
 <p align="center">
   <img src="docs/media/fishbots.webp" width="960" alt="The aquarium with a few sessions working. One asks to run a shell command: its fish comes to the glass, its card opens with Allow and Deny, it's allowed, and it swims back to work.">
@@ -43,8 +43,8 @@ each session's state as music. Answer them from the fish, from the notch, or fro
 </p>
 
 > [!NOTE]
-> Fishbots is free software, made for learning and for fun. It isn't a commercial product and comes with no
-> warranty of any kind: use it at your own risk.
+> Fishbots is free software, made for learning and for fun, and written with the help of AI coding agents. It isn't
+> a commercial product and comes with no warranty of any kind: use it at your own risk.
 
 ## How it works
 
