@@ -1,3 +1,4 @@
+import CloudKit
 import CryptoKit
 import Foundation
 import Security
@@ -36,5 +37,12 @@ enum PushKey {
         var out: CFTypeRef?
         guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data else { return nil }
         return SymmetricKey(data: d)
+    }
+
+    /// A notification's sealed text: a direct push carries it as `fb`, one through iCloud (iOS/Cloud.swift) as a field
+    /// of the note, with when the Mac wrote it.
+    static func sealed(in userInfo: [AnyHashable: Any]) -> String? {
+        if let s = userInfo["fb"] as? String { return s }
+        return (CKNotification(fromRemoteNotificationDictionary: userInfo) as? CKQueryNotification)?.recordFields?["fb"] as? String
     }
 }

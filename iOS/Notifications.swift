@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     /// A button on the notification, or the notification itself.
     func userNotificationCenter(_ c: UNUserNotificationCenter, didReceive r: UNNotificationResponse, withCompletionHandler done: @escaping () -> Void) {
         let link = MacLink.shared
-        guard let sealed = r.notification.request.content.userInfo["fb"] as? String, let key = PushKey.load(),
+        guard let sealed = PushKey.sealed(in: r.notification.request.content.userInfo), let key = PushKey.load(),
               let m = PushSeal.open(sealed, key: key) else { done(); return }
         let fish = m["f"] as? String ?? "", source = m["s"] as? String ?? "", entity = m["e"] as? String ?? ""
         let pid = m["p"] as? Int

@@ -37,6 +37,7 @@ extension AppDelegate {
             remote.assistant = assistant
             Outputs.register(remote)
             remote.registerPush = { [unowned self] d in self.push.register(d) }
+            remote.registerCloud = { [unowned self] d in self.push.cloud.register(d) }
             remote.spawnOptions = { [unowned self] in self.spawnOptions() }
             remote.spawn = { [unowned self] agent, cwd, task, done in self.spawnFromDevice(agent: agent, cwd: cwd, task: task, done: done) }
             Outputs.register(push)
@@ -126,6 +127,12 @@ extension AppDelegate {
             }
             self.remote.revoke(id)
             return (200, self.remote.pairingJSON)
+        case ("POST", "/push/test"):
+            // what "Mandar um teste" does, and how it would go: {"direct": …, "cloud": …, "receiving": n}
+            self.push.test()
+            return (200, (try? JSONSerialization.data(withJSONObject: ["direct": self.push.configured, "cloud": CloudNotes.available,
+                                    "cloudDevices": self.push.cloud.devices.sorted(), "receiving": self.push.receiving,
+                                    "enabled": Push.enabled], options: [.sortedKeys])) ?? Data())
         case ("POST", "/assistant/watch"):
             // the resident assistant asks to be woken when a session stops, to tell the person (`fishbots watch`)
             return self.assistant.watch(body)

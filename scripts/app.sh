@@ -55,12 +55,24 @@ NSAppleEventsUsageDescription = "To take you to a session's terminal when you cl
 NSLocalNetworkUsageDescription = "So your iPhone can watch the aquarium and answer sessions, when you turn on access from other devices.";
 STRINGS
 touch "$APP/Contents/Resources/pt-BR.lproj/InfoPlist.strings"
-# With a "Fishbots Dev" certificate in the Keychain (self-signed, free), the signature stays
-# stable across builds and macOS doesn't ask for the automation permission again. Without it: ad hoc.
-ID="${FISHBOTS_SIGN_ID:-Fishbots Dev}"
-if security find-certificate -c "$ID" >/dev/null 2>&1; then
-  codesign -s "$ID" --force "$APP" >/dev/null && echo "signed with: $ID"
+# With a team (FISHBOTS_TEAM=<id>, remembered in build/signing-team), the app is signed by Apple's development
+# certificate with a provisioning profile, which iCloud asks for: the iPhone's notifications go through it
+# (CloudNotes.swift). The profile comes from a one-file Xcode project built once (build/mac-signing), the way Xcode
+# gets one; it's fetched again when it's a week from expiring.
+TEAM="${FISHBOTS_TEAM:-$(cat build/signing-team 2>/dev/null)}"
+if [ -n "$TEAM" ] && signing=$(scripts/mac-signing.sh "$TEAM"); then
+  echo "$TEAM" > build/signing-team
+  cp build/mac-signing/embedded.provisionprofile "$APP/Contents/embedded.provisionprofile"
+  codesign -s "$signing" --force --entitlements build/mac-signing/Fishbots.entitlements "$APP" >/dev/null && echo "signed for team $TEAM (iCloud on)"
 else
-  codesign -s - --force "$APP" >/dev/null && echo "signed ad hoc (create the \"$ID\" certificate so it doesn't ask for permission on every build)"
+  # With a "Fishbots Dev" certificate in the Keychain (self-signed, free), the signature stays
+  # stable across builds and macOS doesn't ask for the automation permission again. Without it: ad hoc.
+  [ -n "$TEAM" ] && echo "couldn't get a profile for team $TEAM: signing without iCloud"
+  ID="${FISHBOTS_SIGN_ID:-Fishbots Dev}"
+  if security find-certificate -c "$ID" >/dev/null 2>&1; then
+    codesign -s "$ID" --force "$APP" >/dev/null && echo "signed with: $ID"
+  else
+    codesign -s - --force "$APP" >/dev/null && echo "signed ad hoc (create the \"$ID\" certificate so it doesn't ask for permission on every build)"
+  fi
 fi
 echo "done: $APP"

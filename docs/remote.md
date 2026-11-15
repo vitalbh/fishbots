@@ -40,10 +40,14 @@ count: it runs inside that app and gives the Mac no address. Preferences tells y
 
 ## Notifications
 
-When a session asks for something and the app isn't open, the Mac sends a notification straight to Apple's push
-service, with Allow / Deny or a reply field on it. Its text is sealed with the device's key, so Apple only sees that
-"a session needs you". It needs an Apple developer account: Preferences → General → Notifications on the iPhone takes
-the account's push key.
+When a session asks for something and the app isn't open, the phone gets a notification, with Allow / Deny or a
+reply field on it, in under a second. It goes through your own iCloud: the Mac writes a note to the app's private
+database and Apple rings the phone. There's nothing to set up and no server of ours, but the Mac and the iPhone need
+the same Apple ID. Its text is sealed with the device's key, so not even Apple reads what the session said.
+Preferences → General → Notifications on the iPhone turns them off.
+
+If you build the iPhone app with your own developer account, the Mac can also send straight to Apple's push service
+with that account's key (the same section, **Your own Apple key**).
 
 ## Building the app
 
@@ -52,7 +56,12 @@ brew install xcodegen
 scripts/ios.sh sim                                 # the simulator
 FISHBOTS_TEAM=<team id> scripts/ios.sh device      # a plugged-in iPhone
 FISHBOTS_TEAM=<team id> FISHBOTS_PUSH=1 scripts/ios.sh device   # with notifications (paid account)
+FISHBOTS_TEAM=<team id> scripts/app.sh             # the Mac app signed for iCloud, which the notifications need
 ```
+
+The first time a team is used, Apple takes a few minutes to let the apps into the iCloud container ("Invalid bundle ID
+for container"); it sorts itself out. Before the App Store, the container's schema has to be deployed to production in
+the CloudKit Console.
 
 On the phone, deleting the app is enough to remove it: a reinstall starts unpaired.
 

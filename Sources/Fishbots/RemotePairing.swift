@@ -72,29 +72,39 @@ struct RemotePairingSection: View {
         }
     }
 
-    /// Push.swift: the account's APNs key, and which phones get notifications.
+    /// Push.swift: notifications on or off, through iCloud by default, or with a developer account's own APNs key.
     private var notifications: some View {
         Section(tr("Notificações no iPhone")) {
-            Text(tr("Avisam quando uma sessão pede permissão, para esperando você ou dá erro, e o app do iPhone não está aberto. O Mac manda direto para a Apple, cifrado: a Apple não lê o que a sessão disse. Precisa de uma chave APNs da sua conta de desenvolvedor (developer.apple.com → Keys)."))
+            Toggle(tr("Avisar no iPhone quando uma sessão precisa de você"),
+                   isOn: prefs.bind({ Push.enabled }, { UserDefaults.standard.set($0, forKey: "pushEnabled") }))
+            Text(tr("Quando uma sessão pede permissão, para esperando você ou dá erro, e o app do iPhone não está aberto. Vai cifrado pelo seu iCloud: nem a Apple lê o que a sessão disse. O Mac e o iPhone precisam estar no mesmo Apple ID."))
                 .font(.footnote).foregroundStyle(.secondary)
-            TextField(tr("Key ID"), text: prefs.bind({ Push.keyId }, { UserDefaults.standard.set($0.trimmingCharacters(in: .whitespaces), forKey: "pushKeyId") }))
-            TextField(tr("Team ID"), text: prefs.bind({ Push.teamId }, { UserDefaults.standard.set($0.trimmingCharacters(in: .whitespaces), forKey: "pushTeamId") }))
-            HStack {
-                Button(tr("Escolher a chave .p8…")) {
-                    let panel = NSOpenPanel()
-                    panel.allowedContentTypes = [.init(filenameExtension: "p8") ?? .data]
-                    guard panel.runModal() == .OK, let url = panel.url else { return }
-                    do { try Push.setKey(from: url); keyError = nil } catch { keyError = tr("Não é uma chave .p8 válida.") }
-                    prefs.refresh()
-                }
-                Text(FileManager.default.fileExists(atPath: Push.keyFile.path) ? tr("chave guardada") : tr("sem chave"))
-                    .font(.footnote).foregroundStyle(.secondary)
+            if !CloudNotes.available {
+                Text(tr("Este build do app não tem o iCloud: as notificações só vão com uma chave própria (abaixo)."))
+                    .font(.footnote).foregroundStyle(.orange)
             }
-            if let keyError { Text(keyError).font(.footnote).foregroundStyle(.red) }
             HStack {
-                Text(String(format: tr("%d aparelho(s) recebem"), push.devices.count)).font(.footnote).foregroundStyle(.secondary)
+                Text(String(format: tr("%d aparelho(s) recebem"), push.receiving)).font(.footnote).foregroundStyle(.secondary)
                 Spacer()
-                Button(tr("Mandar um teste")) { push.test() }.disabled(!push.configured || push.devices.isEmpty)
+                Button(tr("Mandar um teste")) { push.test() }.disabled(!push.reachable)
+            }
+            DisclosureGroup(tr("Chave própria da Apple (avançado)")) {
+                Text(tr("Para quem compila o app do iPhone com a própria conta de desenvolvedor: o Mac manda direto para a Apple com uma chave APNs dessa conta (developer.apple.com → Keys). Um iPhone com essa chave não usa o iCloud."))
+                    .font(.footnote).foregroundStyle(.secondary)
+                TextField(tr("Key ID"), text: prefs.bind({ Push.keyId }, { UserDefaults.standard.set($0.trimmingCharacters(in: .whitespaces), forKey: "pushKeyId") }))
+                TextField(tr("Team ID"), text: prefs.bind({ Push.teamId }, { UserDefaults.standard.set($0.trimmingCharacters(in: .whitespaces), forKey: "pushTeamId") }))
+                HStack {
+                    Button(tr("Escolher a chave .p8…")) {
+                        let panel = NSOpenPanel()
+                        panel.allowedContentTypes = [.init(filenameExtension: "p8") ?? .data]
+                        guard panel.runModal() == .OK, let url = panel.url else { return }
+                        do { try Push.setKey(from: url); keyError = nil } catch { keyError = tr("Não é uma chave .p8 válida.") }
+                        prefs.refresh()
+                    }
+                    Text(FileManager.default.fileExists(atPath: Push.keyFile.path) ? tr("chave guardada") : tr("sem chave"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                if let keyError { Text(keyError).font(.footnote).foregroundStyle(.red) }
             }
         }
     }
