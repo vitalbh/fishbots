@@ -83,8 +83,18 @@ That's it: start a session and its fish drops into the tank. Press **D** for a d
 To answer permission requests from the aquarium, add the permission hook too (it can approve tools on your behalf,
 so it's never on by default): `scripts/install-hooks.sh claude-code --permission`.
 
-**iPhone:** turn on Preferences → General → Other devices and scan the QR code with the app (`iOS/`,
-see [docs/remote.md](docs/remote.md)).
+**iPhone and iPad:** the app isn't on the App Store yet, so it's built from here too. With Xcode, an iPhone plugged in
+(Developer Mode on) and your Apple ID in Xcode → Settings → Accounts:
+
+```sh
+brew install xcodegen
+FISHBOTS_TEAM=<your team id> FISHBOTS_IOS_BUNDLE=<com.you.fishbots> scripts/ios.sh device
+scripts/ios.sh sim                                 # or the simulator, no account needed
+```
+
+Then turn on Preferences → General → Other devices on the Mac and scan the QR code with the app. A free Apple ID works
+(the app then lasts 7 days); notifications on the phone need a paid developer account. More in
+[docs/remote.md](docs/remote.md).
 
 **Uninstall:** `scripts/uninstall.sh` takes the hooks out of every agent, then asks before deleting the app's data.
 

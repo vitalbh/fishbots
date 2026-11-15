@@ -51,6 +51,11 @@ with that account's key (the same section, **Your own Apple key**).
 
 ## Building the app
 
+The bundle id has to be one of your team's: `FISHBOTS_IOS_BUNDLE=<com.you.fishbots>` (the default belongs to this
+project's account). With a free Apple ID the app lasts 7 days and has no notifications. With a paid account of your
+own, notifications go through your own key (Preferences → **Your own Apple key**) rather than iCloud, whose container
+belongs to this project: build with `FISHBOTS_PUSH=1 FISHBOTS_CLOUD=0`.
+
 ```sh
 brew install xcodegen
 scripts/ios.sh sim                                 # the simulator
