@@ -2,6 +2,11 @@
 
 The agents Fishbots knows out of the box, how a click on a fish finds the session's terminal, and how to connect any other agent.
 
+
+**Connecting:** Preferences → General → Agents lists each agent with **Connect** / **Disconnect** (and, for Claude Code
+and Codex, answering permission requests from the aquarium). The app brings the hooks' scripts inside it and copies
+them to `~/.local/share/fishbots/plugins`, so the DMG needs no clone; from a clone, `scripts/install-hooks.sh <agent>`
+does the same pointing at the clone. Either way each settings file gets a backup next to it.
 ## Claude Code
 
 `plugins/claude-code/hook.sh` forwards the hooks' JSON to `POST /claude-code`, and the aquarium translates:

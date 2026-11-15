@@ -88,6 +88,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Providers.registerBuiltIns()
+        // the hooks' scripts this app installed follow its version (AgentHooks.swift)
+        DispatchQueue.global(qos: .utility).async { AgentHooks.refreshScripts() }
         // a new interface language: menus and notification buttons are rebuilt (labels, cards and the footer follow by themselves)
         L10n.onChange = { [unowned self] in
             self.buildMenu()

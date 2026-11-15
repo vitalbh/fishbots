@@ -21,6 +21,8 @@ done
 [ -f "$HOME/.gemini/config/hooks.json" ] && sh scripts/install-hooks.sh antigravity --remove
 [ -f "$HOME/.gemini/settings.json" ] && sh scripts/install-hooks.sh gemini --remove
 [ -L "$HOME/.config/opencode/plugins/fishbots.js" ] && sh scripts/install-hooks.sh opencode --remove
+# the hooks' scripts the app installed (Preferences → Agents → Connect)
+[ -d "$HOME/.local/share/fishbots" ] && rm -rf "$HOME/.local/share/fishbots" && echo "$HOME/.local/share/fishbots: removed"
 
 DATA="$HOME/Library/Application Support/Fishbots"
 if [ -d "$DATA" ] && ask "Delete its data (paired devices, keys, history, assistant, packs) in $DATA?"; then

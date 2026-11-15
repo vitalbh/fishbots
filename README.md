@@ -77,6 +77,7 @@ scripts/app.sh && open build/Fishbots.app      # builds build/Fishbots.app
 scripts/install-hooks.sh claude-code           # or codex, cursor, antigravity, opencode
 ```
 
+Or connect them from the app: Preferences → General → Agents → **Connect** (the app brings the hooks with it).
 That's it: start a session and its fish drops into the tank. Press **D** for a demo with fake sessions.
 
 To answer permission requests from the aquarium, add the permission hook too (it can approve tools on your behalf,
