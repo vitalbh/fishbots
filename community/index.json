@@ -6,7 +6,7 @@
       "name": "Aquário de mesa",
       "version": "1.0",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "Um aquário pequeno em cima da mesa: cascalho azul com pedrinhas coloridas, castelo e plantas de plástico, um mergulhador de brinquedo soltando bolhas, uma plaquinha de proibido pescar, peixes-dourados, o kinguio olho-bolha, guppies, um cascudo limpando o vidro e, atrás do vidro, o quarto desfocado, de onde um gato vem espiar de vez em quando.",
       "descriptions": {
         "en": "A small tank on a desk: blue gravel with colored pebbles, a plastic castle and plastic plants, a toy diver letting out bubbles, a little no-fishing sign, goldfish, the bubble-eye, guppies, a pleco cleaning the glass and, behind the glass, the room out of focus, where a cat comes to look in now and then."
@@ -34,7 +34,7 @@
       "name": "Constelações",
       "version": "1.0",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "O único tema sem água: um céu noturno onde tudo que nada é feito de estrelas. As sessões são constelações em forma de peixe, de peixe-agulha, de raia e de baleia; chuvas de meteoros passam em cardume, a Via Láctea atravessa o céu, nebulosas, uma lua crescente, cometas e satélites de vez em quando, um berçário de estrelas onde as sessões nascem, um asteroide à deriva que se abre como um geodo e uma estação espacial onde mora o assistente.",
       "descriptions": {
         "en": "The only theme with no water: a night sky where everything that swims is made of stars. Sessions are constellations shaped like a fish, a long fish, a ray and a whale; meteor showers pass in schools, the milky way crosses the sky, nebulae, a crescent moon, comets and satellites now and then, a stellar nursery where sessions are born, an asteroid adrift that opens like a geode and a space station where the assistant lives."
@@ -67,7 +67,7 @@
       "name": "Floresta de kelp",
       "version": "1.1",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "Uma floresta de kelp gigante subindo até a superfície, um deserto de ouriços-roxos onde o kelp foi todo comido, o sheephead que come os ouriços, garibaldis laranja, sardinhas-do-pacífico e uma bola de sardinhas atravessando a floresta, um abalone no lugar do baú, uma lontra boiando de costas e leões-marinhos passando rápido.",
       "descriptions": {
         "en": "A forest of giant kelp rising to the surface, an urchin barren where purple urchins ate the kelp down to nothing, the sheephead that eats them, orange garibaldi, Pacific sardines and a bait ball of them drifting through the forest, an abalone for the chest, a sea otter floating on its back and sea lions darting by."
@@ -98,7 +98,7 @@
       "name": "Fossa abissal",
       "version": "1.3",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "O fundo de uma fossa, onde a luz do dia nunca chega: fumarolas negras com rachaduras em brasa, vermes tubulares, penas-do-mar que acendem em ondas, a carcaça de uma baleia, ctenóforos com arco-íris correndo pelo corpo, um sifonóforo, o polvo-dumbo, peixes-machado, um isópode gigante e o peixe-tripé, parado sobre três raios compridos. Os peixes das sessões viram peixes-lanterna com luzes na cor do projeto.",
       "descriptions": {
         "en": "The bottom of a trench, where daylight never arrives: black smokers with glowing cracks, tube worms, sea pens lighting up in waves, a whale fall, comb jellies with rainbows running down them, a siphonophore, the dumbo octopus, hatchetfish, a giant isopod and the tripod fish, standing still on three long rays. Session fish become lanternfish with lights in the project's color."
@@ -129,7 +129,7 @@
       "name": "Lago japonês",
       "version": "1.9",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões, um dojô que se enterra na areia, uma carpa fantasma que só passa à noite e música zen.",
       "descriptions": {
         "en": "A Japanese pond: koi in four varieties, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp, a weather loach that buries itself in the sand, a ghost koi that only passes at night and zen music."
@@ -169,7 +169,7 @@
       "name": "Mar aberto",
       "version": "1.0",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "O azul sem fundo: fachos de luz descendo da superfície, cardumes de sardinhas, filhotes de tubarão, o dourado-do-mar, atuns passando em bando, um tubarão-baleia ao longe, peixes-voadores saltando, águas-vivas-da-lua e sargaço boiando, com a desova presa nele, e um baú à deriva.",
       "descriptions": {
         "en": "The blue with nothing under it: shafts of light coming down from the surface, schools of sardines, shark pups, the dorado, tuna passing in a pack, a whale shark far away, flying fish leaping, moon jellies and sargassum adrift, with the clutch of eggs hanging in it, and a chest adrift."
@@ -197,7 +197,7 @@
       "name": "Recife de coral",
       "version": "2.8",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "Um recife de coral: peixes-palhaço em três variedades, anêmonas e esponjas, cardumes de anthias e chromis, um par de peixes-borboleta, um peixe-papagaio roendo o coral, um cirurgião-patela de passagem, o paredão de corais ao longe e uma música de maré com marimba.",
       "descriptions": {
         "en": "A coral reef: clownfish in three varieties, anemones and sponges, schools of anthias and chromis, a pair of butterflyfish, a parrotfish nibbling the coral, a blue tang passing by, the reef wall in the distance and a tide-like music with marimba."
@@ -232,7 +232,7 @@
       "name": "Rio Amazonas",
       "version": "1.1",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "A água preta do Rio Negro, cor de chá: a floresta alagada ao fundo, vitórias-régias na superfície, um galho afundado e uma urna marajoara na serrapilheira, acarás-disco, piranhas e tucunarés, cardumes de cardinais, peixes-machado à flor da água, o pirarucu, o boto-cor-de-rosa, a arraia, o cascudo no vidro e o poraquê.",
       "descriptions": {
         "en": "The tea-colored blackwater of the Rio Negro: the flooded forest in the distance, giant water lilies at the surface, a sunken branch and a Marajoara urn on the leaf litter, discus, piranhas and peacock bass, schools of cardinal tetras, marbled hatchetfish under the surface, the arapaima, the pink river dolphin, the stingray, the pleco on the glass and the electric eel."
@@ -263,7 +263,7 @@
       "name": "Ártico",
       "version": "1.8",
       "author": "Fishbots",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "description": "Debaixo do gelo: um teto de gelo rachado deixando a luz passar, paredões de gelo e um iceberg ao longe, cardumes de bacalhau-polar e de capelim, uma foca de passagem, um narval raro, o baú congelado e uma música fria de sinos, com a aurora.",
       "descriptions": {
         "en": "Under the ice: a cracked ice ceiling letting the light through, ice cliffs and an iceberg far away, schools of polar cod and capelin, a seal passing by, a rare narwhal, the frozen chest and a cold music of bells, with the aurora."

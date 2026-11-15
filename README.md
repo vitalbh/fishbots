@@ -152,5 +152,5 @@ The orchestrator needs **Sessions can command other sessions** on (Preferences â
 
 ## License
 
-The code is [MIT](LICENSE). The name "Fishbots" and the app icon are not covered by it: a fork or a redistributed
-build should use a name and icon of its own.
+[Apache 2.0](LICENSE). The license doesn't cover the name "Fishbots" or the app icon (see [NOTICE](NOTICE)): a
+fork or a redistributed build should use a name and icon of its own.

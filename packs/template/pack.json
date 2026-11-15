@@ -4,7 +4,7 @@
   "names": {"en": "My pack"},
   "version": "0.1",
   "author": "Your name",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "description": "O que o seu pacote traz, numa frase.",
   "descriptions": {"en": "What your pack brings, in one sentence."},
   "themes": [

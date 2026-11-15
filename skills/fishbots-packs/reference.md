@@ -11,7 +11,7 @@
   },
   "version": "1.7",
   "author": "Fishbots",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "description": "Um lago japonês: carpas koi em quatro variedades, lanterna de pedra, vitórias-régias com lótus, sapos, girinos, camarões e música zen.",
   "descriptions": {
     "en": "A Japanese pond: koi in four varieties, a stone lantern, lily pads with lotus, frogs, tadpoles, shrimp and zen music."

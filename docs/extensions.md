@@ -3,7 +3,7 @@
 Status: the order of work below is implemented (v0.4). Goal: every part people will want more of (themes, session providers,
 visualizers, fish…) gets a clear seam, so that it can grow from two places without touching the core:
 
-1. **Built-ins** in this repository (MIT): Claude Code, Codex, the current visualizers and the tank as it is.
+1. **Built-ins** in this repository (Apache 2.0): Claude Code, Codex, the current visualizers and the tank as it is.
 2. **Packs**: folders of data (JSON, plus Metal for fish) that anyone can drop in, with no compiling.
 
 ## Two layers
