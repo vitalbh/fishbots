@@ -182,6 +182,7 @@ private struct GeneralTab: View {
                 }
             }
             Section(tr("Agentes")) {
+                AgentConnectionRows()
                 // built in (Swift) and through /agent/<id> (AgentManifests.swift)
                 LabeledContent(tr("Integrados"), value: AgentManifests.builtIn.map(\.name).joined(separator: ", "))
                 let others = AgentManifests.viaRoute
@@ -430,6 +431,45 @@ private struct ExtrasTab: View {
 }
 
 /// One agent's command line (AgentCLIs): the binary, extra parameters and variables.
+/// Each coding agent connected to the aquarium or not (AgentHooks.swift): its hooks go into its settings, pointing
+/// at scripts the app keeps in ~/.local/share/fishbots, so whoever installed the app from the DMG needs no clone.
+struct AgentConnectionRows: View {
+    @SwiftUI.State private var tick = 0
+    @SwiftUI.State private var problem: String?
+
+    var body: some View {
+        let _ = tick
+        ForEach(AgentHooks.agents, id: \.id) { agent in
+            let connected = AgentHooks.isConnected(agent.id), present = AgentHooks.present(agent.id)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(verbatim: agent.name)
+                    Text(connected ? tr("conectado") : present ? tr("não conectado") : tr("não encontrado neste Mac"))
+                        .font(.footnote).foregroundStyle(connected ? .green : .secondary)
+                    Spacer()
+                    if connected {
+                        Button(tr("Desconectar")) { AgentHooks.disconnect(agent.id); tick += 1 }
+                    } else {
+                        Button(tr("Conectar")) { problem = AgentHooks.connect(agent.id); tick += 1 }
+                    }
+                }
+                if connected && agent.permissions {
+                    Toggle(tr("Responder pedidos de permissão pelo aquário"), isOn: Binding(
+                        get: { AgentHooks.answersPermissions(agent.id) },
+                        set: { on in
+                            if on { problem = AgentHooks.connect(agent.id, permissions: true) } else { AgentHooks.stopAnsweringPermissions(agent.id) }
+                            tick += 1
+                        }))
+                    .font(.footnote)
+                }
+            }
+        }
+        if let problem { Text(problem).font(.footnote).foregroundStyle(.orange) }
+        Text(tr("Conectar põe os hooks do aquário nas configurações do agente (com um backup ao lado); as sessões novas aparecem como peixes. Responder permissões deixa você aprovar ferramentas pelo aquário, pelo iPhone ou pela notificação: quem tem o app pode aprovar comandos no seu Mac. Reinicie as sessões abertas."))
+            .font(.footnote).foregroundStyle(.secondary)
+    }
+}
+
 /// Takes Fishbots' hooks out of every agent (AgentHooks.swift): for leaving the aquarium, before deleting the app.
 private struct DisconnectAgentsRow: View {
     @SwiftUI.State private var files = AgentHooks.connected()
@@ -453,7 +493,7 @@ private struct DisconnectAgentsRow: View {
                  + "\n\n" + tr("Os agentes param de mandar eventos para o aquário. Cada arquivo ganha um backup ao lado (.bak-fishbots-…). Reinicie os agentes abertos."))
         }
         ForEach(report, id: \.self) { Text($0).font(.footnote).foregroundStyle(.secondary) }
-        Text(tr("Antes de apagar o app: sem isso, os hooks continuam chamando um script que não existe mais. Para voltar, scripts/install-hooks.sh."))
+        Text(tr("Antes de apagar o app: sem isso, os hooks continuam chamando um script que não existe mais."))
             .font(.footnote).foregroundStyle(.secondary)
     }
 }

@@ -25,6 +25,10 @@ extension AppDelegate {
                 if path.contains("pin=1") { self.cards.pinHoverCardForTest() }
             }
             return (200, Data(#"{"ok":true}"#.utf8))
+        case "/test/welcome":
+            // the first launch's window, to check it without a fresh install
+            self.welcome.show()
+            return (200, Data(#"{"ok":true}"#.utf8))
         case "/test/preferences":
             // to check the preferences window without clicking: ?tab=0…3
             let tab = path.components(separatedBy: "tab=").dropFirst().first.flatMap { Int($0.prefix(1)) }

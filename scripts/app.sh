@@ -7,7 +7,10 @@ APP="build/Fishbots.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Fishbots "$APP/Contents/MacOS/Fishbots"
-cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"   # regenerate with: swift scripts/make-icon.swift
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# the agents' hooks travel inside the app: Preferences → Agents → Connect installs them (AgentHooks.swift)
+mkdir -p "$APP/Contents/Resources/plugins"
+for d in common claude-code codex cursor antigravity gemini opencode; do cp -R "plugins/$d" "$APP/Contents/Resources/plugins/"; done   # regenerate with: swift scripts/make-icon.swift
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

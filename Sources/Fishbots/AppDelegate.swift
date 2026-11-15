@@ -88,6 +88,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Providers.registerBuiltIns()
+        // the hooks' scripts this app installed follow its version (AgentHooks.swift)
+        DispatchQueue.global(qos: .utility).async { AgentHooks.refreshScripts() }
+        // the first time, with no agent connected: the welcome window, once the tank is up
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self, self.welcome.due, Env.value("DEMO") == nil else { return }
+            self.welcome.show()
+        }
         // a new interface language: menus and notification buttons are rebuilt (labels, cards and the footer follow by themselves)
         L10n.onChange = { [unowned self] in
             self.buildMenu()
@@ -360,6 +367,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         startServer()
         rememberSessions()
         plugins = Plugins(tank: tank)
+        NowPlaying.keepForEarlierInstalls()
         nowPlaying = NowPlaying(tank: tank)
         nowPlaying?.ears.visual = visual
         setupStatusItem()
@@ -887,6 +895,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         push: { [unowned self] in self.push }))
 
     @objc func showPreferences() { preferences.show() }
+
+    /// The first launch's window (Welcome.swift): connecting the agents, the iPhone, a demo.
+    private(set) lazy var welcome: WelcomeWindow = {
+        let w = WelcomeWindow()
+        w.showPairing = { [unowned self] in self.preferences.show(tab: 0) }
+        w.showDemo = { [unowned self] in if !self.demo.on { self.demo.toggle() } }
+        return w
+    }()
+    @objc func showWelcome() { welcome.show() }
 
     @objc func toggleDemo() { demo.toggle() }
     @objc func toggleMute() { synth.muted.store(!synth.muted.load(ordering: .relaxed), ordering: .relaxed) }

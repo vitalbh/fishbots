@@ -312,6 +312,7 @@ extension AppDelegate {
         }
 
         add(appMenu, "Preferências…", #selector(showPreferences), ",")
+        add(appMenu, "Boas-vindas e agentes…", #selector(showWelcome))
         appMenu.addItem(.separator())
         add(appMenu, "Abrir no login", #selector(toggleLogin))
         add(appMenu, "Só na barra de menus", #selector(toggleMenuBarOnly))
