@@ -4,7 +4,9 @@
 at a glance who's working, who finished and who's waiting for you — and you hear it, because the aquarium plays
 each session's state as music. Answer them from the fish, from the notch, or from your iPhone.
 
-<!-- GIF (docs/media/fishbots.gif): the tank with 4–5 sessions → one comes to the glass waiting → its card opens → Allow → it swims back to work -->
+<p align="center">
+  <img src="docs/media/fishbots.webp" width="960" alt="The aquarium with a few sessions working. One asks to run a shell command: its fish comes to the glass, its card opens with Allow and Deny, it's allowed, and it swims back to work.">
+</p>
 
 ## What it does
 
@@ -29,6 +31,20 @@ each session's state as music. Answer them from the fish, from the notch, or fro
   becomes a fish or a creature in the tank.
 - **Make it yours.** Themes (a reef, the deep sea, a lagoon, a koi pond), packs that add fish, scenery and music
   styles without compiling anything, and a screen saver with your real sessions in it.
+
+<p align="center">
+  <img src="docs/media/notch.webp" width="720" alt="The aquarium in the Mac's notch, opened: the sessions swimming, and the one waiting for an answer named on the right.">
+</p>
+<p align="center">
+  <img src="docs/media/devices.webp" width="880" alt="The same tank on an iPad and an iPhone, each showing a permission request with Deny and Allow.">
+</p>
+<p align="center">
+  <img src="docs/media/themes.webp" width="960" alt="Six themes: a coral reef, a kelp forest, a night sky of constellations, a koi pond, a tank on a desk and the deep trench.">
+</p>
+
+> [!NOTE]
+> Fishbots is free software, made for learning and for fun. It isn't a commercial product and comes with no
+> warranty of any kind: use it at your own risk.
 
 ## How it works
 
