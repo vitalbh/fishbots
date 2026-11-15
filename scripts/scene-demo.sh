@@ -3,7 +3,7 @@
 #   scripts/scene-demo.sh            everything
 #   scripts/scene-demo.sh effects    only the effects
 cd "$(dirname "$0")/.."
-U="http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}/event"
+U="http://127.0.0.1:${FISHBOTS_PORT:-7777}/event"
 post() { curl -s -m 2 -H 'Expect:' -H 'Content-Type: application/json' -X POST "$U" -d "$1" >/dev/null; }
 say() { echo "▸ $1"; }
 nap() { perl -e "select(undef,undef,undef,$1)"; }

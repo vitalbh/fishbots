@@ -52,7 +52,7 @@ final class Tank {
     /// Pearls of the day, on the sand.
     let pearls = Pearls()
     /// For testing: FISHBOTS_FAST=1 shortens the timings (sleeping, fogged glass, lingering error).
-    static let scale: Double = Env.value("FAST") == "1" || ProcessInfo.processInfo.environment["AQUARIO_RAPIDO"] == "1" ? 0.04 : 1
+    static let scale: Double = Env.value("FAST") == "1" ? 0.04 : 1
     /// Mail seahorses (MCP tools): bring a little letter in the server's color.
     struct Mail {
         var pos: SIMD2<Float>

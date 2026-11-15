@@ -13,23 +13,8 @@ import Foundation
 ///   {"source":"x","presence":"id","kind":"shark","state":"error","label":"prod","detail":"…"}   presence (docs/scene.md)
 ///   {"source":"x","summon":"turtle"}                                  a passing creature comes by now ("all": all of them)
 ///
-/// Accepts one object or a list of objects. The original Portuguese field names and states
-/// ("fonte", "entidade", "estado", "ocupado", "fim"…) are still accepted, since installed hooks and plugins send them.
+/// Accepts one object or a list of objects.
 enum TankProtocol {
-    /// Legacy (Portuguese) field names → current ones.
-    static let legacyFields: [String: String] = [
-        "fonte": "source", "entidade": "entity", "estado": "state", "rotulo": "label", "evento": "event",
-        "medidor": "gauge", "valor": "value", "ferramenta": "tool", "detalhe": "detail", "onde": "where", "festa": "party",
-    ]
-
-    /// Copies legacy keys to their current names (the current name wins when both are present).
-    static func normalized(_ m: [String: Any]) -> [String: Any] {
-        var out = m
-        for (old, new) in legacyFields where out[new] == nil {
-            if let v = m[old] { out[new] = v }
-        }
-        return out
-    }
 
     static func apply(_ body: Data, at tank: Tank) -> (Int, Data) {
         guard let json = try? JSONSerialization.jsonObject(with: body) else {
@@ -42,7 +27,7 @@ enum TankProtocol {
 
         var errors: [String] = []
         for m in items {
-            if let e = applyOne(normalized(m), tank) { errors.append(e) }
+            if let e = applyOne(m, tank) { errors.append(e) }
         }
         if errors.isEmpty { return (200, Data(#"{"ok":true}"#.utf8)) }
         let resp = (try? JSONSerialization.data(withJSONObject: ["ok": false, "errors": errors])) ?? Data()
@@ -308,9 +293,10 @@ enum ClaudeCodeHook {
         }
         if let f = tank.fish(source: source, entity: session) {
             var o: [String: String] = [:]
-            // X-Where-* headers (the legacy X-Onde-* still work)
+            // X-Where-* headers
             for (k, v) in headers {
-                guard let prefix = ["x-where-", "x-onde-"].first(where: k.hasPrefix) else { continue }
+                let prefix = "x-where-"
+                guard k.hasPrefix(prefix) else { continue }
                 o[String(k.dropFirst(prefix.count)).replacingOccurrences(of: "-", with: "_")] = String(v.prefix(300))
             }
             if !cwd.isEmpty { o["cwd"] = cwd }

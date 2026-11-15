@@ -136,7 +136,7 @@ final class Plugins {
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:\(NSHomeDirectory())/.local/bin:" + (env["PATH"] ?? "/usr/bin:/bin")
         let port = Env.value("PORT") ?? "7777"
-        env["FISHBOTS_PORT"] = port; env["AQUARIO_PORT"] = port   // the old name too, for older plugins
+        env["FISHBOTS_PORT"] = port
         p.environment = env
         return p
     }
@@ -268,8 +268,7 @@ final class Plugins {
                 let text = String(decoding: l, as: UTF8.self)
                 rejected.append(tr("linha %d: %@", n + 1, why) + " · " + String(text.prefix(160)))
             }
-            if let raw = (try? JSONSerialization.jsonObject(with: l)) as? [String: Any],
-               case let m = TankProtocol.normalized(raw),
+            if let m = (try? JSONSerialization.jsonObject(with: l)) as? [String: Any],
                let f = m["source"] as? String, !State.isEnd(m["state"] as? String ?? "") {
                 if let e = m["entity"] as? String { seen.insert("\(f)\t\(e)") }
                 if let p = m["presence"] as? String { seen.insert("@presence\t\(f)\t\(p)") }

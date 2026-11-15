@@ -6,20 +6,14 @@ import simd
 enum State: String, CaseIterable {
     case born, busy, idle, waiting, ok, alert, error, done
 
-    /// The original Portuguese names, still accepted on the wire and in saved settings.
-    static let legacy: [String: State] = [
-        "nasceu": .born, "ocupado": .busy, "ocioso": .idle, "esperando": .waiting,
-        "alerta": .alert, "erro": .error, "terminou": .done,
-    ]
-
-    /// Parses a state from the protocol: the current name or the legacy one.
+    /// Parses a state from the protocol.
     init?(wire s: String) {
-        guard let v = State(rawValue: s) ?? State.legacy[s] else { return nil }
+        guard let v = State(rawValue: s) else { return nil }
         self = v
     }
 
-    /// "end" (or the legacy "fim") takes the entity out of the tank.
-    static func isEnd(_ s: String) -> Bool { s == "end" || s == "fim" }
+    /// "end" takes the entity out of the tank.
+    static func isEnd(_ s: String) -> Bool { s == "end" }
 
     var label: String {
         switch self {

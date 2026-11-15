@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 SRC=Sources/Fishbots
 # the engine (scripts/engine-files.txt), the same files the iPhone app builds
 ENGINE=$(grep -v "^#" scripts/engine-files.txt | sed "s#^#$SRC/#" | tr "\n" " ")
-OUT="build/Fishbots.saver"   # keep the file name ASCII (the settings pane got lost with "Aquário.saver"); the name in the list is CFBundleName
+OUT="build/Fishbots.saver"   # keep the file name ASCII (the settings pane gets lost otherwise); the name in the list is CFBundleName
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 swiftc -O -swift-version 5 -module-name FishbotsSaver -emit-library -Xlinker -bundle \
@@ -34,9 +34,9 @@ ID="${FISHBOTS_SIGN_ID:-Fishbots Dev}"
 if security find-certificate -c "$ID" >/dev/null 2>&1; then codesign -s "$ID" --force "$OUT" >/dev/null
 else codesign -s - --force "$OUT" >/dev/null; fi
 echo "done: $OUT"
-if [ "$1" = "install" ] || [ "$1" = "instalar" ]; then
+if [ "$1" = "install" ]; then
   mkdir -p "$HOME/Library/Screen Savers"
-  rm -rf "$HOME/Library/Screen Savers/Aquário.saver" "$HOME/Library/Screen Savers/Aquario.saver" "$HOME/Library/Screen Savers/Fishbots.saver"
+  rm -rf "$HOME/Library/Screen Savers/Fishbots.saver"
   cp -R "$OUT" "$HOME/Library/Screen Savers/"
   # the screen saver process keeps the old version in memory: kill it so it reloads
   killall legacyScreenSaver 2>/dev/null || true

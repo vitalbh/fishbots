@@ -50,12 +50,12 @@
 #
 #   fishbots skill install                   teach your coding agent to make packs, connect agents and run other
 #                                            sessions (~/.claude/skills)
-URL="http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}"
+URL="http://127.0.0.1:${FISHBOTS_PORT:-7777}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 PACKS="$HOME/Library/Application Support/Fishbots/packs"
 AGENTS="$HOME/Library/Application Support/Fishbots/agents"
 # the token for the control routes that the app writes each time it opens (one of its own for another port)
-port="${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}"
+port="${FISHBOTS_PORT:-7777}"
 TOKEN_FILE="$HOME/Library/Application Support/Fishbots/control.token"
 [ "$port" = 7777 ] || TOKEN_FILE="$HOME/Library/Application Support/Fishbots/control-$port.token"
 
@@ -268,10 +268,6 @@ await() {
 }
 
 cmd="$1"; [ $# -gt 0 ] && shift
-# the original Portuguese commands still work
-case "$cmd" in
-  estado) cmd=state ;; ferramenta) cmd=tool ;; evento) cmd=event ;; medidor) cmd=gauge ;; ver) cmd=show ;;
-esac
 case "$cmd" in
   state) [ $# -ge 3 ] || { echo "usage: fishbots state <source> <entity> <state> [label]" >&2; exit 2; }
          post "{\"source\":\"$(esc "$1")\",\"entity\":\"$(esc "$2")\",\"state\":\"$(esc "$3")\",\"label\":\"$(esc "${4:-}")\"}" ;;

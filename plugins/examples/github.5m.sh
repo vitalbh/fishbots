@@ -6,7 +6,7 @@
 #  - a merged PR (last 30 min) leaves the tank celebrating
 # Uses the already authenticated gh. Account: FISHBOTS_GH_USER (default: the active gh account).
 PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-GH_USER="${FISHBOTS_GH_USER:-$AQUARIO_GH_USER}"
+GH_USER="${FISHBOTS_GH_USER:-}"
 [ -n "$GH_USER" ] && export GH_TOKEN="$(gh auth token -u "$GH_USER" 2>/dev/null)"
 
 gh api graphql -f query='

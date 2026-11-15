@@ -83,8 +83,7 @@ enum Providers {
         for p in all.values {
             for r in p.routes {
                 if path == r { return (p, false) }
-                // "/permissao" is the route's old (Portuguese) name
-                if p.handlesPermissions, path == r + "/permission" || path == r + "/permissao" { return (p, true) }
+                if p.handlesPermissions, path == r + "/permission" { return (p, true) }
             }
         }
         // /agent/<id>: an agent without Swift, with or without a manifest

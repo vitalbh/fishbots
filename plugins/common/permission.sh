@@ -8,7 +8,7 @@ route="$1"; [ -n "$route" ] || exit 0
 input=$(cat)
 resp=$(printf '%s' "$input" | curl -s -m 290 -H 'Expect:' -H 'Content-Type: application/json' \
   -H "X-Where-Term: ${TERM_PROGRAM:-}" -H "X-Where-Rex-Session: ${REX_SESSION:-}" -H "X-Where-Rex-Block: ${REX_BLOCK:-}" \
-  --data-binary @- "http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}/$route/permission" 2>/dev/null)
+  --data-binary @- "http://127.0.0.1:${FISHBOTS_PORT:-7777}/$route/permission" 2>/dev/null)
 case "$resp" in
   *'"behavior"'*) printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":%s}}' "$resp" ;;
 esac

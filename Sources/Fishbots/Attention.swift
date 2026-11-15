@@ -55,12 +55,11 @@ enum Attention {
     }
 
     /// Reads config.json, if it exists. Format: {"attention": {"claude-code:waiting": "urgent", "github:*": "ambient"}}
-    /// (the Portuguese format of older versions, {"atencao": {"claude-code:esperando": "urgente"}}, still works).
     /// The same file holds the webhooks and the fish menu actions (see Outputs.swift).
     static func reload() {
         let obj = (try? Data(contentsOf: configURL)).flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } ?? [:]
-        let at = (obj["attention"] ?? obj["atencao"]) as? [String: String] ?? [:]
-        fromFile = Migration.attentionRules(at).compactMapValues(Level.init(rawValue:))
+        let at = obj["attention"] as? [String: String] ?? [:]
+        fromFile = at.compactMapValues(Level.init(rawValue:))
         Outputs.reload(obj)
         FishActions.reload(obj)
         TerminalPrograms.reload(obj)

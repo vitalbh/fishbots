@@ -4,7 +4,7 @@
 // the session runs (the X-Where-* headers plugins/common/hook.sh sends). Never blocks or fails the session.
 // Written from opencode's plugin docs (the function-export plugin API); not yet tried on a real session.
 
-const port = process.env.FISHBOTS_PORT || process.env.AQUARIO_PORT || "7777"
+const port = process.env.FISHBOTS_PORT || "7777"
 const endpoint = `http://127.0.0.1:${port}/agent/opencode`   // an agent without Swift: see AgentManifests.swift
 
 // where the session runs: opencode runs in the terminal, so it has the terminal's variables

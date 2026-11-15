@@ -623,11 +623,10 @@ enum Whereabouts {
     esac
     """#
 
-    /// goto.sh in the Fishbots folder (or ir.sh, its old name).
+    /// goto.sh in the Fishbots folder.
     static var userScript: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Fishbots")
-        let legacy = dir.appendingPathComponent("ir.sh")
-        return FileManager.default.isReadableFile(atPath: legacy.path) ? legacy : dir.appendingPathComponent("goto.sh")
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Fishbots").appendingPathComponent("goto.sh")
     }
 
     private static func runScript(_ o: [String: String]) {

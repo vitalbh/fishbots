@@ -8,9 +8,7 @@ final class Gauges {
     private var sentAt: [String: Double] = [:]
     static let lifetime: Double = 3600
 
-    /// Gauge names from older plugins, in Portuguese.
-    private static let legacy = ["disco": "disk", "bateria": "battery", "carregando": "charging"]
-    private static func key(_ source: String, _ name: String) -> String { "\(source):\(legacy[name] ?? name)" }
+    private static func key(_ source: String, _ name: String) -> String { "\(source):\(name)" }
 
     subscript(key: String) -> Float? { values[key] }
 

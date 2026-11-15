@@ -2,7 +2,7 @@
 # Acts out the aquarium mechanics, one at a time, with test fish. Best with the app in fast mode:
 #   open --env FISHBOTS_FAST=1 build/Fishbots.app && scripts/tour.sh
 cd "$(dirname "$0")/.."
-A=bin/fishbots; U="http://127.0.0.1:${FISHBOTS_PORT:-${AQUARIO_PORT:-7777}}/event"
+A=bin/fishbots; U="http://127.0.0.1:${FISHBOTS_PORT:-7777}/event"
 post() { curl -s -m 2 -H 'Expect:' -X POST "$U" -d "$1" >/dev/null; }
 hook() { printf '%s' "$1" | env -u REX_BLOCK -u REX_SESSION plugins/claude-code/hook.sh; }
 say() { echo "▸ $1"; }

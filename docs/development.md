@@ -2,7 +2,7 @@
 
 Built in Swift, with Metal (water, light and fish drawn in the shader) and a custom synthesizer on AVAudioEngine.
 
-The code, protocol, CLI, scripts and file names are in English. The interface is in Portuguese or English (Preferências → Geral → Idioma; automatic follows the Mac's language); menu items and labels below are quoted in Portuguese, with a short gloss. Fishbots was called Aquário before; its old settings, folders and `AQUARIO_*` env vars are picked up automatically. The old Portuguese names (protocol fields and states, routes, headers, CLI commands, script arguments, env vars, `config.json` keys, `ir.sh`) are still accepted.
+The code, protocol, CLI, scripts and file names are in English. The interface is in Portuguese or English (Preferências → Geral → Idioma; automatic follows the Mac's language); menu items and labels below are quoted in Portuguese, with a short gloss.
 
 ## Building and running
 
