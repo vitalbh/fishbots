@@ -16,17 +16,32 @@ PROFILE="${FISHBOTS_NOTARY_PROFILE:-fishbots}"
 scripts/app.sh >/dev/null
 scripts/saver.sh >/dev/null
 .build/release/Fishbots --check-shaders
+# signed in a copy: build/Fishbots.app stays the everyday one (development signing)
+rm -rf build/dist && mkdir -p build/dist
+ditto build/Fishbots.app build/dist/Fishbots.app
+ditto build/Fishbots.saver build/dist/Fishbots.saver
 
 sign() { codesign --force --timestamp --options runtime -s "$ID" "$@"; }
-sign --entitlements Resources/Fishbots.entitlements build/Fishbots.app
-sign build/Fishbots.saver
-codesign --verify --strict --deep build/Fishbots.app build/Fishbots.saver
+# with a team (FISHBOTS_TEAM, or the one app.sh remembers): iCloud on its production side, which the phones from the
+# App Store and TestFlight use for their notifications (CloudNotes.swift), through a Developer ID profile
+TEAM="${FISHBOTS_TEAM:-$(cat build/signing-team 2>/dev/null)}"
+if [ -n "$TEAM" ] && scripts/mac-signing.sh "$TEAM" release >/dev/null; then
+  cp build/mac-signing/release/embedded.provisionprofile build/dist/Fishbots.app/Contents/embedded.provisionprofile
+  sign --entitlements build/mac-signing/release/Fishbots.entitlements build/dist/Fishbots.app
+  echo "iCloud: production"
+else
+  rm -f build/dist/Fishbots.app/Contents/embedded.provisionprofile
+  sign --entitlements Resources/Fishbots.entitlements build/dist/Fishbots.app
+  echo "iCloud: off (no team)"
+fi
+sign build/dist/Fishbots.saver
+codesign --verify --strict --deep build/dist/Fishbots.app build/dist/Fishbots.saver
 echo "signed with: $ID"
 
 STAGE=build/dmg DMG=build/Fishbots.dmg
 rm -rf "$STAGE" "$DMG"
 mkdir -p "$STAGE"
-cp -R build/Fishbots.app build/Fishbots.saver "$STAGE/"
+cp -R build/dist/Fishbots.app build/dist/Fishbots.saver "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -quiet -volname Fishbots -srcfolder "$STAGE" -format UDZO "$DMG"
 rm -rf "$STAGE"

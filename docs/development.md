@@ -27,6 +27,14 @@ certificate and a provisioning profile with the iCloud container, which the iPho
 id once, and again when it's a week from expiring. Without a team the app is signed as before ("Fishbots Dev" or ad
 hoc) and has no iCloud. Changing how it's signed makes macOS ask for its permissions again, once.
 
+`scripts/release.sh` builds the DMG to hand out from a copy in `build/dist` (the everyday app stays as it is): Developer
+ID, hardened runtime, notarized. With a team it embeds a Developer ID profile with iCloud on its **production** side
+(`scripts/mac-signing.sh <team> release`, which exports a one-file archive for Developer ID to get it), the side the
+App Store and TestFlight phones use. A development build and a production build don't see each other's notes, so try
+the DMG with a phone from TestFlight. Once: a "Developer ID Application" certificate (created by the account holder;
+Xcode may refuse with "only the Account Holder", the website doesn't), and `xcrun notarytool store-credentials
+fishbots`. Before the first release, deploy the CloudKit schema to production in the CloudKit Console.
+
 ## Uninstalling
 
 **Uninstalling:** the agents' hooks point at this clone, so take them out before deleting it, or every session keeps calling a script that isn't there: `scripts/uninstall.sh` removes them from every agent (each settings file keeps a backup next to it), then asks before deleting the data in `~/Library/Application Support/Fishbots`, the screen saver and the app. One agent alone: `scripts/install-hooks.sh <agent> --remove`. Without a terminal, Preferences → General → Agents → **Disconnect agents…** removes the hooks. On the iPhone, deleting the app is enough: a reinstall starts unpaired (the Keychain outlives the app, so the app forgets the old pairing itself), and revoking the device on the Mac (Preferences → General → Other devices) shuts it out from that side.
