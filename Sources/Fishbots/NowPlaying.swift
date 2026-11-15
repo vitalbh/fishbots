@@ -69,8 +69,16 @@ final class NowPlaying {
     }
 
     /// From a player's announcement: "Player State" (Playing / Paused / Stopped), "Name", "Artist" and, on Spotify, "Track ID".
+    /// A track as if a player had announced it (TestRoutes: the demo recordings), without telling any other app.
+    /// It shows even with the music fish off, so a demo can have it without this app asking any real player.
+    func pretend(title: String, artist: String, playing: Bool = true) {
+        pretending = true
+        heard("Music", ["Player State": playing ? "Playing" : "Paused", "Name": title, "Artist": artist])
+    }
+    private var pretending = false
+
     private func heard(_ player: String, _ info: [AnyHashable: Any]?) {
-        guard Self.enabled, let info else { return }
+        guard Self.enabled || pretending, let info else { return }
         let state = (info["Player State"] as? String ?? "").lowercased()
         if state == "playing" || state == "paused" { syncClock(player, running: state == "playing") }
         switch state {
@@ -176,6 +184,9 @@ final class NowPlaying {
             c.at = CACurrentMediaTime(); c.running = running
             clock = c
         }
+        // only a player that's open: "tell application" would open a closed one
+        guard let id = Self.players.first(where: { $0.0 == player })?.1,
+              !NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty else { return }
         let script = player == "Spotify"
             ? "tell application \"Spotify\" to return (((player position * 1000) as integer) as string) & tab & ((duration of current track) as string)"
             : "tell application \"Music\" to return (((player position * 1000) as integer) as string) & tab & ((((duration of current track) * 1000) as integer) as string)"

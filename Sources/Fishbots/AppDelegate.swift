@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     /// The presence (docs/scene.md) under the mouse.
     private(set) var hoverPresence: String?
     private(set) var plugins: Plugins?
-    private var nowPlaying: NowPlaying?
+    private(set) var nowPlaying: NowPlaying?
     let menuPlugins = NSMenu(title: "Plugins")
     var statusItem: NSStatusItem!
     let statusMenu = NSMenu()

@@ -5,7 +5,7 @@ working, who finished and who's waiting for you — and you hear it, because the
 as music. Answer them from the fish, from the notch, or from your iPhone.
 
 <p align="center">
-  <img src="docs/media/fishbots.webp" width="960" alt="The aquarium with a few sessions working. One asks to run a shell command: its fish comes to the glass, its card opens with Allow and Deny, it's allowed, and it swims back to work.">
+  <img src="docs/media/fishbots.webp" width="960" alt="The deep-sea aquarium. A session, drawn as a nautilus, launches three others that swim behind it tied by threads of light. One asks to run the end-to-end tests: its card opens with Allow and Deny and it's allowed. A betta dances to the song that's playing, a flag on the sand says 12 sites up, a cluster light on the glass turns red and comes back with fireworks, and the sessions finish one by one.">
 </p>
 
 ## What it does
