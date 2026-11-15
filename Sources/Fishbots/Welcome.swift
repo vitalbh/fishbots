@@ -32,6 +32,8 @@ final class WelcomeWindow {
             w.appearance = NSAppearance(named: .darkAqua)
             w.backgroundColor = Self.backdrop
             w.isReleasedWhenClosed = false
+            // above the tank, which may float over every window (Flutuar sobre as janelas)
+            w.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
             w.setContentSize(host.view.fittingSize)
             w.center()
             window = w
